@@ -4,11 +4,7 @@ function App() {
   
   return (
     <>
-      <section id="center">
-       <div>
-
-       </div>
-      </section>
+       
     </>
   )
 }
