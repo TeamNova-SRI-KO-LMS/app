@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 
 import AuthContext from './authContext';
+import apiService from '../services/apiService';
 
 const USERS_KEY = 'auth-users';
 const SESSION_KEY = 'auth-session';
@@ -55,6 +56,21 @@ const clearSession = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('adminToken');
   localStorage.removeItem('adminUser');
+};
+
+const extractAuthPayload = (responseData) => {
+  if (!responseData || typeof responseData !== 'object') {
+    throw new Error('Invalid authentication response');
+  }
+
+  const token = responseData.token ?? responseData.data?.token ?? null;
+  const user = responseData.user ?? responseData.data?.user ?? null;
+
+  if (!token || !user) {
+    throw new Error('Authentication response is missing token or user');
+  }
+
+  return { token, user };
 };
 
 const buildToken = (email) => `local-${btoa(email)}-${Date.now()}`;
@@ -127,6 +143,7 @@ const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const session = getStoredSession();
+    const token = isBrowser ? localStorage.getItem('token') : null;
 
     if (session.token && session.user) {
       dispatch({
@@ -139,6 +156,34 @@ const AuthProvider = ({ children }) => {
       return;
     }
 
+    // Keep a backend-ready path when only token is present (for example after storage migrations).
+    if (token) {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      apiService.getCurrentUser()
+        .then((responseData) => {
+          const user = responseData?.user ?? responseData?.data?.user ?? responseData?.data ?? null;
+
+          if (user) {
+            const nextSession = { token, user };
+            persistSession(nextSession);
+            dispatch({
+              type: 'LOGIN_SUCCESS',
+              payload: nextSession,
+            });
+            return;
+          }
+
+          clearSession();
+          dispatch({ type: 'SET_LOADING', payload: false });
+        })
+        .catch(() => {
+          clearSession();
+          dispatch({ type: 'SET_LOADING', payload: false });
+        });
+      return;
+    }
+
     dispatch({ type: 'SET_LOADING', payload: false });
   }, []);
 
@@ -146,6 +191,25 @@ const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_START' });
 
     try {
+      try {
+        const responseData = await apiService.login({ email, password });
+        const { token, user } = extractAuthPayload(responseData);
+
+        persistSession({ token, user });
+
+        dispatch({
+          type: 'LOGIN_SUCCESS',
+          payload: {
+            user,
+            token,
+          },
+        });
+
+        return { success: true, user, token };
+      } catch {
+        // Fallback keeps auth usable without a live backend during setup.
+      }
+
       const users = getStoredUsers();
       const matchedUser = users.find(
         (user) => user.email.toLowerCase() === email.toLowerCase() && user.password === password
@@ -192,6 +256,30 @@ const AuthProvider = ({ children }) => {
 
       if (password.length < 6) {
         throw new Error('Password must be at least 6 characters');
+      }
+
+      try {
+        const responseData = await apiService.register({
+          name: trimmedName,
+          email: normalizedEmail,
+          password,
+          role,
+        });
+        const { token, user } = extractAuthPayload(responseData);
+
+        persistSession({ token, user });
+
+        dispatch({
+          type: 'LOGIN_SUCCESS',
+          payload: {
+            user,
+            token,
+          },
+        });
+
+        return { success: true, user, token };
+      } catch {
+        // Fallback keeps auth usable without a live backend during setup.
       }
 
       const users = getStoredUsers();

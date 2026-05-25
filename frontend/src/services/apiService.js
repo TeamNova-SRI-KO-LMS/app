@@ -71,6 +71,21 @@ apiClient.interceptors.response.use(
 const apiService = {
 	client: apiClient,
 
+	async login(credentials) {
+		const response = await apiClient.post('/auth/login', credentials);
+		return response.data;
+	},
+
+	async register(userData) {
+		const response = await apiClient.post('/auth/register', userData);
+		return response.data;
+	},
+
+	async getCurrentUser() {
+		const response = await apiClient.get('/auth/me');
+		return response.data;
+	},
+
 	get(url, config = {}) {
 		return apiClient.get(url, config);
 	},
