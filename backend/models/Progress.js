@@ -2,18 +2,18 @@ const mongoose = require('mongoose');
 
 const progressSchema = new mongoose.Schema({
   student: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Progress must belong to a student']
   },
   course: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
     required: [true, 'Progress must belong to a course']
   },
   completedLessons: [{
     lesson: {
-      type: mongoose.Schema.ObjectId
+      type: mongoose.Schema.Types.ObjectId
     },
     completedAt: {
       type: Date,

@@ -12,7 +12,7 @@ const courseSchema = new mongoose.Schema({
     maxLength: [1000, 'Description cannot be more than 1000 characters']
   },
   instructor: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Course must have an instructor']
   },
@@ -55,12 +55,12 @@ const courseSchema = new mongoose.Schema({
     }]
   }],
   enrolledStudents: [{
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
   reviews: [{
     user: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     rating: {

@@ -26,7 +26,7 @@ const chatSessionSchema = new mongoose.Schema(
     messages: [chatMessageSchema],
     isActive: {
       type: Boolean,
-      default: true, // You can set this to false if the user clears their chat history
+      default: true, 
     }
   },
   { timestamps: true }

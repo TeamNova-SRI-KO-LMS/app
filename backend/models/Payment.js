@@ -2,12 +2,12 @@ const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
   user: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Payment must belong to a user']
   },
   subscription: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Subscription',
     required: [true, 'Payment must be associated with a subscription']
   },

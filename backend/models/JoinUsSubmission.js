@@ -36,7 +36,7 @@ const joinUsSubmissionSchema = new mongoose.Schema({
   },
   contactedAt: Date,
   contactedBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
   submittedAt: {

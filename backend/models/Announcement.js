@@ -35,7 +35,7 @@ const announcementSchema = new mongoose.Schema({
   startDate: Date,
   endDate: Date,
   createdBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
@@ -51,7 +51,7 @@ const announcementSchema = new mongoose.Schema({
   }],
   readBy: [{
     user: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     readAt: {

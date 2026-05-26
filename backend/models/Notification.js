@@ -17,11 +17,11 @@ const notificationSchema = new mongoose.Schema({
     enum: ['all', 'students', 'instructors', 'admins', 'specific_users', 'specific_courses']
   },
   targetUsers: [{
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
   targetCourses: [{
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Course'
   }],
   targetRoles: [{
@@ -39,7 +39,7 @@ const notificationSchema = new mongoose.Schema({
   scheduledFor: Date,
   expiresAt: Date,
   createdBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
   attachments: [{
@@ -48,7 +48,7 @@ const notificationSchema = new mongoose.Schema({
   }],
   readBy: [{
     user: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     readAt: {
@@ -63,8 +63,8 @@ const notificationSchema = new mongoose.Schema({
   koreanMessage: String,
   parentNotification: {
     isParentNotification: { type: Boolean, default: false },
-    studentId: { type: mongoose.Schema.ObjectId, ref: 'User' },
-    parentId: { type: mongoose.Schema.ObjectId, ref: 'User' }
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   deliveryMethods: {
     inApp: { type: Boolean, default: true },

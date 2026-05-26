@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const subscriptionSchema = new mongoose.Schema({
   user: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Subscription must belong to a user']
   },

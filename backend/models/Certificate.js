@@ -2,12 +2,12 @@ const mongoose = require('mongoose');
 
 const certificateSchema = new mongoose.Schema({
   student: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Certificate must belong to a student']
   },
   course: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
     required: [true, 'Certificate must belong to a course']
   },
@@ -27,7 +27,7 @@ const certificateSchema = new mongoose.Schema({
   completionDate: Date,
   issuedDate: Date,
   issuedBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Issuer is required']
   },

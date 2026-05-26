@@ -2,12 +2,12 @@ const mongoose = require('mongoose');
 
 const discussionPostSchema = new mongoose.Schema({
   forum: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'DiscussionForum',
     required: true
   },
   author: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
@@ -32,7 +32,7 @@ const discussionPostSchema = new mongoose.Schema({
     default: true
   },
   approvedBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
   approvedAt: Date,
@@ -44,7 +44,7 @@ const discussionPostSchema = new mongoose.Schema({
   }],
   likes: [{
     user: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     likedAt: {
@@ -54,7 +54,7 @@ const discussionPostSchema = new mongoose.Schema({
   }],
   dislikes: [{
     user: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     dislikedAt: {
@@ -64,7 +64,7 @@ const discussionPostSchema = new mongoose.Schema({
   }],
   replies: [{
     author: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true
     },
@@ -77,19 +77,19 @@ const discussionPostSchema = new mongoose.Schema({
       default: true
     },
     approvedBy: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     approvedAt: Date,
     likes: [{
       user: {
-        type: mongoose.Schema.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
       }
     }],
     dislikes: [{
       user: {
-        type: mongoose.Schema.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
       }
     }],

@@ -109,7 +109,7 @@ const settingsSchema = new mongoose.Schema({
     }
   },
   lastUpdatedBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }
 }, {

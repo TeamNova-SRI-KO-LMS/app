@@ -32,12 +32,12 @@ const discussionForumSchema = new mongoose.Schema({
     default: false
   },
   createdBy: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
   moderators: [{
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
   tags: [String],
@@ -52,17 +52,17 @@ const discussionForumSchema = new mongoose.Schema({
   },
   lastPost: {
     post: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'DiscussionPost'
     },
     author: {
-      type: mongoose.Schema.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
     date: Date
   },
   subscribers: [{
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }]
 }, {
