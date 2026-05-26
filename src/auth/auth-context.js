@@ -50,8 +50,8 @@ function normalizeContext(context) {
   const userId = typeof context.userId === 'string' && context.userId.trim().length > 0 ? context.userId : null;
   const roles = Object.freeze(normalizeArrayClaim(context.roles));
   const permissions = Object.freeze(normalizeArrayClaim(context.permissions));
-  const isAuthenticated =
-    typeof context.isAuthenticated === 'boolean' ? context.isAuthenticated && userId !== null : userId !== null;
+  const hasBooleanAuthFlag = typeof context.isAuthenticated === 'boolean';
+  const isAuthenticated = hasBooleanAuthFlag ? context.isAuthenticated && userId !== null : userId !== null;
 
   return Object.freeze({
     isAuthenticated,
@@ -67,7 +67,7 @@ function getAuthContext() {
 
 function runWithAuthContext(context, callback) {
   const safeContext =
-    context && typeof context === 'object' && ('isAuthenticated' in context || 'roles' in context || 'permissions' in context)
+    context && typeof context === 'object' && ('isAuthenticated' in context || 'userId' in context || 'roles' in context || 'permissions' in context)
       ? normalizeContext(context)
       : createAuthContext(context);
   return authContextStorage.run(safeContext, callback);
