@@ -7,6 +7,7 @@ const USERS_KEY = 'auth-users';
 const SESSION_KEY = 'auth-session';
 
 const isBrowser = typeof window !== 'undefined';
+const inMemoryUsers = [];
 
 const safeParse = (value, fallback) => {
   try {
@@ -24,25 +25,26 @@ const sanitizeUser = (user) => {
   const safeUser = { ...user };
   delete safeUser.password;
   delete safeUser.passwordHash;
+  delete safeUser.passwordSalt;
   return safeUser;
 };
-
-const removePasswordsFromUsers = (users) => users.map((user) => {
-  if (!user || typeof user !== 'object') {
-    return user;
-  }
-
-  const safeUser = { ...user };
-  delete safeUser.password;
-  return safeUser;
-});
 
 const getStoredUsers = () => {
   if (!isBrowser) {
     return [];
   }
 
-  return safeParse(localStorage.getItem(USERS_KEY), []);
+  if (inMemoryUsers.length > 0) {
+    return inMemoryUsers;
+  }
+
+  const storedUsers = safeParse(localStorage.getItem(USERS_KEY), []);
+  if (storedUsers.length > 0) {
+    inMemoryUsers.push(...storedUsers);
+    localStorage.removeItem(USERS_KEY);
+  }
+
+  return inMemoryUsers;
 };
 
 const getStoredSession = () => {
@@ -59,8 +61,8 @@ const getStoredSession = () => {
 
 const persistUsers = (users) => {
   if (isBrowser) {
-    const safeUsers = removePasswordsFromUsers(users);
-    localStorage.setItem(USERS_KEY, JSON.stringify(safeUsers));
+    inMemoryUsers.splice(0, inMemoryUsers.length, ...users);
+    localStorage.removeItem(USERS_KEY);
   }
 };
 
@@ -105,7 +107,52 @@ const extractAuthPayload = (responseData) => {
 
 const buildToken = (email) => `local-${btoa(email)}-${Date.now()}`;
 
-const hashPassword = async (password) => {
+const toHex = (buffer) => Array.from(new Uint8Array(buffer))
+  .map((byte) => byte.toString(16).padStart(2, '0'))
+  .join('');
+
+const fromHex = (hex) => {
+  if (!hex) {
+    return new Uint8Array();
+  }
+
+  const pairs = hex.match(/.{1,2}/g) ?? [];
+  return new Uint8Array(pairs.map((pair) => parseInt(pair, 16)));
+};
+
+const hashPassword = async (password, salt) => {
+  if (!isBrowser || !crypto?.subtle || !crypto?.getRandomValues) {
+    throw new Error(
+      'Your browser does not support secure password storage. Please use a modern browser to sign in.'
+    );
+  }
+
+  const saltBytes = salt ? fromHex(salt) : crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: saltBytes,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256,
+  );
+
+  return {
+    hash: toHex(derivedBits),
+    salt: toHex(saltBytes),
+  };
+};
+
+const legacyHashPassword = async (password) => {
   if (!isBrowser || !crypto?.subtle) {
     throw new Error(
       'Your browser does not support secure password storage. Please use a modern browser to sign in.'
@@ -117,9 +164,7 @@ const hashPassword = async (password) => {
     new TextEncoder().encode(password),
   );
 
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return toHex(hashBuffer);
 };
 
 const constantTimeCompare = (value, other) => {
@@ -143,10 +188,10 @@ const buildLocalUserId = () => {
   if (crypto?.getRandomValues) {
     const bytes = new Uint8Array(16);
     crypto.getRandomValues(bytes);
-    const hex = Array.from(bytes)
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
-    return `local-${hex}`;
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0'));
+    return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`;
   }
 
   throw new Error(
@@ -292,41 +337,44 @@ const AuthProvider = ({ children }) => {
 
       const users = getStoredUsers();
       const normalizedEmail = email.trim().toLowerCase();
-      const passwordHash = await hashPassword(password);
-      let matchedUser = users.find(
-        (user) =>
-          user.email.toLowerCase() === normalizedEmail
-          && constantTimeCompare(user.passwordHash, passwordHash)
+      const userRecord = users.find(
+        (user) => user.email.toLowerCase() === normalizedEmail
       );
 
-      if (!matchedUser) {
-        const legacyUser = users.find(
-          (user) =>
-            user.email.toLowerCase() === normalizedEmail
-            && constantTimeCompare(user.password, password)
-        );
+      if (!userRecord) {
+        throw new Error('Invalid email or password');
+      }
 
-        if (legacyUser) {
-          const legacyUserData = { ...legacyUser };
-          delete legacyUserData.password;
-          matchedUser = { ...legacyUserData, passwordHash };
-          const nextUsers = users.map((user) => {
-            if (user.email.toLowerCase() !== normalizedEmail) {
-              return user;
-            }
-
-            return matchedUser;
-          });
-          persistUsers(nextUsers);
+      let matchedUser = null;
+      if (userRecord.passwordHash && userRecord.passwordSalt) {
+        const { hash } = await hashPassword(password, userRecord.passwordSalt);
+        if (constantTimeCompare(userRecord.passwordHash, hash)) {
+          matchedUser = userRecord;
         }
+      } else if (userRecord.passwordHash) {
+        const legacyHash = await legacyHashPassword(password);
+        if (constantTimeCompare(userRecord.passwordHash, legacyHash)) {
+          const { hash, salt } = await hashPassword(password);
+          matchedUser = { ...userRecord, passwordHash: hash, passwordSalt: salt };
+        }
+      } else if (userRecord.password && constantTimeCompare(userRecord.password, password)) {
+        const { hash, salt } = await hashPassword(password);
+        matchedUser = { ...userRecord, passwordHash: hash, passwordSalt: salt };
       }
 
       if (!matchedUser) {
         throw new Error('Invalid email or password');
       }
 
-      const token = buildToken(matchedUser.email);
-      const safeUser = sanitizeUser(matchedUser);
+      const storedUser = { ...matchedUser };
+      delete storedUser.password;
+      const nextUsers = users.map((user) =>
+        user.email.toLowerCase() === normalizedEmail ? storedUser : user
+      );
+      persistUsers(nextUsers);
+
+      const token = buildToken(storedUser.email);
+      const safeUser = sanitizeUser(storedUser);
 
       persistSession({ token, user: safeUser });
 
@@ -398,7 +446,7 @@ const AuthProvider = ({ children }) => {
         throw new Error('An account with this email already exists');
       }
 
-      const passwordHash = await hashPassword(password);
+      const { hash, salt } = await hashPassword(password);
       const userProfile = {
         id: buildLocalUserId(),
         name: trimmedName,
@@ -408,7 +456,8 @@ const AuthProvider = ({ children }) => {
 
       const userForStorage = {
         ...userProfile,
-        passwordHash,
+        passwordHash: hash,
+        passwordSalt: salt,
       };
 
       const nextUsers = [...users, userForStorage];
