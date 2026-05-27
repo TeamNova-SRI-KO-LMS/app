@@ -107,7 +107,9 @@ const buildToken = (email) => `local-${btoa(email)}-${Date.now()}`;
 
 const hashPassword = async (password) => {
   if (!isBrowser || !crypto?.subtle) {
-    throw new Error('Secure password storage is unavailable in this browser');
+    throw new Error(
+      'Your browser does not support secure password storage. Please use a modern browser to sign in.'
+    );
   }
 
   const hashBuffer = await crypto.subtle.digest(
@@ -364,7 +366,9 @@ const AuthProvider = ({ children }) => {
 
       const passwordHash = await hashPassword(password);
       const userProfile = {
-        id: crypto.randomUUID(),
+        id: crypto?.randomUUID
+          ? crypto.randomUUID()
+          : `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         name: trimmedName,
         email: normalizedEmail,
         role,
