@@ -27,7 +27,7 @@ const sanitizeUser = (user) => {
   return safeUser;
 };
 
-const sanitizeUsersForStorage = (users) => users.map((user) => {
+const removePasswordsFromUsers = (users) => users.map((user) => {
   if (!user || typeof user !== 'object') {
     return user;
   }
@@ -59,7 +59,7 @@ const getStoredSession = () => {
 
 const persistUsers = (users) => {
   if (isBrowser) {
-    const safeUsers = sanitizeUsersForStorage(users);
+    const safeUsers = removePasswordsFromUsers(users);
     localStorage.setItem(USERS_KEY, JSON.stringify(safeUsers));
   }
 };
@@ -133,6 +133,25 @@ const constantTimeCompare = (value, other) => {
   }
 
   return result === 0;
+};
+
+const buildLocalUserId = () => {
+  if (typeof crypto?.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  if (crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    return `local-${hex}`;
+  }
+
+  throw new Error(
+    'Your browser does not support secure ID generation. Please use a modern browser to sign up.'
+  );
 };
 
 const authReducer = (state, action) => {
@@ -283,7 +302,8 @@ const AuthProvider = ({ children }) => {
       if (!matchedUser) {
         const legacyUser = users.find(
           (user) =>
-            user.email.toLowerCase() === normalizedEmail && user.password === password
+            user.email.toLowerCase() === normalizedEmail
+            && constantTimeCompare(user.password, password)
         );
 
         if (legacyUser) {
@@ -380,9 +400,7 @@ const AuthProvider = ({ children }) => {
 
       const passwordHash = await hashPassword(password);
       const userProfile = {
-        id: typeof crypto?.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        id: buildLocalUserId(),
         name: trimmedName,
         email: normalizedEmail,
         role,
