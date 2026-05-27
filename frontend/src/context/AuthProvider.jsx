@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react';
 
-import AuthContext from './authContext';
+import AuthContext from './AuthContext';
 import apiService from '../services/apiService';
 
 const USERS_KEY = 'auth-users';

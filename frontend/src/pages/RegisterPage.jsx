@@ -12,7 +12,8 @@ const RegisterPage = () => {
     role: 'student',
   });
 
-  const { register, loading } = useAuth();
+  const [validationError, setValidationError] = useState('');
+  const { register, loading, error } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = e => {
@@ -20,16 +21,20 @@ const RegisterPage = () => {
       ...formData,
       [e.target.name]: e.target.value,
     });
+    if (validationError) {
+      setValidationError('');
+    }
   };
 
   const handleSubmit = async e => {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      setValidationError('Passwords do not match');
       return;
     }
 
+    setValidationError('');
     const result = await register(
       formData.name,
       formData.email,
@@ -40,6 +45,8 @@ const RegisterPage = () => {
       navigate('/dashboard');
     }
   };
+
+  const formError = validationError || error;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -167,6 +174,12 @@ const RegisterPage = () => {
               />
             </div>
           </div>
+
+          {formError ? (
+            <p className="form-error" role="alert" aria-live="polite">
+              {formError}
+            </p>
+          ) : null}
 
           <div>
             <button
