@@ -176,7 +176,7 @@ const RegisterPage = () => {
           </div>
 
           {formError ? (
-            <p className="form-error" role="alert" aria-live="polite">
+            <p className="form-error" role="alert">
               {formError}
             </p>
           ) : null}
