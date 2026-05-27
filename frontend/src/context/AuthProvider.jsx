@@ -122,6 +122,19 @@ const hashPassword = async (password) => {
     .join('');
 };
 
+const constantTimeCompare = (value, other) => {
+  if (!value || !other || value.length !== other.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    result |= value.charCodeAt(index) ^ other.charCodeAt(index);
+  }
+
+  return result === 0;
+};
+
 const authReducer = (state, action) => {
   switch (action.type) {
     case 'LOGIN_START':
@@ -263,7 +276,8 @@ const AuthProvider = ({ children }) => {
       const passwordHash = await hashPassword(password);
       let matchedUser = users.find(
         (user) =>
-          user.email.toLowerCase() === normalizedEmail && user.passwordHash === passwordHash
+          user.email.toLowerCase() === normalizedEmail
+          && constantTimeCompare(user.passwordHash, passwordHash)
       );
 
       if (!matchedUser) {
@@ -366,7 +380,7 @@ const AuthProvider = ({ children }) => {
 
       const passwordHash = await hashPassword(password);
       const userProfile = {
-        id: crypto?.randomUUID
+        id: typeof crypto?.randomUUID === 'function'
           ? crypto.randomUUID()
           : `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         name: trimmedName,
