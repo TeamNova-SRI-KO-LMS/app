@@ -16,6 +16,27 @@ const safeParse = (value, fallback) => {
   }
 };
 
+const sanitizeUser = (user) => {
+  if (!user || typeof user !== 'object') {
+    return user;
+  }
+
+  const safeUser = { ...user };
+  delete safeUser.password;
+  delete safeUser.passwordHash;
+  return safeUser;
+};
+
+const sanitizeUsersForStorage = (users) => users.map((user) => {
+  if (!user || typeof user !== 'object') {
+    return user;
+  }
+
+  const safeUser = { ...user };
+  delete safeUser.password;
+  return safeUser;
+});
+
 const getStoredUsers = () => {
   if (!isBrowser) {
     return [];
@@ -29,20 +50,29 @@ const getStoredSession = () => {
     return { token: null, user: null };
   }
 
-  return safeParse(localStorage.getItem(SESSION_KEY), { token: null, user: null });
+  const session = safeParse(localStorage.getItem(SESSION_KEY), { token: null, user: null });
+  return {
+    ...session,
+    user: sanitizeUser(session.user),
+  };
 };
 
 const persistUsers = (users) => {
   if (isBrowser) {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    const safeUsers = sanitizeUsersForStorage(users);
+    localStorage.setItem(USERS_KEY, JSON.stringify(safeUsers));
   }
 };
 
 const persistSession = (session) => {
   if (isBrowser) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    if (session.token) {
-      localStorage.setItem('token', session.token);
+    const safeSession = {
+      ...session,
+      user: sanitizeUser(session.user),
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(safeSession));
+    if (safeSession.token) {
+      localStorage.setItem('token', safeSession.token);
     }
   }
 };
@@ -74,6 +104,21 @@ const extractAuthPayload = (responseData) => {
 };
 
 const buildToken = (email) => `local-${btoa(email)}-${Date.now()}`;
+
+const hashPassword = async (password) => {
+  if (!isBrowser || !crypto?.subtle) {
+    throw new Error('Secure password storage is unavailable in this browser');
+  }
+
+  const hashBuffer = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(password),
+  );
+
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
 
 const authReducer = (state, action) => {
   switch (action.type) {
@@ -194,45 +239,70 @@ const AuthProvider = ({ children }) => {
       try {
         const responseData = await apiService.login({ email, password });
         const { token, user } = extractAuthPayload(responseData);
+        const safeUser = sanitizeUser(user);
 
-        persistSession({ token, user });
+        persistSession({ token, user: safeUser });
 
         dispatch({
           type: 'LOGIN_SUCCESS',
           payload: {
-            user,
+            user: safeUser,
             token,
           },
         });
 
-        return { success: true, user, token };
+        return { success: true, user: safeUser, token };
       } catch {
         // Fallback keeps auth usable without a live backend during setup.
       }
 
       const users = getStoredUsers();
-      const matchedUser = users.find(
-        (user) => user.email.toLowerCase() === email.toLowerCase() && user.password === password
+      const normalizedEmail = email.trim().toLowerCase();
+      const passwordHash = await hashPassword(password);
+      let matchedUser = users.find(
+        (user) =>
+          user.email.toLowerCase() === normalizedEmail && user.passwordHash === passwordHash
       );
+
+      if (!matchedUser) {
+        const legacyUser = users.find(
+          (user) =>
+            user.email.toLowerCase() === normalizedEmail && user.password === password
+        );
+
+        if (legacyUser) {
+          const legacyUserData = { ...legacyUser };
+          delete legacyUserData.password;
+          matchedUser = { ...legacyUserData, passwordHash };
+          const nextUsers = users.map((user) => {
+            if (user.email.toLowerCase() !== normalizedEmail) {
+              return user;
+            }
+
+            return matchedUser;
+          });
+          persistUsers(nextUsers);
+        }
+      }
 
       if (!matchedUser) {
         throw new Error('Invalid email or password');
       }
 
       const token = buildToken(matchedUser.email);
-      const user = { ...matchedUser };
+      const safeUser = sanitizeUser(matchedUser);
 
-      persistSession({ token, user });
+      persistSession({ token, user: safeUser });
 
       dispatch({
         type: 'LOGIN_SUCCESS',
         payload: {
-          user,
+          user: safeUser,
           token,
         },
       });
 
-      return { success: true, user, token };
+      return { success: true, user: safeUser, token };
     } catch (error) {
       const message = error.message || 'Login failed';
       dispatch({
@@ -266,18 +336,19 @@ const AuthProvider = ({ children }) => {
           role,
         });
         const { token, user } = extractAuthPayload(responseData);
+        const safeUser = sanitizeUser(user);
 
-        persistSession({ token, user });
+        persistSession({ token, user: safeUser });
 
         dispatch({
           type: 'LOGIN_SUCCESS',
           payload: {
-            user,
+            user: safeUser,
             token,
           },
         });
 
-        return { success: true, user, token };
+        return { success: true, user: safeUser, token };
       } catch {
         // Fallback keeps auth usable without a live backend during setup.
       }
@@ -291,29 +362,34 @@ const AuthProvider = ({ children }) => {
         throw new Error('An account with this email already exists');
       }
 
-      const user = {
+      const passwordHash = await hashPassword(password);
+      const userProfile = {
         id: crypto.randomUUID(),
         name: trimmedName,
         email: normalizedEmail,
-        password,
         role,
       };
 
-      const nextUsers = [...users, user];
+      const userForStorage = {
+        ...userProfile,
+        passwordHash,
+      };
+
+      const nextUsers = [...users, userForStorage];
       persistUsers(nextUsers);
 
       const token = buildToken(normalizedEmail);
-      persistSession({ token, user });
+      persistSession({ token, user: userProfile });
 
       dispatch({
         type: 'LOGIN_SUCCESS',
         payload: {
-          user,
+          user: userProfile,
           token,
         },
       });
 
-      return { success: true, user, token };
+      return { success: true, user: userProfile, token };
     } catch (error) {
       const message = error.message || 'Registration failed';
       dispatch({
