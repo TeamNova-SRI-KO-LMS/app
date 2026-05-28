@@ -191,36 +191,8 @@ const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_START' });
 
     try {
-      try {
-        const responseData = await apiService.login({ email, password });
-        const { token, user } = extractAuthPayload(responseData);
-
-        persistSession({ token, user });
-
-        dispatch({
-          type: 'LOGIN_SUCCESS',
-          payload: {
-            user,
-            token,
-          },
-        });
-
-        return { success: true, user, token };
-      } catch {
-        // Fallback keeps auth usable without a live backend during setup.
-      }
-
-      const users = getStoredUsers();
-      const matchedUser = users.find(
-        (user) => user.email.toLowerCase() === email.toLowerCase() && user.password === password
-      );
-
-      if (!matchedUser) {
-        throw new Error('Invalid email or password');
-      }
-
-      const token = buildToken(matchedUser.email);
-      const user = { ...matchedUser };
+      const responseData = await apiService.login({ email, password });
+      const { token, user } = extractAuthPayload(responseData);
 
       persistSession({ token, user });
 
@@ -234,7 +206,7 @@ const AuthProvider = ({ children }) => {
 
       return { success: true, user, token };
     } catch (error) {
-      const message = error.message || 'Login failed';
+      const message = error.response?.data?.message || error.message || 'Login failed';
       dispatch({
         type: 'LOGIN_FAILURE',
         payload: message,
@@ -258,51 +230,14 @@ const AuthProvider = ({ children }) => {
         throw new Error('Password must be at least 6 characters');
       }
 
-      try {
-        const responseData = await apiService.register({
-          name: trimmedName,
-          email: normalizedEmail,
-          password,
-          role,
-        });
-        const { token, user } = extractAuthPayload(responseData);
-
-        persistSession({ token, user });
-
-        dispatch({
-          type: 'LOGIN_SUCCESS',
-          payload: {
-            user,
-            token,
-          },
-        });
-
-        return { success: true, user, token };
-      } catch {
-        // Fallback keeps auth usable without a live backend during setup.
-      }
-
-      const users = getStoredUsers();
-      const existingUser = users.find(
-        (user) => user.email.toLowerCase() === normalizedEmail
-      );
-
-      if (existingUser) {
-        throw new Error('An account with this email already exists');
-      }
-
-      const user = {
-        id: crypto.randomUUID(),
+      const responseData = await apiService.register({
         name: trimmedName,
         email: normalizedEmail,
         password,
         role,
-      };
+      });
+      const { token, user } = extractAuthPayload(responseData);
 
-      const nextUsers = [...users, user];
-      persistUsers(nextUsers);
-
-      const token = buildToken(normalizedEmail);
       persistSession({ token, user });
 
       dispatch({
@@ -315,7 +250,7 @@ const AuthProvider = ({ children }) => {
 
       return { success: true, user, token };
     } catch (error) {
-      const message = error.message || 'Registration failed';
+      const message = error.response?.data?.message || error.message || 'Registration failed';
       dispatch({
         type: 'LOGIN_FAILURE',
         payload: message,

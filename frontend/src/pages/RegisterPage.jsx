@@ -12,7 +12,7 @@ const RegisterPage = () => {
     role: 'student',
   });
 
-  const { register, loading } = useAuth();
+  const { register, loading, error } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = e => {
@@ -67,6 +67,11 @@ const RegisterPage = () => {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+              <span className="block sm:inline">{error}</span>
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label
