@@ -43,6 +43,11 @@ const LoginPage = () => {
 
   // Handle Google credential response (one-tap / popup)
   const handleGoogleCredentialResponse = async (credentialResponse) => {
+    if (typeof googleLogin !== 'function') {
+      console.error('Google login is not configured');
+      return;
+    }
+
     // Try to login existing user only
     const result = await googleLogin(credentialResponse.credential);
 
