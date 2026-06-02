@@ -20,9 +20,14 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    const jwtSecret = process.env.JWT_SECRET || 'fallback-secret';
-    const decoded = jwt.verify(token, jwtSecret);
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message: 'JWT_SECRET is not configured',
+      });
+    }
 
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id);
 
     if (!req.user) {
