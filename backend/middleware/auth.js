@@ -1,6 +1,57 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Check if user is enrolled in course or is instructor/admin
+exports.checkCourseAccess = async (req, res, next) => {
+  try {
+    const Course = require('../models/Course');
+    const Progress = require('../models/Progress');
+
+    const course = await Course.findById(req.params.id || req.params.courseId);
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found',
+      });
+    }
+
+    // Admin and instructors have access
+    if (
+      req.user.role === 'admin' ||
+      course.instructor.toString() === req.user._id.toString()
+    ) {
+      req.course = course;
+      return next();
+    }
+
+    // Check if student is enrolled
+    if (req.user.role === 'student') {
+      const progress = await Progress.findOne({
+        student: req.user._id,
+        course: course._id,
+      });
+
+      if (!progress) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not enrolled in this course',
+        });
+      }
+
+      req.progress = progress;
+    }
+
+    req.course = course;
+    next();
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
+
 // Protect routes - Verify token and add user to request
 exports.protect = async (req, res, next) => {
   let token;
@@ -47,3 +98,17 @@ exports.protect = async (req, res, next) => {
     });
   }
 };
+
+// Grant access to specific roles
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `User role ${req.user.role} is not authorized to access this route`,
+      });
+    }
+    next();
+  };
+};
+

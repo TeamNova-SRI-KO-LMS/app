@@ -119,8 +119,6 @@ router.post(
   },
 );
 
-module.exports = router;
-
 // POST /api/auth/google - verify Google ID token and login existing users (no auto-register)
 router.post('/google', async (req, res) => {
   const { idToken } = req.body;
@@ -171,3 +169,6 @@ router.post('/google', async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid Google ID token' });
   }
 });
+
+
+module.exports = router;
