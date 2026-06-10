@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,3 +33,4 @@ app.use('/api/courses', checkDatabase, courseRoutes);
 
 app.use('/api/subscriptions', checkDatabase, subscriptionRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/notifications', checkDatabase, notificationRoutes);
