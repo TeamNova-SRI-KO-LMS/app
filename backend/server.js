@@ -1,9 +1,11 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config({ path: './config.env' });
+const path = require('path');
+require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
@@ -22,6 +24,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Serve uploaded files (avatars)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoutes);
 
@@ -66,6 +71,7 @@ const checkDatabase = async (req, res, next) => {
 };
 
 
+app.use('/api/users', checkDatabase, userRoutes);
 app.use('/api/courses', checkDatabase, courseRoutes);
 
 app.use('/api/subscriptions', checkDatabase, subscriptionRoutes);

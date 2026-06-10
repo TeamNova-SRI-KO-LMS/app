@@ -49,6 +49,62 @@ exports.validateUserLogin = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
+exports.validateProfileUpdate = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+
+  body('bio')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Bio cannot be more than 500 characters'),
+
+  body('phone')
+    .optional()
+    .trim()
+    .isLength({ max: 20 })
+    .withMessage('Phone number cannot be more than 20 characters'),
+
+  body('location')
+    .optional()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage('Location cannot be more than 100 characters'),
+
+  body('website')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Website URL cannot be more than 200 characters'),
+
+  body('socialLinks.linkedin')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('LinkedIn URL cannot be more than 200 characters'),
+
+  body('socialLinks.twitter')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Twitter URL cannot be more than 200 characters'),
+
+  body('socialLinks.github')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('GitHub URL cannot be more than 200 characters'),
+
+  body('avatar')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Avatar URL cannot be more than 500 characters'),
+];
+
 // Review validation rules
 exports.validateReview = [
   body('rating')
