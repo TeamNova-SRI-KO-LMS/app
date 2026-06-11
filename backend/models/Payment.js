@@ -33,6 +33,8 @@ const paymentSchema = new mongoose.Schema({
     enum: ['stripe', 'paypal', 'razorpay', 'payhere', 'manual']
   },
   gatewayTransactionId: String,
+  stripeSessionId: String,
+  stripePaymentIntentId: String,
   gatewayResponse: mongoose.Schema.Types.Mixed,
   billingPeriod: {
     startDate: Date,
@@ -60,5 +62,6 @@ const paymentSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
 
 module.exports = mongoose.model('Payment', paymentSchema);

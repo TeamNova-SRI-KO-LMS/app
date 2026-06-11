@@ -3,25 +3,20 @@ const { body, validationResult } = require('express-validator');
 const { protect, authorize } = require('../middleware/auth');
 const Payment = require('../models/Payment');
 const Subscription = require('../models/Subscription');
+const stripe = require('../config/stripe');
 
 const router = express.Router();
 
-// @route   POST /api/payments/create
-// @desc    Create a new payment
+// @desc    Create Stripe checkout session
+// @route   POST /api/payments/create-checkout-session
 // @access  Private
 router.post(
-  '/create',
+  '/create-checkout-session',
+  protect,
   [
-    protect,
     body('subscriptionId')
       .isMongoId()
       .withMessage('Invalid subscription ID'),
-    body('paymentMethod')
-      .isIn(['credit_card', 'bank_transfer', 'digital_wallet', 'cash', 'cheque'])
-      .withMessage('Invalid payment method'),
-    body('amount')
-      .isNumeric()
-      .withMessage('Amount must be a number'),
   ],
   async (req, res) => {
     try {
@@ -29,14 +24,12 @@ router.post(
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
-          message: 'Validation error',
           errors: errors.array(),
         });
       }
 
-      const { subscriptionId, paymentMethod, amount, gatewayResponse } = req.body;
+      const { subscriptionId } = req.body;
 
-      // Verify subscription belongs to user
       const subscription = await Subscription.findOne({
         _id: subscriptionId,
         user: req.user.id,
@@ -49,342 +42,146 @@ router.post(
         });
       }
 
-      // Create payment record
-      const payment = new Payment({
-        user: req.user.id,
-        subscription: subscriptionId,
-        amount,
-        paymentMethod,
-        billingPeriod: {
-          startDate: new Date(),
-          endDate: subscription.endDate,
+      const amount =
+        subscription.billingCycle === 'monthly' ? 1000 : 10000;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `${subscription.plan} Subscription`,
+              },
+              unit_amount: amount,
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          userId: req.user.id,
+          subscriptionId: subscription._id.toString(),
         },
+        success_url: `${process.env.FRONTEND_URL}/payment-success`,
+        cancel_url: `${process.env.FRONTEND_URL}/payment-cancel`,
+      });
+
+      await Payment.create({
+        user: req.user.id,
+        subscription: subscription._id,
+        amount,
+        paymentMethod: 'stripe',
+        status: 'pending',
+        stripeSessionId: session.id,
         plan: subscription.plan,
         billingCycle: subscription.billingCycle,
         dueDate: new Date(),
-        gatewayResponse,
       });
-
-      await payment.save();
-
-      res.status(201).json({
-        success: true,
-        payment,
-        message: 'Payment created successfully',
-      });
-    } catch (error) {
-      console.error('Error creating payment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Server error',
-      });
-    }
-  }
-);
-
-// @route   PUT /api/payments/:id/complete
-// @desc    Mark payment as completed
-// @access  Private
-router.put(
-  '/:id/complete',
-  [
-    protect,
-    body('gatewayTransactionId')
-      .optional()
-      .isString()
-      .withMessage('Gateway transaction ID must be a string'),
-    body('gatewayResponse')
-      .optional()
-      .isObject()
-      .withMessage('Gateway response must be an object'),
-  ],
-  async (req, res) => {
-    try {
-      const { gatewayTransactionId, gatewayResponse } = req.body;
-
-      const payment = await Payment.findOne({
-        _id: req.params.id,
-        user: req.user.id,
-      });
-
-      if (!payment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Payment not found',
-        });
-      }
-
-      if (payment.status === 'completed') {
-        return res.status(400).json({
-          success: false,
-          message: 'Payment already completed',
-        });
-      }
-
-      // Mark payment as completed
-      await payment.markCompleted(gatewayTransactionId, gatewayResponse);
-
-      // Update subscription status and dates
-      const subscription = await Subscription.findById(payment.subscription);
-      if (subscription) {
-        subscription.status = 'active';
-        subscription.paymentStatus = 'paid';
-
-        // Extend subscription end date
-        const now = new Date();
-        if (subscription.billingCycle === 'monthly') {
-          subscription.endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-        } else {
-          subscription.endDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-        }
-        subscription.nextBillingDate = subscription.endDate;
-
-        await subscription.save();
-      }
 
       res.json({
         success: true,
-        payment,
-        message: 'Payment completed successfully',
+        checkoutUrl: session.url,
       });
     } catch (error) {
-      console.error('Error completing payment:', error);
+      console.error('Checkout error:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error',
+        message: error.message,
       });
     }
   }
 );
 
-// @route   PUT /api/payments/:id/fail
-// @desc    Mark payment as failed
-// @access  Private
-router.put(
-  '/:id/fail',
-  [
-    protect,
-    body('reason')
-      .isString()
-      .withMessage('Failure reason must be a string'),
-  ],
-  async (req, res) => {
-    try {
-      const { reason } = req.body;
-
-      const payment = await Payment.findOne({
-        _id: req.params.id,
-        user: req.user.id,
-      });
-
-      if (!payment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Payment not found',
-        });
-      }
-
-      await payment.markFailed(reason);
-
-      res.json({
-        success: true,
-        payment,
-        message: 'Payment marked as failed',
-      });
-    } catch (error) {
-      console.error('Error failing payment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Server error',
-      });
-    }
-  }
-);
-
-// @route   POST /api/payments/:id/refund
-// @desc    Process refund for payment
-// @access  Private
+// @desc    Stripe webhook handler
+// @route   POST /api/payments/webhook
+// @access  Public (Stripe only)
 router.post(
-  '/:id/refund',
-  [
-    protect,
-    body('amount')
-      .optional()
-      .isNumeric()
-      .withMessage('Refund amount must be a number'),
-    body('reason')
-      .isString()
-      .withMessage('Refund reason must be a string'),
-  ],
+  '/webhook',
+  express.raw({ type: 'application/json' }),
   async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+
+    let event;
+
     try {
-      const { amount, reason } = req.body;
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
 
-      const payment = await Payment.findOne({
-        _id: req.params.id,
-        user: req.user.id,
-      });
+    try {
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
 
-      if (!payment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Payment not found',
+        const payment = await Payment.findOne({
+          stripeSessionId: session.id,
         });
+
+        if (payment) {
+          payment.status = 'completed';
+          payment.gatewayTransactionId = session.payment_intent;
+          await payment.save();
+
+          const subscription = await Subscription.findById(
+            payment.subscription
+          );
+
+          if (subscription) {
+            subscription.status = 'active';
+            subscription.paymentStatus = 'paid';
+
+            const now = new Date();
+
+            subscription.endDate =
+              subscription.billingCycle === 'monthly'
+                ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+                : new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+            subscription.nextBillingDate = subscription.endDate;
+
+            await subscription.save();
+          }
+        }
       }
 
-      if (payment.status !== 'completed') {
-        return res.status(400).json({
-          success: false,
-          message: 'Can only refund completed payments',
-        });
-      }
-
-      await payment.processRefund(amount, reason);
-
-      res.json({
-        success: true,
-        payment,
-        message: 'Refund processed successfully',
-      });
+      res.json({ received: true });
     } catch (error) {
-      console.error('Error processing refund:', error);
+      console.error('Webhook error:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error',
+        message: 'Webhook error',
       });
     }
   }
 );
 
-// @route   GET /api/payments/stats
-// @desc    Get payment statistics for admin
-// @access  Private (Admin only)
-router.get('/stats', protect, authorize('admin'), async (req, res) => {
-  try {
-
-    const { startDate, endDate } = req.query;
-
-    const stats = await Payment.getPaymentStats(startDate, endDate);
-    const revenueByPlan = await Payment.getRevenueByPlan(startDate, endDate);
-    const monthlyRevenue = await Payment.getMonthlyRevenue(new Date().getFullYear());
-
-    res.json({
-      success: true,
-      stats,
-      revenueByPlan,
-      monthlyRevenue,
-    });
-  } catch (error) {
-    console.error('Error fetching payment stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
-  }
-});
-
-// @route   GET /api/payments/recent
-// @desc    Get recent payments for admin
-// @access  Private (Admin only)
-router.get('/recent', protect, authorize('admin'), async (req, res) => {
-  try {
-
-    const { limit = 10 } = req.query;
-
-    const payments = await Payment.find()
-      .populate('user', 'name email')
-      .populate('subscription', 'plan billingCycle')
-      .sort({ paymentDate: -1 })
-      .limit(parseInt(limit));
-
-    res.json({
-      success: true,
-      payments,
-    });
-  } catch (error) {
-    console.error('Error fetching recent payments:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
-  }
-});
-
-// @route   GET /api/payments/all
-// @desc    Get all payments for admin
-// @access  Private (Admin only)
-router.get('/all', protect, authorize('admin'), async (req, res) => {
-  try {
-
-    const { page = 1, limit = 20, status, plan, startDate, endDate } = req.query;
-
-    const filter = {};
-    if (status) filter.status = status;
-    if (plan) filter.plan = plan;
-    if (startDate && endDate) {
-      filter.paymentDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
-    }
-
-    const payments = await Payment.find(filter)
-      .populate('user', 'name email')
-      .populate('subscription', 'plan billingCycle')
-      .sort({ paymentDate: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Payment.countDocuments(filter);
-
-    res.json({
-      success: true,
-      payments,
-      pagination: {
-        current: parseInt(page),
-        pages: Math.ceil(total / limit),
-        total,
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching all payments:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
-  }
-});
-
-// @route   GET /api/payments/:id
-// @desc    Get payment details
+// @desc    Get logged-in user payments
+// @route   GET /api/payments/my-payments
 // @access  Private
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const payment = await Payment.findOne({
-      _id: req.params.id,
-      user: req.user.id,
-    })
-      .populate('user', 'name email')
-      .populate('subscription', 'plan billingCycle');
+router.get('/my-payments', protect, async (req, res) => {
+  const payments = await Payment.find({ user: req.user.id })
+    .populate('subscription', 'plan billingCycle')
+    .sort({ createdAt: -1 });
 
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Payment not found',
-      });
-    }
+  res.json({ success: true, payments });
+});
 
-    res.json({
-      success: true,
-      payment,
-    });
-  } catch (error) {
-    console.error('Error fetching payment:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
-  }
+// @desc    Get all payments (admin)
+// @route   GET /api/payments/all
+// @access  Private/Admin
+router.get('/all', protect, authorize('admin'), async (req, res) => {
+  const payments = await Payment.find()
+    .populate('user', 'name email')
+    .populate('subscription', 'plan billingCycle')
+    .sort({ createdAt: -1 });
+
+  res.json({ success: true, payments });
 });
 
 module.exports = router;

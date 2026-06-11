@@ -43,6 +43,10 @@ const subscriptionSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'failed', 'refunded'],
     default: 'pending'
   },
+  
+  stripeCustomerId: String,
+  stripeSubscriptionId: String,
+
   autoRenew: {
     type: Boolean,
     default: true
