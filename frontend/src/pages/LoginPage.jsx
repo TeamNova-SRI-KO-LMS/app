@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../context/AuthContext';
+import useAuth from '../context/useAuth';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -43,6 +43,11 @@ const LoginPage = () => {
 
   // Handle Google credential response (one-tap / popup)
   const handleGoogleCredentialResponse = async (credentialResponse) => {
+    if (typeof googleLogin !== 'function') {
+      console.error('Google login is not configured');
+      return;
+    }
+
     // Try to login existing user only
     const result = await googleLogin(credentialResponse.credential);
 
