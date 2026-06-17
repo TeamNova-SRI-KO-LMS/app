@@ -156,3 +156,5 @@ const features = [
       rating: 5,
     },
   ];
+
+export { features, stats, programs, testimonials };

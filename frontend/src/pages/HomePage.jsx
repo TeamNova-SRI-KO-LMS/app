@@ -24,14 +24,30 @@ import {
   programs,
   stats,
   testimonials,
-} from "../data/homeData";
+} from "../data/homePageData";
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import heroImage from "../assets/heroSection.jpeg";
 import useAuth from "../context/useAuth";
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  const onEnroll = () => {
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    } else {
+      navigate("/register");
+    }
+  };
+
+  const onExplore = () => {
+    const element = document.getElementById("why-choose-sriko");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   const scrollToWhyChoose = () => {
     const element = document.getElementById("why-choose-sriko");
@@ -317,7 +333,6 @@ const HomePage = () => {
           </div>
         </div>
       </div>
-
       {/* Why Choose SRI-KO Section */}
       <div id="why-choose-sriko" className="bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -383,10 +398,46 @@ const HomePage = () => {
                 cultural enthusiasts
               </p>
             </div>
-          </div>
         </div>
       </div>
     </div>
+    <section className="w-full px-4 py-12 bg-white">
+      <div className="max-w-4xl mx-auto overflow-hidden rounded-[2.5rem] shadow-2xl shadow-blue-500/20">
+        <div className="relative px-8 py-16 text-center text-white bg-gradient-to-r from-[#4F86F7] via-[#A855F7] to-[#10B981]">
+          {/* Content Wrapper */}
+          <div className="relative z-10 space-y-6">
+            <h2 className="text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl font-manrope">
+              Start Your Journey Today
+            </h2>
+            
+            <p className="max-w-2xl mx-auto text-lg font-medium opacity-90 md:text-xl">
+              Join thousands of students who have mastered Korean with SRI-KO.
+            </p>
+            
+            {/* Action Buttons */}
+            <div className="flex flex-col items-center justify-center pt-4 space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
+              <button
+                onClick={onEnroll}
+                className="w-full px-8 py-4 text-base font-bold text-blue-700 transition-all bg-white rounded-xl hover:bg-blue-50 active:scale-95 sm:w-auto shadow-lg shadow-black/10"
+              >
+                Enroll Now
+              </button>
+              
+              <button
+                onClick={onExplore}
+                className="w-full px-8 py-4 text-base font-bold text-white transition-all border-2 border-white/60 bg-white/10 backdrop-blur-sm rounded-xl hover:bg-white/20 active:scale-95 sm:w-auto"
+              >
+                Explore Courses
+              </button>
+            </div>
+          </div>
+
+          {/* Decorative Overlay (Subtle noise/texture if needed) */}
+          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
+        </div>
+      </div>
+    </section>
+  </div>
   );
 };
 
