@@ -1,49 +1,50 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import { useAdminAuth } from './context/AdminAuthContext';
-import Layout from './components/Layout';
-import LoadingSpinner from './components/LoadingSpinner';
-import ScrollToTop from './components/ScrollToTop';
-
-// Pages
-import HomePage from './pages/HomePage';
-import JoinUsPage from './pages/JoinUsPage';
-import HelpCenterPage from './pages/HelpCenterPage';
-import DocumentationPage from './pages/DocumentationPage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import { Navigate, Route, Routes } from 'react-router-dom';
 
 // Protected Pages
 import DashboardPage from './pages/DashboardPage';
-import CoursesPage from './pages/CoursesPage';
-import CourseDetailPage from './pages/CourseDetailPage';
+import DocumentationPage from './pages/DocumentationPage';
+//import EditCoursePage from './pages/EditCoursePage';
+import HelpCenterPage from './pages/HelpCenterPage';
+// Pages
+import HomePage from './pages/HomePage';
+import JoinUsPage from './pages/JoinUsPage';
+import Layout from './components/Layout';
+//import LearningProgressPage from './pages/LearningProgressPage';
+import LoadingSpinner from './components/LoadingSpinner';
+import LoginPage from './pages/LoginPage';
+//import MyCoursesPage from './pages/MyCoursesPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import ProfilePage from './pages/ProfilePage';
-import SettingsPage from './pages/SettingsPage';
-import CreateCoursePage from './pages/CreateCoursePage';
-import EditCoursePage from './pages/EditCoursePage';
-import MyCoursesPage from './pages/MyCoursesPage';
-import LearningProgressPage from './pages/LearningProgressPage';
-import PublicProfilePage from './pages/PublicProfilePage';
-
-// Admin Pages
-import AdminDashboardPage from './pages/AdminDashboardPage';
-import AdminUserManagementPage from './pages/AdminUserManagementPage';
-import AdminCourseManagementPage from './pages/AdminCourseManagementPage';
-import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
-import AdminLoginPage from './pages/AdminLoginPage';
-import AdminSubscriptionManagementPage from './pages/AdminSubscriptionManagementPage';
-import AdminCertificateManagementPage from './pages/AdminCertificateManagementPage';
-import AdminAnnouncementManagementPage from './pages/AdminAnnouncementManagementPage';
-import AdminDiscussionForumManagementPage from './pages/AdminDiscussionForumManagementPage';
-import AdminNotificationManagementPage from './pages/AdminNotificationManagementPage';
-import AdminSettingsPage from './pages/AdminSettingsPage';
-import AdminLayout from './components/AdminLayout';
-import AdminJoinUsPage from './pages/AdminJoinUsPage';
-
 // Protected Route Component
 import ProtectedRoute from './components/ProtectedRoute';
+import PublicProfilePage from './pages/PublicProfilePage';
+import RegisterPage from './pages/RegisterPage';
+import ScrollToTop from './components/ScrollToTop';
+import SettingsPage from './pages/SettingsPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import { useAdminAuth } from './context/AdminAuthContext';
+import { useAuth } from './context/AuthContext';
+
+//import CourseDetailPage from './pages/CourseDetailPage';
+//import CoursesPage from './pages/CoursesPage';
+//import CreateCoursePage from './pages/CreateCoursePage';
+
+
+// // Admin Pages
+// import AdminDashboardPage from './pages/AdminDashboardPage';
+// import AdminUserManagementPage from './pages/AdminUserManagementPage';
+// import AdminCourseManagementPage from './pages/AdminCourseManagementPage';
+// import AdminAnalyticsPage from './pages/AdminAnalyticsPage';
+// import AdminLoginPage from './pages/AdminLoginPage';
+// import AdminSubscriptionManagementPage from './pages/AdminSubscriptionManagementPage';
+// import AdminCertificateManagementPage from './pages/AdminCertificateManagementPage';
+// import AdminAnnouncementManagementPage from './pages/AdminAnnouncementManagementPage';
+// import AdminDiscussionForumManagementPage from './pages/AdminDiscussionForumManagementPage';
+// import AdminNotificationManagementPage from './pages/AdminNotificationManagementPage';
+// import AdminSettingsPage from './pages/AdminSettingsPage';
+// import AdminLayout from './components/AdminLayout';
+// import AdminJoinUsPage from './pages/AdminJoinUsPage';
+
 
 function App() {
   const { loading, isAuthenticated, user } = useAuth();
@@ -79,11 +80,11 @@ function App() {
         <Route path="terms-of-service" element={<TermsOfServicePage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
-        <Route path="courses" element={<CoursesPage />} />
-        <Route path="courses/:id" element={<CourseDetailPage />} />
+      {/*  <Route path="courses" element={<CoursesPage />} />
+        <Route path="courses/:id" element={<CourseDetailPage />} /> */}
       </Route>
 
-      {/* Protected Routes */}
+    {/*Protected Routes */}
       <Route
         path="/dashboard"
         element={
@@ -116,7 +117,7 @@ function App() {
       >
         <Route index element={<SettingsPage />} />
       </Route>
-
+{/*}
       <Route
         path="/courses/create"
         element={
@@ -140,17 +141,6 @@ function App() {
       </Route>
 
       <Route
-        path="/my-courses"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<MyCoursesPage />} />
-      </Route>
-
-      <Route
         path="/learning-progress"
         element={
           <ProtectedRoute>
@@ -159,7 +149,19 @@ function App() {
         }
       >
         <Route index element={<LearningProgressPage />} />
-      </Route>
+      </Route> 
+      
+      <Route
+        path="/my-courses"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<MyCoursesPage />} />
+      </Route>*/}
+
 
       <Route
         path="/public-profile"
@@ -172,7 +174,7 @@ function App() {
         <Route index element={<PublicProfilePage />} />
       </Route>
 
-      {/* Admin Routes */}
+      {/* Admin Routes 
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -187,7 +189,7 @@ function App() {
             <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="join-us" element={<AdminJoinUsPage />} />
         <Route path="notifications" element={<AdminNotificationManagementPage />} />
-      </Route>
+      </Route>*/}
     </Routes>
     </>
   );
