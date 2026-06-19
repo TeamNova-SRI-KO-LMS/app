@@ -1,25 +1,24 @@
-import { useState, useEffect } from 'react';
-//import { apiService } from '../services/apiService';
-import toast from 'react-hot-toast';
-import apiUrl, { getWorkingApiUrl } from '../config/apiConfig';
 import {
-  ChartBarIcon,
-  UsersIcon,
   AcademicCapIcon,
-  CurrencyDollarIcon,
-  ArrowTrendingUpIcon,
-  ArrowTrendingDownIcon,
-  CalendarIcon,
-  EyeIcon,
   ArrowDownTrayIcon,
-  StarIcon,
-  // AdjustmentsHorizontalIcon,
+  ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
   ArrowUpIcon,
-  // ArrowDownIcon,
+  CalendarIcon,
+  ChartBarIcon,
+  CurrencyDollarIcon,
+  EyeIcon,
+  StarIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
-import UserGrowthChart from '../components/charts/UserGrowthChart';
+import apiUrl, { getWorkingApiUrl } from '../config/apiConfig';
+import { useEffect, useState } from 'react';
+
 import RevenueChart from '../components/charts/RevenueChart';
 import UserCourseComparisonChart from '../components/charts/UserCourseComparisonChart';
+import UserGrowthChart from '../components/charts/UserGrowthChart';
+import { apiService } from '../services/apiService';
+import toast from 'react-hot-toast';
 
 const AdminAnalyticsPage = () => {
   const [loading, setLoading] = useState(true);

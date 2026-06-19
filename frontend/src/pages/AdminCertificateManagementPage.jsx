@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
-//import certificateService from '../services/certificateService';
-//import courseService from '../services/courseService';
+import React, { useEffect, useState } from 'react';
+
+import certificateService from '../services/certificateService';
+import courseService from '../services/courseService';
 import { getWorkingApiUrl } from '../config/apiConfig';
+import toast from 'react-hot-toast';
 
 const AdminCertificateManagementPage = () => {
   const [loading, setLoading] = useState(false);

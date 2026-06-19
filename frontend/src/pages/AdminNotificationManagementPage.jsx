@@ -1,24 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
-//import notificationService from '../services/notificationService';
 import {
+  AcademicCapIcon,
   BellIcon,
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  EyeIcon,
-  EyeSlashIcon,
   BookmarkIcon,
   BookmarkSlashIcon,
-  ClockIcon,
-  UsersIcon,
-  AcademicCapIcon,
-  UserGroupIcon,
-  ExclamationTriangleIcon,
-  InformationCircleIcon,
   CheckCircleIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  InformationCircleIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UserGroupIcon,
+  UsersIcon,
   XCircleIcon
 } from '@heroicons/react/24/outline';
+import React, { useEffect, useState } from 'react';
+
+import notificationService from '../services/notificationService';
+import toast from 'react-hot-toast';
 
 const AdminNotificationManagementPage = () => {
   const [loading, setLoading] = useState(false);
