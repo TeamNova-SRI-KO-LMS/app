@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import notificationService from '../services/notificationService';
+//import notificationService from '../services/notificationService';
 import {
   BellIcon,
   PlusIcon,

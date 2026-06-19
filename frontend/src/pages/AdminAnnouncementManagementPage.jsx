@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import announcementService from '../services/announcementService';
+//import announcementService from '../services/announcementService';
 import {
   PencilIcon,
   TrashIcon,

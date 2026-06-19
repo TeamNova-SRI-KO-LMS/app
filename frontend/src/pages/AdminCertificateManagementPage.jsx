@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import certificateService from '../services/certificateService';
-import courseService from '../services/courseService';
+//import certificateService from '../services/certificateService';
+//import courseService from '../services/courseService';
 import { getWorkingApiUrl } from '../config/apiConfig';
 
 const AdminCertificateManagementPage = () => {
