@@ -1,24 +1,25 @@
-import {
-  AcademicCapIcon,
-  ArrowDownTrayIcon,
-  ArrowTrendingDownIcon,
-  ArrowTrendingUpIcon,
-  ArrowUpIcon,
-  CalendarIcon,
-  ChartBarIcon,
-  CurrencyDollarIcon,
-  EyeIcon,
-  StarIcon,
-  UsersIcon,
-} from '@heroicons/react/24/outline';
-import apiUrl, { getWorkingApiUrl } from '../config/apiConfig';
-import { useEffect, useState } from 'react';
-
-import RevenueChart from '../components/charts/RevenueChart';
-import UserCourseComparisonChart from '../components/charts/UserCourseComparisonChart';
-import UserGrowthChart from '../components/charts/UserGrowthChart';
+import { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
 import toast from 'react-hot-toast';
+import apiUrl, { getWorkingApiUrl } from '../config/apiConfig';
+import {
+  ChartBarIcon,
+  UsersIcon,
+  AcademicCapIcon,
+  CurrencyDollarIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  CalendarIcon,
+  EyeIcon,
+  ArrowDownTrayIcon,
+  StarIcon,
+  // AdjustmentsHorizontalIcon,
+  ArrowUpIcon,
+  // ArrowDownIcon,
+} from '@heroicons/react/24/outline';
+import UserGrowthChart from '../components/charts/UserGrowthChart';
+import RevenueChart from '../components/charts/RevenueChart';
+import UserCourseComparisonChart from '../components/charts/UserCourseComparisonChart';
 
 const AdminAnalyticsPage = () => {
   const [loading, setLoading] = useState(true);

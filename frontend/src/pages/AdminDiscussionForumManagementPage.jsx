@@ -1,15 +1,14 @@
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import discussionForumService from '../services/discussionForumService';
 import {
-  BookmarkIcon,
-  BookmarkSlashIcon,
+  PencilIcon,
+  TrashIcon,
   EyeIcon,
   EyeSlashIcon,
-  PencilIcon,
-  TrashIcon
+  BookmarkIcon,
+  BookmarkSlashIcon
 } from '@heroicons/react/24/outline';
-import React, { useEffect, useState } from 'react';
-
-import discussionForumService from '../services/discussionForumService';
-import toast from 'react-hot-toast';
 
 const AdminDiscussionForumManagementPage = () => {
   const [loading, setLoading] = useState(false);

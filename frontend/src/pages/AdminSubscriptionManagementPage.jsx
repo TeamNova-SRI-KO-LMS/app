@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-//import { paymentService } from '../services/subscriptionService';
+import { paymentService } from '../services/subscriptionService';
 import toast from 'react-hot-toast';
 import {
   CurrencyDollarIcon,
