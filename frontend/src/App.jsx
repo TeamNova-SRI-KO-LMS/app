@@ -17,6 +17,7 @@ import EventsPage from './pages/EventsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import CourseDetails from './pages/CourseDetailsPage';
 import PaymentInfo from './pages/PaymentInfoPage';
+import FloatingAiSupport from './components/FloatingAiSupport';
 
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
             <Route path="/register" element={<RegisterPage />} />
           <Route path="/payment-info" element={<PaymentInfo />} />
         </Routes>
+        <FloatingAiSupport />
       </BrowserRouter>
     </AuthProvider>
   )

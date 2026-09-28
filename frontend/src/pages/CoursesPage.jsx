@@ -22,17 +22,6 @@ export default function Courses() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"></div>
         </div>
 
-        {/* Floating AI Button */}
-        <div className="absolute right-6 top-6 bg-blue-700 text-white flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl cursor-pointer hover:bg-blue-800 transition-transform z-20">
-          <div className="text-sm font-medium text-left leading-tight">
-              <div className="text-blue-200 text-xs">Need help?</div>
-              <div>Chat with AI.</div>
-          </div>
-          <div className="bg-white/20 p-2 rounded-lg">
-              <MessageSquare className="w-5 h-5" />
-          </div>
-        </div>
-
         {/* Hero Content */}
         <div className="relative z-10 text-center w-full max-w-3xl mx-auto mt-8">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-wide drop-shadow-md">

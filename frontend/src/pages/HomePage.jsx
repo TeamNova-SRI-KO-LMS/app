@@ -12,27 +12,13 @@ const HomePage = () => {
       
 
       {/* Hero Banner Section */}
-      <section className="max-w-[1400px] mx-auto p-4 relative mt-4">
-        <img src="../public/images/home.png" class="w-full h-full object-cover"></img >
-        {/* <div className="w-full h-[400px] md:h-[500px] bg-gradient-to-r from-yellow-500 to-orange-400 rounded-2xl flex items-center justify-center relative overflow-hidden shadow-md">
-           <h1 className="text-7xl md:text-9xl font-black text-white drop-shadow-xl tracking-tighter">SRIKO</h1>
-           <p className="absolute bottom-10 bg-white/90 px-6 py-2 text-xl font-bold tracking-widest italic transform -skew-x-12">KOREAN LANGUAGE TRAINING</p>
-        </div> */}
-
-        {/* Floating AI Support Button */}
-        <button className="absolute top-8 right-8 bg-blue-700 hover:bg-blue-800 text-white rounded-xl shadow-lg p-3 flex items-center gap-3 transition transform hover:scale-105 z-10">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs text-blue-200 leading-tight">Need help?</p>
-            <p className="text-sm font-bold leading-tight">Chat with AI</p>
-          </div>
-          <div className="bg-white/20 p-2 rounded-lg">
-            <Bot size={24} />
-          </div>
-        </button>
+      <section className="max-w-[1400px] mx-auto pt-0 p-4  relative ">
+        <img src="/public/regHero1.png" className="w-full h-full object-cover" alt="SRI-KO Home Banner" />
+       
       </section>
 
       {/* Stats Section */}
-      <section className="max-w-7xl mx-auto px-4 mt-8 relative z-20">
+      <section className="max-w-7xl mx-auto px-0  relative z-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             { icon: Users, count: "5,000+", label: "STUDENTS TAUGHT", color: "bg-blue-50 text-blue-600" },

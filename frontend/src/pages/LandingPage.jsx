@@ -34,7 +34,7 @@ const LandingPage = () => {
       <section 
         className="relative pt-32 pb-32 lg:pt-48 lg:pb-48 flex items-center justify-center text-center px-4"
         style={{
-          backgroundImage: ' url("../public/images/publicwallpaper.png")',
+          backgroundImage: ' url("/unreghero.jpg")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}

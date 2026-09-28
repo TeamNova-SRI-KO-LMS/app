@@ -17,18 +17,7 @@ export default function AboutUs() {
             
             {/* Main Collage Placeholder (Represents the top complex graphic) */}
             <div className="w-full max-w-6xl bg-black/10 rounded-xl overflow-hidden shadow-2xl relative h-[400px] border border-white/20 flex items-center justify-center">
-                <img src="../public/images/about.png" class="w-full h-full object-cover"></img >
-            </div>
-
-            {/* AI Chat Button floating on Hero */}
-            <div className="absolute right-6 top-6 bg-blue-700 text-white flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl cursor-pointer hover:bg-blue-800 transition-transform hover:scale-105 z-10">
-                <div className="text-sm font-medium text-left leading-tight">
-                    <div className="text-blue-200 text-xs">Need help?</div>
-                    <div>Chat with AI.</div>
-                </div>
-                <div className="bg-white/20 p-2 rounded-lg">
-                    <MessageSquare className="w-5 h-5" />
-                </div>
+                <img src="../public/aboutHero.png" class="w-full h-full object-cover"></img >
             </div>
         </div>
 
@@ -63,7 +52,7 @@ export default function AboutUs() {
                 <div className="relative rounded-3xl overflow-hidden shadow-xl aspect-[3/4] max-w-md mx-auto lg:mx-0 w-full">
                     {/* Using the provided teacher image */}
                     <img 
-                        src="../public/images/teacher.jpg" 
+                        src="../public/teacher.png" 
                         alt="Nandana Kekulawala" 
                         className="w-full h-full object-cover"
                     />
@@ -146,7 +135,7 @@ export default function AboutUs() {
             <section className="w-full rounded-3xl overflow-hidden shadow-2xl mb-12">
                  {/* Using the provided generated image */}
                  <img 
-                    src="../public/images/about2.png" 
+                    src="../public/aboutwall2.png" 
                     alt="SRIKO Building a bridge to your future" 
                     className="w-full h-auto object-cover"
                 />

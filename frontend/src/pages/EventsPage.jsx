@@ -21,7 +21,7 @@ export default function Events() {
                     <div className="relative h-64 bg-gray-200 overflow-hidden">
                         {/* Replace src with your actual seminar image path */}
                         <img 
-                            src="https://images.unsplash.com/photo-1544531586-fde5298cdd40?auto=format&fit=crop&q=80&w=1000" 
+                            src="/event1.png" 
                             alt="Foreigners Seminar" 
                             className="w-full h-full object-cover"
                         />
@@ -61,7 +61,7 @@ export default function Events() {
                     <div className="relative h-64 bg-gray-200 overflow-hidden">
                          {/* Replace src with your actual ceremony image path */}
                         <img 
-                            src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&q=80&w=1000" 
+                            src="/event2.png" 
                             alt="Prize Giving Ceremony" 
                             className="w-full h-full object-cover"
                         />
