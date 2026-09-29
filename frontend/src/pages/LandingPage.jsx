@@ -8,27 +8,7 @@ const LandingPage = () => {
   return (
     <div className="font-sans text-gray-800 bg-gray-50">
 
-      {/* Navbar */}
-      <nav className="bg-white px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          {/* Logo Placeholder */}
-            <Link to="/" className="w-12 h-15 bg-blue-100  flex items-center justify-center font-bold text-blue-800  text-xs overflow-hidden">
-            <img src="/sri-ko-logo.png" alt="SRI-KO Logo" className="w-full h-full object-cover" />
-          </Link>
-          
-        </div>
-        <div className="hidden md:flex space-x-8 text-sm font-medium text-gray-600">
-          <Link to="/" className="text-blue-600">Home</Link>
-          <Link to="/courses" className="hover:text-blue-600 transition">Courses</Link>
-          <Link to="/about" className="hover:text-blue-600 transition">About Us</Link>
-        </div>
-        <div className="flex items-center space-x-4">
-          <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition">Sign In</Link>
-          <button className="bg-blue-600 text-white px-5 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">
-            <Link to="/register" className="hover:text-blue-600 transition">Join Us Today</Link>
-          </button>
-        </div>
-      </nav>
+
 
       {/* Hero Section */}
       <section 
@@ -274,30 +254,7 @@ const LandingPage = () => {
         </div>
       </section> */}
 
-      {/* Footer */}
-      <footer className="bg-gray-50 py-10 border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex flex-col items-center md:items-start">
-             <div className="flex items-center gap-2 mb-2">
-                {/* Logo small */}
-                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 text-[10px]">
-                  SK
-                </div>
-                <span className="font-bold text-gray-800">SRI-KO</span>
-             </div>
-             <p className="text-xs text-gray-500 text-center md:text-left max-w-sm">
-                © 2024 SRI-KO. The Editorial Scholar Experience. Elevated language learning for the modern professional.
-             </p>
-          </div>
-          
-          <div className="flex gap-6 text-sm text-gray-500">
-            <a href="#" className="hover:text-blue-600 transition">Terms of Service</a>
-            <a href="#" className="hover:text-blue-600 transition">Privacy Policy</a>
-            <a href="#" className="hover:text-blue-600 transition">Help Center</a>
-            <a href="#" className="hover:text-blue-600 transition">Contact Us</a>
-          </div>
-        </div>
-      </footer>
+
 
     </div>
   );

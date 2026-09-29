@@ -27,11 +27,26 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route element={<Layout />}>
-            <Route path="/home" element={<HomePage />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/events" element={<EventsPage />} />
-            <Route path="/announcements" element={<AnnouncementsPage />} />
+            <Route
+              path="/announcements"
+              element={
+                <ProtectedRoute>
+                  <AnnouncementsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/course-details" element={<CourseDetails />} />
             <Route
               path="/dashboard"
@@ -42,10 +57,16 @@ function App() {
               }
             />
           </Route>
-          <Route path="/" element={<LandingPage />} />
-           <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-          <Route path="/payment-info" element={<PaymentInfo />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/payment-info"
+            element={
+              <ProtectedRoute>
+                <PaymentInfo />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
         <FloatingAiSupport />
       </BrowserRouter>
