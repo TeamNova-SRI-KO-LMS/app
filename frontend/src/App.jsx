@@ -80,12 +80,13 @@ function App() {
         <Route path="terms-of-service" element={<TermsOfServicePage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+                <Route path="dashboard" element={<DashboardPage />} />
       {/*  <Route path="courses" element={<CoursesPage />} />
         <Route path="courses/:id" element={<CourseDetailPage />} /> */}
       </Route>
 
     {/*Protected Routes */}
-      <Route
+      {/* <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
@@ -94,7 +95,7 @@ function App() {
         }
       >
         <Route index element={<DashboardPage />} />
-      </Route>
+      </Route> */}
 
       <Route
         path="/profile"
