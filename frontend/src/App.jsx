@@ -7,6 +7,7 @@ import DocumentationPage from './pages/DocumentationPage';
 import HelpCenterPage from './pages/HelpCenterPage';
 // Pages
 import HomePage from './pages/HomePage';
+import AboutUs from './pages/AboutUs';
 import JoinUsPage from './pages/JoinUsPage';
 import Layout from './components/Layout';
 //import LearningProgressPage from './pages/LearningProgressPage';
@@ -24,6 +25,7 @@ import SettingsPage from './pages/SettingsPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import { useAdminAuth } from './context/AdminAuthContext';
 import { useAuth } from './context/AuthContext';
+import AboutUs from './pages/AboutUs';
 
 //import CourseDetailPage from './pages/CourseDetailPage';
 //import CoursesPage from './pages/CoursesPage';
@@ -74,6 +76,7 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="join-us" element={<JoinUsPage />} />
+                <Route path="about-us" element={<AboutUs />} />
         <Route path="help-center" element={<HelpCenterPage />} />
         <Route path="documentation" element={<DocumentationPage />} />
         <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
