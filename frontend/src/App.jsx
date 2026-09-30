@@ -12,6 +12,8 @@ import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import RegisterPage from './pages/RegisterPage';
 import ScrollToTop from './components/ScrollToTop';
+import AdminLogin from './admin/adminLogin';
+import AdminDashboard from './admin/AdminDashboard';
 import CoursesPage from './pages/CoursesPage';
 import EventsPage from './pages/EventsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
@@ -58,6 +60,11 @@ function App() {
             />
           </Route>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/adminLogin" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/*" element={<AdminDashboard />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
             path="/payment-info"
