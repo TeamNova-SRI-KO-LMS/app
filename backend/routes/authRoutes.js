@@ -170,5 +170,41 @@ router.post('/google', async (req, res) => {
   }
 });
 
+const { protect } = require('../middleware/auth');
+
+// GET /api/auth/me - Get current logged-in user
+router.get('/me', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        bio: user.bio,
+        phone: user.phone,
+        location: user.location,
+        enrolledCourses: user.enrolledCourses,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
 
 module.exports = router;

@@ -16,10 +16,10 @@ const courseSchema = new mongoose.Schema({
     ref: 'User',
     required: [true, 'Course must have an instructor']
   },
-  category: {
-    type: String,
-    enum: ['programming', 'design', 'business', 'language', 'other']
-  },
+  // category: {
+  //   type: String,
+  //   enum: ['programming', 'design', 'business', 'language', 'other']
+  // },
   level: {
     type: String,
     enum: ['beginner', 'intermediate', 'advanced']

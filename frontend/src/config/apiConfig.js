@@ -4,7 +4,7 @@ const isBrowser = typeof window !== "undefined";
 // Otherwise, fall back to local backend URL.
 const baseUrl = isBrowser && window?.configs?.apiUrl
   ? window.configs.apiUrl
-  : "http://localhost:5001"; // local backend without /api prefix
+  : "http://localhost:5000"; // local backend without /api prefix
 
 // Handle API URL structure with multiple fallback options.
 let apiUrl;
@@ -58,8 +58,8 @@ export const getWorkingApiUrl = async () => {
     apiUrl,
     `${baseUrl}/api`,
     baseUrl,
-    "http://localhost:5001/api",
-    "http://localhost:5001",
+    "http://localhost:5000/api",
+    "http://localhost:5000",
   ];
 
   console.log("[apiConfig] Testing possible API URLs:", possibleUrls);
