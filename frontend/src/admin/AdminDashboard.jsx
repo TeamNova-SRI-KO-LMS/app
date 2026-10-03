@@ -29,12 +29,54 @@ import AnnouncementsManager from './AnnouncementsManager';
 import DiscussionForums from './DiscussionForums';
 import SystemSettings from './SystemSettings';
 import KoreanProgramApplications from './KoreanProgramApplications';
+import apiService from '../services/apiService';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalCourses, setTotalCourses] = useState(0);
+  const [enrolledStudents, setEnrolledStudents] = useState(0);
+  const [recentUsers, setRecentUsers] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoadingStats(true);
+      
+      // Fetch users from database
+      const usersRes = await apiService.get('/users');
+      if (usersRes.data?.data) {
+        const usersList = usersRes.data.data;
+        const total = usersRes.data.count !== undefined ? usersRes.data.count : usersList.length;
+        setTotalUsers(total);
+        setRecentUsers(usersList.slice(0, 4));
+        const studentsCount = usersList.filter(u => (u.role || '').toLowerCase() === 'student').length;
+        setEnrolledStudents(studentsCount);
+      }
+
+      // Fetch courses from database
+      try {
+        const coursesRes = await apiService.get('/courses');
+        if (coursesRes.data) {
+          setTotalCourses(coursesRes.data.total ?? coursesRes.data.count ?? (coursesRes.data.courses?.length || 0));
+        }
+      } catch (cErr) {
+        console.warn('Courses fetch error in dashboard:', cErr);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+    } finally {
+      setLoadingStats(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev);
@@ -42,9 +84,7 @@ const AdminDashboard = () => {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
+    fetchDashboardData();
   };
 
   // Render content based on active tab
@@ -108,7 +148,13 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block">Total Users</span>
-                  <span className="text-2xl font-bold text-gray-900 mt-0.5 block">1,248</span>
+                  <span className="text-2xl font-bold text-gray-900 mt-0.5 block">
+                    {loadingStats ? (
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded"></span>
+                    ) : (
+                      totalUsers.toLocaleString()
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -119,7 +165,13 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block">Total Courses</span>
-                  <span className="text-2xl font-bold text-gray-900 mt-0.5 block">156</span>
+                  <span className="text-2xl font-bold text-gray-900 mt-0.5 block">
+                    {loadingStats ? (
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded"></span>
+                    ) : (
+                      totalCourses.toLocaleString()
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -276,7 +328,13 @@ const AdminDashboard = () => {
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
                     Enrolled Students
                   </span>
-                  <span className="text-2xl font-bold text-gray-900 mt-1 block">314</span>
+                  <span className="text-2xl font-bold text-gray-900 mt-1 block">
+                    {loadingStats ? (
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded"></span>
+                    ) : (
+                      enrolledStudents.toLocaleString()
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -296,45 +354,70 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {/* User 1 */}
-                  <div className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50/70 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                        MK
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-xs sm:text-sm text-gray-900">Min-ji Kim</h4>
-                        <p className="text-[11px] text-gray-400">minji.k@example.com</p>
-                      </div>
+                  {loadingStats ? (
+                    <div className="space-y-3 py-2">
+                      <div className="h-14 bg-gray-100 animate-pulse rounded-xl" />
+                      <div className="h-14 bg-gray-100 animate-pulse rounded-xl" />
                     </div>
+                  ) : recentUsers.length > 0 ? (
+                    recentUsers.map((u) => {
+                      const initials = (u.name || 'User')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .substring(0, 2)
+                        .toUpperCase();
+                      const role = (u.role || 'student').toLowerCase();
+                      const roleBadgeClass =
+                        role === 'admin'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : role === 'instructor'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200';
 
-                    <div className="flex items-center gap-4">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        Student
-                      </span>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">Nov 12, 2023</span>
-                    </div>
-                  </div>
+                      return (
+                        <div
+                          key={u._id || u.id}
+                          className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50/70 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {u.avatar ? (
+                              <img
+                                src={u.avatar}
+                                alt={u.name}
+                                className="w-10 h-10 rounded-full object-cover shrink-0 shadow-xs"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                                {initials}
+                              </div>
+                            )}
+                            <div>
+                              <h4 className="font-bold text-xs sm:text-sm text-gray-900">{u.name}</h4>
+                              <p className="text-[11px] text-gray-400">{u.email}</p>
+                            </div>
+                          </div>
 
-                  {/* User 2 */}
-                  <div className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50/70 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                        SL
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-xs sm:text-sm text-gray-900">Seung-woo Lee</h4>
-                        <p className="text-[11px] text-gray-400">s.lee@university.edu</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        Instructor
-                      </span>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">Nov 11, 2023</span>
-                    </div>
-                  </div>
+                          <div className="flex items-center gap-4">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${roleBadgeClass}`}>
+                              {role}
+                            </span>
+                            <span className="text-xs text-gray-400 whitespace-nowrap">
+                              {u.createdAt
+                                ? new Date(u.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })
+                                : 'Recent'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-gray-400 py-3 text-center">No users found.</p>
+                  )}
                 </div>
               </div>
 

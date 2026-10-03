@@ -1,6 +1,6 @@
 const express = require('express');
 const User = require('../models/User');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const {
   validateProfileUpdate,
   handleValidationErrors,
@@ -198,4 +198,124 @@ router.put('/password', protect, async (req, res) => {
   }
 });
 
+// @desc    Get all users (Admin only)
+// @route   GET /api/users
+// @access  Private/Admin
+router.get('/', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { search, role } = req.query;
+    const query = {};
+
+    if (role && role !== 'all') {
+      query.role = role.toLowerCase();
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching users'
+    });
+  }
+});
+
+// @desc    Create a user (Admin only)
+// @route   POST /api/users
+// @access  Private/Admin
+router.post('/', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and email are required'
+      });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+
+    const userRole = (role || 'student').toLowerCase();
+    const userPassword = password || '123456';
+
+    const user = await User.create({
+      name,
+      email,
+      password: userPassword,
+      role: userRole
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      data: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        enrolledCourses: user.enrolledCourses || []
+      }
+    });
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error creating user'
+    });
+  }
+});
+
+// @desc    Delete user (Admin only)
+// @route   DELETE /api/users/:id
+// @access  Private/Admin
+router.delete('/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    await user.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error deleting user'
+    });
+  }
+});
+
 module.exports = router;
+
