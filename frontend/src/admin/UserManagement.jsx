@@ -2,73 +2,93 @@ import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, Trash2, Edit2, Shield, Mail, Check, X } from 'lucide-react';
 import apiService from '../services/apiService';
 
-const initialMockUsers = [
-  { id: '1', name: 'Min-ji Kim', email: 'minji.k@example.com', role: 'Student', status: 'Active', joinedDate: 'Nov 12, 2023', coursesEnrolled: 3 },
-  { id: '2', name: 'Seung-woo Lee', email: 's.lee@university.edu', role: 'Instructor', status: 'Active', joinedDate: 'Nov 11, 2023', coursesEnrolled: 8 },
-  { id: '3', name: 'Aruni Madushani', email: 'aruni@example.com', role: 'Student', status: 'Pending', joinedDate: 'Nov 14, 2023', coursesEnrolled: 1 },
-  { id: '4', name: 'Kasun Perera', email: 'kasun.p@example.com', role: 'Student', status: 'Active', joinedDate: 'Nov 12, 2023', coursesEnrolled: 2 },
-  { id: '5', name: 'Prof. Jin-woo Park', email: 'j.park@sriko.lk', role: 'Instructor', status: 'Active', joinedDate: 'Oct 28, 2023', coursesEnrolled: 12 },
-  { id: '6', name: 'Tharindu Thejan', email: 'tharindu@sriko.lk', role: 'Admin', status: 'Active', joinedDate: 'Oct 15, 2023', coursesEnrolled: 0 }
-];
-
 const UserManagement = () => {
-  const [users, setUsers] = useState(initialMockUsers);
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Student' });
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await apiService.get('/users');
-        if (response.data?.data && response.data.data.length > 0) {
-          const apiUsers = response.data.data.map(u => ({
-            id: u._id || u.id,
-            name: u.name || 'User',
-            email: u.email,
-            role: u.role === 'admin' ? 'Admin' : u.role === 'instructor' ? 'Instructor' : 'Student',
-            status: 'Active',
-            joinedDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            coursesEnrolled: u.enrolledCourses?.length || 0
-          }));
-          setUsers(apiUsers);
-        }
-      } catch (err) {
-        console.log('Using default users data');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.get('/users');
+      if (response.data?.data) {
+        const apiUsers = response.data.data.map(u => ({
+          id: u._id || u.id,
+          name: u.name || 'User',
+          email: u.email,
+          role: u.role === 'admin' ? 'Admin' : u.role === 'instructor' ? 'Instructor' : 'Student',
+          status: u.isActive !== false ? 'Active' : 'Inactive',
+          joinedDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          coursesEnrolled: u.enrolledCourses?.length || 0
+        }));
+        setUsers(apiUsers);
       }
-    };
+    } catch (err) {
+      console.error('Error fetching users from database:', err);
+      setError('Failed to fetch users from database.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUsers();
   }, []);
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || user.role.toLowerCase() === filterRole.toLowerCase();
+    const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (user.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === 'all' || (user.role || '').toLowerCase() === filterRole.toLowerCase();
     return matchesSearch && matchesRole;
   });
 
-  const handleAddUser = (e) => {
+  const handleAddUser = async (e) => {
     e.preventDefault();
     if (!newUser.name || !newUser.email) return;
 
-    const userObj = {
-      id: Date.now().toString(),
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      status: 'Active',
-      joinedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      coursesEnrolled: 0
-    };
+    try {
+      const response = await apiService.post('/users', {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role.toLowerCase()
+      });
 
-    setUsers([userObj, ...users]);
-    setNewUser({ name: '', email: '', role: 'Student' });
-    setShowAddModal(false);
+      if (response.data?.data) {
+        const u = response.data.data;
+        const createdUser = {
+          id: u._id || u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role === 'admin' ? 'Admin' : u.role === 'instructor' ? 'Instructor' : 'Student',
+          status: 'Active',
+          joinedDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          coursesEnrolled: 0
+        };
+        setUsers([createdUser, ...users]);
+      } else {
+        fetchUsers();
+      }
+      setNewUser({ name: '', email: '', role: 'Student' });
+      setShowAddModal(false);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to create user on backend');
+    }
   };
 
-  const handleDeleteUser = (id) => {
-    setUsers(users.filter(u => u.id !== id));
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    try {
+      await apiService.delete(`/users/${id}`);
+      setUsers(users.filter(u => u.id !== id));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete user');
+    }
   };
 
   return (
@@ -116,6 +136,19 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button 
+            onClick={fetchUsers} 
+            className="underline font-semibold hover:text-red-800 cursor-pointer ml-4"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Users Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -130,54 +163,70 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs shrink-0">
-                        {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">{user.name}</div>
-                        <div className="text-[11px] text-gray-400">{user.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      user.role === 'Admin'
-                        ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                        : user.role === 'Instructor'
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${
-                      user.status === 'Active' ? 'text-emerald-600' : 'text-amber-600'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {user.joinedDate}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                        title="Delete User"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-400">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent mb-2"></div>
+                    <p className="text-xs">Loading users from database...</p>
                   </td>
                 </tr>
-              ))}
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center text-gray-400">
+                    <p className="text-sm font-medium text-gray-500">No users found in database</p>
+                    <p className="text-xs mt-1">Click "Add New User" above to create your first user.</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs shrink-0">
+                          {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-900">{user.name}</div>
+                          <div className="text-[11px] text-gray-400">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        user.role === 'Admin'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                          : user.role === 'Instructor'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                        user.status === 'Active' ? 'text-emerald-600' : 'text-amber-600'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-500">
+                      {user.joinedDate}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete User"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

@@ -2,7 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const dns = require('dns');
 require('dotenv').config();
+
+// Override default DNS servers to Google DNS to fix querySrv ECONNREFUSED issues on MongoDB Atlas
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');

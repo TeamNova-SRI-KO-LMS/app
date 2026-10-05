@@ -14,12 +14,13 @@ const courseSchema = new mongoose.Schema({
   instructor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Course must have an instructor']
+    required: false
   },
-  // category: {
-  //   type: String,
-  //   enum: ['programming', 'design', 'business', 'language', 'other']
-  // },
+  category: {
+    type: String,
+    enum: ['Literature', 'Business', 'Language', 'Culture', 'Grammar', 'Conversation', 'Other'],
+    default: 'Language'
+  },
   level: {
     type: String,
     enum: ['beginner', 'intermediate', 'advanced']

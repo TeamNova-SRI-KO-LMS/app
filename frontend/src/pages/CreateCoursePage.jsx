@@ -1,12 +1,38 @@
-const CreateCoursePage = () => {
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import AdminHeader from '../admin/AdminHeader';
+import CreateCourseView from '../admin/components/CreateCourseView';
+import courseService from '../services/courseService';
+
+export default function CreateCoursePage() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async (payload) => {
+    setLoading(true);
+    try {
+      await courseService.createCourse(payload);
+      alert('Course created successfully!');
+      navigate('/admin');
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to create course.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4">
-      <h1 className="text-2xl font-bold">Create Course Page</h1>
-      <p className="text-gray-600">
-        Course creation form will be implemented here
-      </p>
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
+      <AdminHeader 
+        onToggleSidebar={() => navigate('/admin')} 
+      />
+      <div className="flex-1">
+        <CreateCourseView 
+          onBack={() => navigate('/admin')}
+          onSave={handleSave}
+          loading={loading}
+        />
+      </div>
     </div>
   );
-};
-
-export default CreateCoursePage;
+}
