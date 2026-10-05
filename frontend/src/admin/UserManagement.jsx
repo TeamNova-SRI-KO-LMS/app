@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, Trash2, Edit2, Shield, Mail, Check, X } from 'lucide-react';
+import { Search, UserPlus, Trash2, Edit2, Shield, Mail, Check, X, ChevronDown, Loader2 } from 'lucide-react';
 import apiService from '../services/apiService';
 
 const UserManagement = () => {
@@ -10,6 +10,8 @@ const UserManagement = () => {
   const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Student' });
 
   const [loading, setLoading] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState(null);
 
   const fetchUsers = async () => {
@@ -48,6 +50,33 @@ const UserManagement = () => {
     return matchesSearch && matchesRole;
   });
 
+  const handleRoleChange = async (userId, newRole) => {
+    const previousUsers = [...users];
+    const userToUpdate = users.find(u => u.id === userId);
+    const userName = userToUpdate ? userToUpdate.name : 'User';
+
+    // Optimistically update the UI
+    setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    setUpdatingUserId(userId);
+    setSuccessMessage('');
+    setError(null);
+
+    try {
+      await apiService.put(`/users/${userId}`, {
+        role: newRole.toLowerCase()
+      });
+      setSuccessMessage(`Role for ${userName} changed to ${newRole} successfully`);
+      setTimeout(() => setSuccessMessage(''), 4000);
+    } catch (err) {
+      console.error('Error updating user role:', err);
+      // Revert optimistic update on failure
+      setUsers(previousUsers);
+      setError(err.response?.data?.message || 'Failed to update user role');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!newUser.name || !newUser.email) return;
@@ -71,6 +100,8 @@ const UserManagement = () => {
           coursesEnrolled: 0
         };
         setUsers([createdUser, ...users]);
+        setSuccessMessage(`User ${createdUser.name} created successfully`);
+        setTimeout(() => setSuccessMessage(''), 4000);
       } else {
         fetchUsers();
       }
@@ -86,6 +117,8 @@ const UserManagement = () => {
     try {
       await apiService.delete(`/users/${id}`);
       setUsers(users.filter(u => u.id !== id));
+      setSuccessMessage('User deleted successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to delete user');
     }
@@ -136,9 +169,27 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Success Alert */}
+      {successMessage && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+              <Check size={14} className="stroke-[2.5]" />
+            </div>
+            <span className="font-semibold">{successMessage}</span>
+          </div>
+          <button 
+            onClick={() => setSuccessMessage('')} 
+            className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Error Alert */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-between">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs">
           <span>{error}</span>
           <button 
             onClick={fetchUsers} 
@@ -192,15 +243,32 @@ const UserManagement = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.role === 'Admin'
-                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                          : user.role === 'Instructor'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}>
-                        {user.role}
-                      </span>
+                      <div className="relative inline-flex items-center">
+                        <select
+                          value={user.role}
+                          disabled={updatingUserId === user.id}
+                          onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                          title="Click to change role"
+                          className={`appearance-none cursor-pointer pl-3 pr-7 py-1 rounded-full text-xs font-semibold border transition-all focus:outline-none focus:ring-2 ${
+                            user.role === 'Admin'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100/80 focus:ring-purple-300'
+                              : user.role === 'Instructor'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/80 focus:ring-blue-300'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/80 focus:ring-emerald-300'
+                          } ${updatingUserId === user.id ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                          <option value="Student" className="bg-white text-gray-800">Student</option>
+                          <option value="Instructor" className="bg-white text-gray-800">Instructor</option>
+                          <option value="Admin" className="bg-white text-gray-800">Admin</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-2 flex items-center">
+                          {updatingUserId === user.id ? (
+                            <Loader2 size={12} className="animate-spin text-gray-500" />
+                          ) : (
+                            <ChevronDown size={12} className="text-gray-500 opacity-75" />
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${

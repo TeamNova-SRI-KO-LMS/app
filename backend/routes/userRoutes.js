@@ -288,6 +288,116 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// @desc    Update user (Admin only)
+// @route   PUT /api/users/:id
+// @access  Private/Admin
+router.put('/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { role, name, email, isActive } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (role !== undefined) {
+      const formattedRole = role.toLowerCase();
+      if (!['student', 'instructor', 'admin'].includes(formattedRole)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid role. Must be student, instructor, or admin'
+        });
+      }
+      user.role = formattedRole;
+    }
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (typeof isActive === 'boolean') user.isActive = isActive;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+      data: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        enrolledCourses: user.enrolledCourses || []
+      }
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error updating user'
+    });
+  }
+});
+
+// @desc    Patch user (Admin only)
+// @route   PATCH /api/users/:id
+// @access  Private/Admin
+router.patch('/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { role, name, email, isActive } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (role !== undefined) {
+      const formattedRole = role.toLowerCase();
+      if (!['student', 'instructor', 'admin'].includes(formattedRole)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid role. Must be student, instructor, or admin'
+        });
+      }
+      user.role = formattedRole;
+    }
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (typeof isActive === 'boolean') user.isActive = isActive;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+      data: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+        enrolledCourses: user.enrolledCourses || []
+      }
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error updating user'
+    });
+  }
+});
+
 // @desc    Delete user (Admin only)
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
