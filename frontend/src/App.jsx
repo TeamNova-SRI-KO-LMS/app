@@ -1,8 +1,7 @@
 import './App.css'
 
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 
-import AuthProvider from './context/AuthProvider';
 import AboutUs from './pages/AboutusPage';
 import DashboardPage from './pages/DashboardPage';
 import HomePage from './pages/HomePage';
@@ -20,13 +19,16 @@ import AnnouncementsPage from './pages/AnnouncementsPage';
 import CourseDetails from './pages/CourseDetailsPage';
 import PaymentInfo from './pages/PaymentInfoPage';
 import FloatingAiSupport from './components/FloatingAiSupport';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import HelpCenterPage from './pages/HelpCenterPage';
+import JoinUsPage from './pages/JoinUsPage';
 
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <ScrollToTop />
+    <>
+      <ScrollToTop />
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<LandingPage />} />
@@ -39,6 +41,15 @@ function App() {
               }
             />
             <Route path="/about" element={<AboutUs />} />
+            <Route path="/contact" element={<JoinUsPage />} />
+            <Route path="/join" element={<JoinUsPage />} />
+            <Route path="/join-us" element={<JoinUsPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+            <Route path="/help" element={<HelpCenterPage />} />
+            <Route path="/help-center" element={<HelpCenterPage />} />
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route
@@ -76,8 +87,7 @@ function App() {
           />
         </Routes>
         <FloatingAiSupport />
-      </BrowserRouter>
-    </AuthProvider>
+    </>
   )
 }
 
