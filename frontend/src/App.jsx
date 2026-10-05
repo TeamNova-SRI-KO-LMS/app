@@ -16,8 +16,11 @@ import CoursesPage from './pages/CoursesPage';
 import EventsPage from './pages/EventsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import CourseDetails from './pages/CourseDetailsPage';
+import CourseInfoPage from './pages/CourseInfoPage';
 import PaymentInfo from './pages/PaymentInfoPage';
 import FloatingAiSupport from './components/FloatingAiSupport';
+import CreateCoursePage from './pages/CreateCoursePage';
+import EditCoursePage from './pages/EditCoursePage';
 
 
 function App() {
@@ -47,6 +50,10 @@ function App() {
             }
           />
           <Route path="/course-details" element={<CourseDetails />} />
+          <Route path="/courses/:id" element={<CourseDetails />} />
+          <Route path="/course-info" element={<CourseInfoPage />} />
+          <Route path="/course-info/:id" element={<CourseInfoPage />} />
+          <Route path="/courses/:id/learn" element={<CourseInfoPage />} />
           <Route
             path="/dashboard"
             element={
@@ -59,6 +66,8 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminLogin" element={<AdminLogin />} />
+        <Route path="/admin/courses/create" element={<CreateCoursePage />} />
+        <Route path="/admin/courses/edit/:id" element={<EditCoursePage />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
