@@ -21,6 +21,7 @@ import PaymentInfo from './pages/PaymentInfoPage';
 import FloatingAiSupport from './components/FloatingAiSupport';
 import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
+import { Toaster } from 'react-hot-toast';
 
 
 function App() {
@@ -81,6 +82,7 @@ function App() {
           }
         />
       </Routes>
+      <Toaster position="top-right" />
       <FloatingAiSupport />
     </>
   )
