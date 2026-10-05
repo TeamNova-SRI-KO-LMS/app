@@ -1,336 +1,447 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  UserIcon,
-  AcademicCapIcon,
-  CreditCardIcon,
-  ShieldCheckIcon,
-  ArrowRightIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-} from '@heroicons/react/24/outline';
+  ShieldCheck,
+  Users,
+  Check,
+  CreditCard,
+  RotateCcw,
+  ChevronRight,
+  Clock,
+  Scale,
+  Mail,
+  MessageSquare,
+  MapPin,
+  ChevronDown
+} from 'lucide-react';
 
 const TermsOfServicePage = () => {
+  const [activeSection, setActiveSection] = useState('acceptance');
+  const [expandedPayment, setExpandedPayment] = useState(null);
+
   const sections = [
-    {
-      title: 'Acceptance of Terms',
-      icon: DocumentTextIcon,
-      content: [
-        {
-          subtitle: 'Agreement to Terms',
-          items: [
-            'By accessing and using SRI-KO Korean Language Training Institute services, you accept and agree to be bound by these Terms of Service',
-            'If you do not agree to these terms, you may not access or use our services',
-            'These terms apply to all users, including students, instructors, and visitors',
-            'We reserve the right to modify these terms at any time with notice to users'
-          ]
-        },
-        {
-          subtitle: 'Eligibility',
-          items: [
-            'You must be at least 16 years old to use our services',
-            'You must provide accurate and complete information when creating an account',
-            'You are responsible for maintaining the confidentiality of your account',
-            'You must notify us immediately of any unauthorized use of your account'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'User Responsibilities',
-      icon: UserIcon,
-      content: [
-        {
-          subtitle: 'Account Security',
-          items: [
-            'Maintain the security of your login credentials',
-            'Notify us immediately of any security breaches',
-            'Use strong passwords and enable two-factor authentication when available',
-            'Log out of your account when using shared devices'
-          ]
-        },
-        {
-          subtitle: 'Appropriate Use',
-          items: [
-            'Use our services only for educational purposes',
-            'Respect other users and maintain a positive learning environment',
-            'Do not share inappropriate, offensive, or illegal content',
-            'Follow all applicable laws and regulations'
-          ]
-        },
-        {
-          subtitle: 'Prohibited Activities',
-          items: [
-            'Attempting to hack, disrupt, or damage our systems',
-            'Sharing account credentials with others',
-            'Using automated tools to access our services',
-            'Violating intellectual property rights of others'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'Educational Services',
-      icon: AcademicCapIcon,
-      content: [
-        {
-          subtitle: 'Course Access',
-          items: [
-            'Course access is granted based on enrollment and payment status',
-            'We reserve the right to modify course content and structure',
-            'Course materials are for personal educational use only',
-            'Sharing course materials with non-enrolled users is prohibited'
-          ]
-        },
-        {
-          subtitle: 'Learning Progress',
-          items: [
-            'Progress tracking is provided as a learning aid',
-            'We do not guarantee specific learning outcomes',
-            'Students are responsible for their own learning progress',
-            'Certificates are issued based on course completion criteria'
-          ]
-        },
-        {
-          subtitle: 'Instructor Interaction',
-          items: [
-            'Instructors are available during scheduled office hours',
-            'Response times may vary based on instructor availability',
-            'Professional and respectful communication is expected',
-            'Instructors reserve the right to moderate discussions'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'Payment & Refunds',
-      icon: CreditCardIcon,
-      content: [
-        {
-          subtitle: 'Payment Terms',
-          items: [
-            'All fees are due in advance of course access',
-            'Payment methods accepted include credit cards and bank transfers',
-            'Prices are subject to change with 30 days notice',
-            'Failed payments may result in suspension of services'
-          ]
-        },
-        {
-          subtitle: 'Refund Policy',
-          items: [
-            'Refunds are available within 7 days of enrollment',
-            'Refunds are not available after course completion',
-            'Refund requests must be submitted through our support system',
-            'Processing time for refunds is 5-10 business days'
-          ]
-        },
-        {
-          subtitle: 'Subscription Management',
-          items: [
-            'Subscriptions automatically renew unless cancelled',
-            'Cancellation must be done at least 24 hours before renewal',
-            'No refunds for partial subscription periods',
-            'Downgrading subscriptions may affect course access'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'Intellectual Property',
-      icon: ShieldCheckIcon,
-      content: [
-        {
-          subtitle: 'Our Content',
-          items: [
-            'All course materials, videos, and content are owned by SRI-KO',
-            'Content is protected by copyright and other intellectual property laws',
-            'Users may not reproduce, distribute, or modify our content',
-            'Unauthorized use may result in legal action'
-          ]
-        },
-        {
-          subtitle: 'User Content',
-          items: [
-            'Users retain ownership of content they create and submit',
-            'Users grant us license to use their content for educational purposes',
-            'Users are responsible for ensuring they have rights to submitted content',
-            'We may remove content that violates these terms'
-          ]
-        }
-      ]
-    }
+    { id: 'acceptance', label: 'Acceptance of Terms' },
+    { id: 'responsibilities', label: 'User Responsibilities' },
+    { id: 'services', label: 'Educational Services' },
+    { id: 'payments', label: 'Payment & Refunds' },
+    { id: 'intellectual-property', label: 'Intellectual Property' },
   ];
 
-  const violations = [
-    'Account suspension or termination',
-    'Loss of access to course materials',
-    'Legal action for serious violations',
-    'Reporting to relevant authorities when required'
-  ];
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 200;
 
-  const contactInfo = [
-    {
-      icon: EnvelopeIcon,
-      label: 'Email',
-      value: 'legal@sriko-korean.com',
-      description: 'For legal and terms-related inquiries'
-    },
-    {
-      icon: PhoneIcon,
-      label: 'Phone',
-      value: '+94 11 234 5678',
-      description: 'Monday to Friday, 9AM-6PM'
+      for (const section of sections) {
+        const element = document.getElementById(section.id);
+        if (element) {
+          const top = element.offsetTop;
+          const height = element.offsetHeight;
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            setActiveSection(section.id);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToSection = (id) => {
+    setActiveSection(id);
+    const element = document.getElementById(id);
+    if (element) {
+      const offset = 100;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
     }
-  ];
+  };
+
+  const togglePaymentItem = (key) => {
+    setExpandedPayment(expandedPayment === key ? null : key);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="bg-white bg-opacity-20 rounded-full p-4">
-                <DocumentTextIcon className="h-12 w-12" />
-              </div>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Hero Section */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 mb-12">
+          <div className="max-w-xl">
+            {/* Legal documentation badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100/80 text-blue-600 text-xs font-bold tracking-wider uppercase mb-5">
+              <Scale className="w-3.5 h-3.5 text-blue-600" />
+              <span>LEGAL DOCUMENTATION</span>
             </div>
-            <h1 className="text-4xl font-bold mb-4">
-              Terms of Service
+
+            {/* Title */}
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 mb-4">
+              Terms of <span className="text-blue-600">Service</span>
             </h1>
-            <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-              Please read these terms carefully before using SRI-KO Korean Language Training Institute 
-              services. These terms govern your use of our platform.
-            </p>
-            <p className="text-sm text-blue-200 mt-4">
-              Last updated: {new Date().toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Introduction */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Introduction</h2>
-          <p className="text-gray-600 mb-4">
-            Welcome to SRI-KO Korean Language Training Institute. These Terms of Service ("Terms") 
-            govern your use of our learning management system, courses, and related services. 
-            By accessing or using our services, you agree to be bound by these Terms.
-          </p>
-          <p className="text-gray-600">
-            These Terms constitute a legally binding agreement between you and SRI-KO Korean Language 
-            Training Institute. Please read them carefully and contact us if you have any questions.
-          </p>
-        </div>
+            {/* Description */}
+            <p className="text-slate-600 text-base leading-relaxed mb-6 font-normal">
+              Welcome to SRI-KO. Our commitment to high-end educational excellence is governed by the following professional standards and agreements.
+            </p>
 
-        {/* Main Sections */}
-        {sections.map((section, index) => (
-          <div key={index} className="bg-white rounded-lg shadow-lg p-8 mb-8">
-            <div className="flex items-center mb-6">
-              <section.icon className="h-8 w-8 text-blue-600 mr-4" />
-              <h2 className="text-2xl font-bold text-gray-900">{section.title}</h2>
+            {/* Last Updated */}
+            <div className="flex items-center gap-2 text-sm text-slate-700 font-medium">
+              <Clock className="w-4 h-4 text-blue-600" />
+              <span>Last updated: October 24, 2023</span>
             </div>
-            
-            {section.content.map((item, itemIndex) => (
-              <div key={itemIndex} className="mb-6 last:mb-0">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">{item.subtitle}</h3>
-                <ul className="space-y-2">
-                  {item.items.map((listItem, listIndex) => (
-                    <li key={listIndex} className="flex items-start">
-                      <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{listItem}</span>
-                    </li>
-                  ))}
-                </ul>
+          </div>
+
+          {/* Glowing Shield Icon Card */}
+          <div className="w-full lg:w-auto flex justify-center lg:justify-end">
+            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-[2.2rem] bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-0.5 shadow-2xl shadow-indigo-500/25 flex items-center justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
+              <div className="absolute inset-0 bg-white/10 opacity-30 group-hover:opacity-40 transition-opacity" />
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/40 shadow-inner">
+                <svg
+                  className="w-14 h-14 sm:w-16 sm:h-16 text-white drop-shadow-md"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4a3.5 3.5 0 110 7 3.5 3.5 0 010-7zm0 14c-2.7 0-5.8-1.27-7-3.23.03-1.99 4-3.08 7-3.08 2.99 0 6.97 1.09 7 3.08-1.2 1.96-4.3 3.23-7 3.23z" />
+                </svg>
               </div>
-            ))}
-          </div>
-        ))}
-
-        {/* Violations & Consequences */}
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
-          <div className="flex items-start">
-            <XCircleIcon className="h-6 w-6 text-red-600 mr-3 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-lg font-semibold text-red-800 mb-2">Violations & Consequences</h3>
-              <p className="text-red-700 mb-3">
-                Violation of these Terms may result in the following consequences:
-              </p>
-              <ul className="space-y-1">
-                {violations.map((violation, index) => (
-                  <li key={index} className="flex items-start">
-                    <XCircleIcon className="h-4 w-4 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
-                    <span className="text-red-700">{violation}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
         </div>
 
-        {/* Limitation of Liability */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-          <div className="flex items-start">
-            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">Limitation of Liability</h3>
-              <p className="text-yellow-700">
-                SRI-KO Korean Language Training Institute shall not be liable for any indirect, 
-                incidental, special, consequential, or punitive damages, including but not limited 
-                to loss of profits, data, or use, arising out of or relating to your use of our services.
+        {/* Main Content Layout with Sticky Sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Sidebar - Jump to section */}
+          <div className="lg:col-span-3 sticky top-24 z-10">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+              <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-3 px-3">
+                JUMP TO SECTION
               </p>
+              <nav className="space-y-1">
+                {sections.map((section) => {
+                  const isActive = activeSection === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-between ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-600 shadow-sm border-l-4 border-blue-600 pl-3'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{section.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
           </div>
-        </div>
 
-        {/* Contact Information */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Contact Us</h2>
-          <p className="text-gray-600 mb-6">
-            If you have any questions about these Terms of Service, please contact us:
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {contactInfo.map((contact, index) => (
-              <div key={index} className="flex items-start">
-                <contact.icon className="h-6 w-6 text-blue-600 mr-3 mt-1 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-gray-800">{contact.label}</h3>
-                  <p className="text-gray-600">{contact.value}</p>
-                  <p className="text-sm text-gray-500">{contact.description}</p>
+          {/* Content Column */}
+          <div className="lg:col-span-9 space-y-8">
+            {/* Section 1: Acceptance of Terms */}
+            <section
+              id="acceptance"
+              className="bg-white rounded-[2rem] p-8 sm:p-10 border border-slate-100 shadow-sm transition-all"
+            >
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                Acceptance of Terms
+              </h2>
+              <p className="text-slate-500 font-medium text-sm sm:text-base mt-1 mb-8">
+                Agreement between SRI-KO and the Learner
+              </p>
+
+              <div className="space-y-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">
+                      Digital Signature
+                    </h3>
+                    <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                      By accessing SRI-KO platforms, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">
+                      Age Requirement
+                    </h3>
+                    <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                      Users must be at least 13 years of age, or have explicit parental consent in jurisdictions where required.
+                    </p>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </section>
 
-        {/* Footer Actions */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-8 text-white mt-8">
-          <h2 className="text-2xl font-bold mb-4">Questions About Our Terms?</h2>
-          <p className="text-blue-100 mb-6">
-            Our legal team is available to help clarify any questions you may have about 
-            these Terms of Service and your rights and obligations.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Link
-              to="/help-center"
-              className="bg-white text-blue-600 px-6 py-3 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center font-medium"
+            {/* Section 2: User Responsibilities */}
+            <section
+              id="responsibilities"
+              className="bg-[#F8FAFC] rounded-[2rem] p-8 sm:p-10 border border-slate-200/70 transition-all"
             >
-              <DocumentTextIcon className="h-5 w-5 mr-2" />
-              Ask AI Assistant
-            </Link>
-            <Link
-              to="/join-us#get-in-touch"
-              className="bg-transparent border border-white text-white px-6 py-3 rounded-lg hover:bg-white hover:text-blue-600 transition-colors flex items-center justify-center font-medium"
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                User Responsibilities
+              </h2>
+              <p className="text-slate-500 font-medium text-sm sm:text-base mt-1 mb-8">
+                Standards of conduct in our community
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Card 1: Account Security */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+                    <ShieldCheck className="w-5 h-5 text-blue-600 stroke-[2]" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base mb-2">
+                    Account Security
+                  </h3>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    You are responsible for maintaining the confidentiality of your login credentials and all activities under your account.
+                  </p>
+                </div>
+
+                {/* Card 2: Community Ethics */}
+                <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+                    <Users className="w-5 h-5 text-blue-600 stroke-[2]" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base mb-2">
+                    Community Ethics
+                  </h3>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    Users must engage respectfully with peers and educators, following our anti-harassment policy.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 3: Educational Services */}
+            <section
+              id="services"
+              className="bg-white rounded-[2rem] p-8 sm:p-10 border border-slate-100 shadow-sm relative overflow-hidden transition-all"
             >
-              <ArrowRightIcon className="h-5 w-5 mr-2" />
-              Contact Legal Team
-            </Link>
+              {/* Decorative Accent Glow */}
+              <div className="absolute -top-12 -right-12 w-40 h-40 bg-blue-50 rounded-full blur-2xl pointer-events-none" />
+
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                Educational Services
+              </h2>
+              <p className="text-slate-500 font-medium text-sm sm:text-base mt-1 mb-8">
+                Defining the scope of SRI-KO learning
+              </p>
+
+              <div className="space-y-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">
+                      Curriculum Access
+                    </h3>
+                    <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                      Access to premium content is based on the specific plan purchased. Content may be updated or modified to maintain academic rigor.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">
+                      Platform Uptime
+                    </h3>
+                    <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                      We strive for 99.9% availability but do not guarantee uninterrupted access during scheduled maintenance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 4: Payment & Refunds */}
+            <section
+              id="payments"
+              className="bg-[#EBF1FF] rounded-[2rem] p-8 sm:p-10 border border-blue-100/80 transition-all"
+            >
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Payment & Refunds
+              </h2>
+              <p className="text-blue-600 font-semibold text-sm sm:text-base mt-1 mb-6">
+                Transparent financial transactions
+              </p>
+
+              <div className="space-y-3 mb-4">
+                {/* Subscription Billing Button */}
+                <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-white shadow-sm overflow-hidden transition-all">
+                  <button
+                    onClick={() => togglePaymentItem('billing')}
+                    className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-white transition-colors"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <CreditCard className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-base sm:text-lg">
+                        Subscription Billing
+                      </span>
+                    </div>
+                    {expandedPayment === 'billing' ? (
+                      <ChevronDown className="w-5 h-5 text-blue-600 transition-transform" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-blue-600 transition-transform" />
+                    )}
+                  </button>
+                  {expandedPayment === 'billing' && (
+                    <div className="px-5 pb-5 pt-1 text-sm text-slate-600 border-t border-slate-100 bg-white">
+                      Subscriptions are billed in advance on a recurring monthly or annual cycle. You can manage, upgrade, or cancel your renewal anytime directly from your account settings.
+                    </div>
+                  )}
+                </div>
+
+                {/* 14-Day Refund Policy Button */}
+                <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-white shadow-sm overflow-hidden transition-all">
+                  <button
+                    onClick={() => togglePaymentItem('refund')}
+                    className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-white transition-colors"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <RotateCcw className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <span className="font-bold text-slate-900 text-base sm:text-lg">
+                        14-Day Refund Policy
+                      </span>
+                    </div>
+                    {expandedPayment === 'refund' ? (
+                      <ChevronDown className="w-5 h-5 text-blue-600 transition-transform" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-blue-600 transition-transform" />
+                    )}
+                  </button>
+                  {expandedPayment === 'refund' && (
+                    <div className="px-5 pb-5 pt-1 text-sm text-slate-600 border-t border-slate-100 bg-white">
+                      We offer a 14-day money-back guarantee for eligible full course enrollments if you have completed less than 20% of the lessons and are not fully satisfied.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footnote */}
+              <p className="text-xs text-blue-800/80 font-medium italic">
+                * Refund requests must be submitted in writing through the Help Center. Conditions apply to partially completed courses.
+              </p>
+            </section>
+
+            {/* Section 5: Intellectual Property */}
+            <section
+              id="intellectual-property"
+              className="bg-white rounded-[2rem] p-8 sm:p-10 border border-slate-100 shadow-sm transition-all"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                    Intellectual Property
+                  </h2>
+                  <p className="text-slate-500 font-medium text-sm sm:text-base mt-1">
+                    Protecting the integrity of our curriculum
+                  </p>
+                </div>
+                <div>
+                  <span className="inline-flex items-center px-3.5 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-bold tracking-wider uppercase">
+                    COPYRIGHT © 2024 SRI-KO
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-slate-600 text-sm sm:text-base leading-relaxed mb-6 font-normal">
+                All curriculum materials, video content, Hangul tracing guides, and algorithmic sequences are the exclusive property of SRI-KO. Users are granted a non-transferable, limited license to view materials for personal educational use only.
+              </p>
+
+              <div className="pt-2">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-3">
+                  Prohibited actions include:
+                </h3>
+                <ul className="space-y-2.5 text-sm text-slate-600">
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-2 shrink-0" />
+                    <span>Redistribution or reselling of course materials.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-2 shrink-0" />
+                    <span>Reverse engineering of the proprietary SRI-KO learning algorithm.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-2 shrink-0" />
+                    <span>Use of SRI-KO branding for unauthorized commercial purposes.</span>
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            {/* Section 6: Still have questions? */}
+            <div className="pt-4">
+              <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                Still have questions?
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Support Email */}
+                <div className="bg-slate-50/80 rounded-2xl p-6 border border-slate-200/70 hover:bg-white hover:shadow-md hover:border-blue-200 transition-all group">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <Mail className="w-5 h-5 text-blue-600 stroke-[2]" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Support Email
+                  </h3>
+                  <a
+                    href="mailto:legal@sriko.edu"
+                    className="text-slate-500 text-sm mt-0.5 block hover:text-blue-600 transition-colors"
+                  >
+                    legal@sriko.edu
+                  </a>
+                </div>
+
+                {/* Live Help */}
+                <div className="bg-slate-50/80 rounded-2xl p-6 border border-slate-200/70 hover:bg-white hover:shadow-md hover:border-blue-200 transition-all group">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <MessageSquare className="w-5 h-5 text-blue-600 stroke-[2]" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Live Help
+                  </h3>
+                  <p className="text-slate-500 text-sm mt-0.5">
+                    Available Mon-Fri
+                  </p>
+                </div>
+
+                {/* HQ Address */}
+                <div className="bg-slate-50/80 rounded-2xl p-6 border border-slate-200/70 hover:bg-white hover:shadow-md hover:border-blue-200 transition-all group">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <MapPin className="w-5 h-5 text-blue-600 stroke-[2]" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    HQ Address
+                  </h3>
+                  <p className="text-slate-500 text-sm mt-0.5">
+                    Seoul, S. Korea
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -339,4 +450,3 @@ const TermsOfServicePage = () => {
 };
 
 export default TermsOfServicePage;
-

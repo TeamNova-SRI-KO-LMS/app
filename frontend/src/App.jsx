@@ -21,6 +21,7 @@ import PaymentInfo from './pages/PaymentInfoPage';
 import FloatingAiSupport from './components/FloatingAiSupport';
 import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 import { Toaster } from 'react-hot-toast';
 
 
@@ -63,6 +64,9 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/terms-and-conditions" element={<TermsOfServicePage />} />
         </Route>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
