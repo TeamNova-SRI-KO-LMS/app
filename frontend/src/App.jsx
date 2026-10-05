@@ -19,6 +19,10 @@ import CourseDetails from './pages/CourseDetailsPage';
 import CourseInfoPage from './pages/CourseInfoPage';
 import PaymentInfo from './pages/PaymentInfoPage';
 import FloatingAiSupport from './components/FloatingAiSupport';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import HelpCenterPage from './pages/HelpCenterPage';
+import JoinUsPage from './pages/JoinUsPage';
 import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
 import { Toaster } from 'react-hot-toast';
@@ -40,6 +44,15 @@ function App() {
             }
           />
           <Route path="/about" element={<AboutUs />} />
+          <Route path="/contact" element={<JoinUsPage />} />
+          <Route path="/join" element={<JoinUsPage />} />
+          <Route path="/join-us" element={<JoinUsPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/help-center" element={<HelpCenterPage />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route

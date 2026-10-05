@@ -5,8 +5,12 @@ const path = require('path');
 const dns = require('dns');
 require('dotenv').config();
 
-// Override default DNS servers to Google DNS to fix querySrv ECONNREFUSED issues on MongoDB Atlas
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Use public DNS to prevent SRV lookup failures (ECONNREFUSED) with MongoDB Atlas
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+  console.warn('Could not set custom DNS servers:', e.message);
+}
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
