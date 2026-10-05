@@ -80,7 +80,7 @@ app.use('/api/users', checkDatabase, userRoutes);
 app.use('/api/courses', checkDatabase, courseRoutes);
 
 app.use('/api/subscriptions', checkDatabase, subscriptionRoutes);
-app.use('/api/payments', paymentRoutes);
+app.use('/api/payments', checkDatabase, paymentRoutes);
 app.use('/api/notifications', checkDatabase, notificationRoutes);
 app.use('/api/announcements', checkDatabase, announcementRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);

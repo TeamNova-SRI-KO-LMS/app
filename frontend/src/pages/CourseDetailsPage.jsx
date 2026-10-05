@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   User, ArrowLeft, Clock, Users, Star, Calendar,
   CheckCircle2, AlertTriangle, Tag, ChevronDown, PlayCircle,
-  CreditCard, FileText, ChevronUp, GraduationCap, Loader2, AlertCircle
+  CreditCard, FileText, ChevronUp, GraduationCap, Loader2, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import apiService from '../services/apiService';
 import useAuth from '../context/useAuth';
@@ -11,7 +11,7 @@ import useAuth from '../context/useAuth';
 export default function CourseDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [course,         setCourse]         = useState(null);
   const [loading,        setLoading]        = useState(true);
@@ -65,14 +65,35 @@ export default function CourseDetails() {
     }
   };
 
-  /* ── Enroll ────────────────────────────────────────────────────────────── */
-  const handleEnroll = async () => {
-    if (!isAuthenticated) { navigate('/login'); return; }
+  /* ── Enrolled status ─────────────────────────────────────────────────── */
+  const isEnrolled = course?.enrolledStudents?.some((student) => {
+    const studentId = typeof student === 'object' ? student?._id : student;
+    return studentId === user?._id || studentId === user?.id;
+  });
+
+  /* ── Enroll or Buy ─────────────────────────────────────────────────────── */
+  const handleEnrollOrBuy = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (isEnrolled) {
+      navigate(`/course-info/${id}`);
+      return;
+    }
+
+    // Paid course -> Stripe payment checkout
+    if (course.price > 0) {
+      navigate(`/payment-info?courseId=${id}`);
+      return;
+    }
+
+    // Free course -> direct enrollment
     try {
       setEnrolling(true);
       await apiService.post(`/courses/${id}/enroll`);
       setEnrollMsg('Successfully enrolled! Redirecting…');
-      setTimeout(() => navigate('/course-info'), 1500);
+      setTimeout(() => navigate(`/course-info/${id}`), 1500);
     } catch (err) {
       setEnrollMsg(err?.response?.data?.message ?? 'Enrollment failed. Please try again.');
       setEnrolling(false);
@@ -508,17 +529,41 @@ export default function CourseDetails() {
               </div>
             )}
 
-            <button
-              onClick={handleEnroll}
-              disabled={enrolling}
-              className="w-full bg-[#1d4ed8] hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20 text-sm mb-8 active:scale-[0.99]"
-            >
-              {enrolling
-                ? <Loader2 className="w-5 h-5 animate-spin" />
-                : <GraduationCap className="w-5 h-5" />
-              }
-              {enrolling ? 'Enrolling…' : 'Enroll Now'}
-            </button>
+            {isEnrolled ? (
+              <button
+                onClick={() => navigate(`/course-info/${id}`)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/20 text-sm mb-8 active:scale-[0.99] cursor-pointer"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Go to Course
+              </button>
+            ) : course.price > 0 ? (
+              <div className="mb-8">
+                <button
+                  onClick={handleEnrollOrBuy}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/25 text-sm active:scale-[0.99] cursor-pointer"
+                >
+                  <CreditCard className="w-5 h-5" />
+                  Buy Course ({formatPrice(course.price)})
+                </button>
+                <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 mt-3">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Secured by Stripe • Instant Access</span>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleEnrollOrBuy}
+                disabled={enrolling}
+                className="w-full bg-[#1d4ed8] hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20 text-sm mb-8 active:scale-[0.99] cursor-pointer"
+              >
+                {enrolling
+                  ? <Loader2 className="w-5 h-5 animate-spin" />
+                  : <GraduationCap className="w-5 h-5" />
+                }
+                {enrolling ? 'Enrolling…' : 'Enroll for Free'}
+              </button>
+            )}
 
             <div>
               <h4 className="font-bold text-gray-900 mb-4 text-xs uppercase tracking-wider">Includes:</h4>
