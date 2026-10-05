@@ -118,8 +118,8 @@ exports.validateReview = [
 exports.validateCourseCreation = [
   body('title')
     .trim()
-    .isLength({ min: 5, max: 100 })
-    .withMessage('Course title must be between 5 and 100 characters'),
+    .isLength({ min: 3, max: 100 })
+    .withMessage('Course title must be between 3 and 100 characters'),
 
   body('description')
     .trim()
@@ -127,21 +127,25 @@ exports.validateCourseCreation = [
     .withMessage('Description must be between 10 and 1000 characters'),
 
   body('category')
+    .optional()
     .isIn([
-      'programming',
-      'design',
-      'business',
-      'marketing',
-      'lifestyle',
-      'other',
+      'Literature',
+      'Business',
+      'Language',
+      'Culture',
+      'Grammar',
+      'Conversation',
+      'Other',
     ])
     .withMessage('Invalid category'),
 
   body('level')
+    .optional()
     .isIn(['beginner', 'intermediate', 'advanced'])
     .withMessage('Invalid level'),
 
   body('duration')
+    .optional()
     .isInt({ min: 1, max: 52 })
     .withMessage('Duration must be between 1 and 52 weeks'),
 
