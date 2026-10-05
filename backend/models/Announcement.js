@@ -3,26 +3,32 @@ const mongoose = require('mongoose');
 const announcementSchema = new mongoose.Schema({
   title: {
     type: String,
-    required: [true, 'Please add a title']
+    required: [true, 'Please add a title'],
+    trim: true
   },
   content: {
     type: String,
-    required: [true, 'Please add content']
+    required: [true, 'Please add content'],
+    trim: true
   },
   type: {
     type: String,
-    enum: ['general', 'course', 'system', 'maintenance', 'event'],
-    default: 'general'
+    enum: ['general', 'course', 'system', 'maintenance', 'event', 'academic'],
+    default: 'general',
+    lowercase: true,
+    trim: true
   },
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
-    default: 'medium'
+    default: 'medium',
+    lowercase: true,
+    trim: true
   },
   targetAudience: {
     type: String,
-    enum: ['all', 'students', 'instructors', 'admins'],
-    default: 'all'
+    default: 'all',
+    trim: true
   },
   isActive: {
     type: Boolean,
@@ -32,8 +38,13 @@ const announcementSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  startDate: Date,
-  endDate: Date,
+  startDate: {
+    type: Date,
+    default: Date.now
+  },
+  endDate: {
+    type: Date
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -59,7 +70,10 @@ const announcementSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  tags: [String]
+  tags: [{
+    type: String,
+    trim: true
+  }]
 }, {
   timestamps: true
 });

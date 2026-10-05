@@ -18,6 +18,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+import { useLocation } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
 import UserManagement from './UserManagement';
@@ -32,7 +33,20 @@ import KoreanProgramApplications from './KoreanProgramApplications';
 import apiService from '../services/apiService';
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(() => {
+    const path = window.location.pathname.replace('/admin', '').replace('/', '');
+    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'forums', 'settings', 'applications'];
+    return validTabs.includes(path) ? path : 'dashboard';
+  });
+
+  React.useEffect(() => {
+    const path = location.pathname.replace('/admin', '').replace('/', '');
+    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'forums', 'settings', 'applications'];
+    if (validTabs.includes(path)) {
+      setActiveTab(path);
+    }
+  }, [location.pathname]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
