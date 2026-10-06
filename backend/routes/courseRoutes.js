@@ -262,6 +262,22 @@ router.post('/:id/enroll', protect, authorize('student'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'You are already enrolled in this course' });
     }
 
+    if (course.price > 0) {
+      const Payment = require('../models/Payment');
+      const completedPayment = await Payment.findOne({
+        user: req.user.id,
+        course: course._id,
+        status: 'completed',
+      });
+      if (!completedPayment) {
+        return res.status(402).json({
+          success: false,
+          requiresPayment: true,
+          message: 'Payment is required to enroll in this course. Please complete checkout.',
+        });
+      }
+    }
+
     course.enrolledStudents.push(req.user.id);
     await course.save();
 

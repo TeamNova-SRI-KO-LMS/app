@@ -93,6 +93,11 @@ const CourseDetailPage = () => {
       return;
     }
 
+    if (course?.price > 0) {
+      navigate(`/payment-info?courseId=${id}`);
+      return;
+    }
+
     try {
       setEnrolling(true);
       const response = await courseService.enrollInCourse(id);
