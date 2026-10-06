@@ -25,7 +25,6 @@ import HelpCenterPage from './pages/HelpCenterPage';
 import JoinUsPage from './pages/JoinUsPage';
 import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
 import { Toaster } from 'react-hot-toast';
 
 
@@ -50,6 +49,7 @@ function App() {
           <Route path="/join-us" element={<JoinUsPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/terms-and-conditions" element={<TermsOfServicePage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/help" element={<HelpCenterPage />} />
@@ -77,9 +77,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/terms" element={<TermsOfServicePage />} />
-          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-          <Route path="/terms-and-conditions" element={<TermsOfServicePage />} />
         </Route>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
