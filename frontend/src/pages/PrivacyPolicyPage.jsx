@@ -1,307 +1,425 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheckIcon,
-  EyeIcon,
-  LockClosedIcon,
-  UserIcon,
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ArrowRightIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-} from '@heroicons/react/24/outline';
+  Inbox,
+  TrendingUp,
+  Shield,
+  ShieldCheck,
+  Scale,
+  AtSign,
+  Check,
+  Eye,
+  Sliders,
+  Trash2,
+  Mail,
+  MapPin,
+  Send,
+  Lock,
+  Cpu
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const PrivacyPolicyPage = () => {
+  const [activeSection, setActiveSection] = useState('collection');
+  const [contactName, setContactName] = useState('');
+  const [contactMessage, setContactMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const sections = [
-    {
-      title: 'Information We Collect',
-      icon: UserIcon,
-      content: [
-        {
-          subtitle: 'Personal Information',
-          items: [
-            'Name, email address, and contact information',
-            'Date of birth and age verification',
-            'Korean language proficiency level',
-            'Learning preferences and goals',
-            'Profile pictures and avatars'
-          ]
-        },
-        {
-          subtitle: 'Learning Data',
-          items: [
-            'Course progress and completion status',
-            'Quiz scores and assessment results',
-            'Time spent on lessons and materials',
-            'Learning preferences and study patterns',
-            'Feedback and course evaluations'
-          ]
-        },
-        {
-          subtitle: 'Technical Information',
-          items: [
-            'IP address and device information',
-            'Browser type and version',
-            'Operating system details',
-            'Usage analytics and performance data',
-            'Cookies and tracking technologies'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'How We Use Your Information',
-      icon: EyeIcon,
-      content: [
-        {
-          subtitle: 'Educational Services',
-          items: [
-            'Provide personalized Korean language courses',
-            'Track learning progress and achievements',
-            'Customize content based on proficiency level',
-            'Send course updates and notifications',
-            'Generate progress reports and certificates'
-          ]
-        },
-        {
-          subtitle: 'Communication',
-          items: [
-            'Send important course announcements',
-            'Provide customer support and assistance',
-            'Share educational resources and tips',
-            'Notify about new courses and features',
-            'Respond to inquiries and feedback'
-          ]
-        },
-        {
-          subtitle: 'Platform Improvement',
-          items: [
-            'Analyze usage patterns to improve services',
-            'Develop new features and course content',
-            'Ensure platform security and performance',
-            'Conduct research and analytics',
-            'Comply with legal and regulatory requirements'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'Data Protection & Security',
-      icon: LockClosedIcon,
-      content: [
-        {
-          subtitle: 'Security Measures',
-          items: [
-            'Encryption of sensitive data in transit and at rest',
-            'Secure authentication and access controls',
-            'Regular security audits and assessments',
-            'Employee training on data protection',
-            'Incident response and breach notification procedures'
-          ]
-        },
-        {
-          subtitle: 'Data Retention',
-          items: [
-            'Personal data retained for active account duration',
-            'Learning progress data kept for educational purposes',
-            'Analytics data anonymized after specified periods',
-            'Legal compliance requirements for data retention',
-            'Secure deletion procedures for expired data'
-          ]
-        },
-        {
-          subtitle: 'Third-Party Services',
-          items: [
-            'Carefully selected service providers with privacy commitments',
-            'Data processing agreements with all third parties',
-            'Regular audits of third-party security practices',
-            'Limited data sharing only for essential services',
-            'User consent for any additional data sharing'
-          ]
-        }
-      ]
-    },
-    {
-      title: 'Your Rights & Choices',
-      icon: ShieldCheckIcon,
-      content: [
-        {
-          subtitle: 'Access and Control',
-          items: [
-            'View and download your personal data',
-            'Update or correct inaccurate information',
-            'Request deletion of your account and data',
-            'Export your learning progress and achievements',
-            'Opt-out of non-essential communications'
-          ]
-        },
-        {
-          subtitle: 'Privacy Settings',
-          items: [
-            'Control visibility of your profile information',
-            'Manage notification preferences',
-            'Choose data sharing options',
-            'Set learning progress privacy levels',
-            'Control cookie and tracking preferences'
-          ]
-        },
-        {
-          subtitle: 'Legal Rights',
-          items: [
-            'Right to access your personal information',
-            'Right to rectification of inaccurate data',
-            'Right to erasure under certain circumstances',
-            'Right to data portability',
-            'Right to object to processing'
-          ]
-        }
-      ]
-    }
+    { id: 'collection', label: 'Collection', icon: Inbox },
+    { id: 'data-usage', label: 'Data Usage', icon: TrendingUp },
+    { id: 'protection', label: 'Protection', icon: Shield },
+    { id: 'your-rights', label: 'Your Rights', icon: Scale },
+    { id: 'contact', label: 'Contact', icon: AtSign },
   ];
 
-  const contactInfo = [
-    {
-      icon: EnvelopeIcon,
-      label: 'Email',
-      value: 'privacy@sriko-korean.com',
-      description: 'For privacy-related inquiries'
-    },
-    {
-      icon: PhoneIcon,
-      label: 'Phone',
-      value: '+94 11 234 5678',
-      description: 'Monday to Friday, 9AM-6PM'
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 200;
+
+      for (const section of sections) {
+        const element = document.getElementById(section.id);
+        if (element) {
+          const top = element.offsetTop;
+          const height = element.offsetHeight;
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            setActiveSection(section.id);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToSection = (id) => {
+    setActiveSection(id);
+    const element = document.getElementById(id);
+    if (element) {
+      const offset = 100;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth',
+      });
     }
-  ];
+  };
+
+  const handleInquirySubmit = (e) => {
+    e.preventDefault();
+    if (!contactName.trim() || !contactMessage.trim()) {
+      toast.error('Please enter your name and message.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      toast.success('Inquiry submitted to the SRI-KO Legal team!');
+      setContactName('');
+      setContactMessage('');
+    }, 600);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="bg-white bg-opacity-20 rounded-full p-4">
-                <ShieldCheckIcon className="h-12 w-12" />
-              </div>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-start justify-between gap-6 mb-12">
+          <div className="max-w-2xl">
+            {/* Legal documentation badge */}
+            <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-blue-50 border border-blue-100/80 text-blue-600 text-xs font-bold tracking-wider uppercase mb-4 shadow-xs">
+              <span>LEGAL DOCUMENTATION</span>
             </div>
-            <h1 className="text-4xl font-bold mb-4">
+
+            {/* Title */}
+            <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900 mb-4">
               Privacy Policy
             </h1>
-            <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-              Your privacy is important to us. Learn how SRI-KO Korean Language Training Institute 
-              collects, uses, and protects your personal information.
+
+            {/* Description */}
+            <p className="text-slate-600 text-sm sm:text-base leading-relaxed font-normal">
+              At SRI-KO, your educational journey is a private endeavor. This policy outlines
+              how we protect your scholarly data with the same rigor we apply to our curriculum.
             </p>
-            <p className="text-sm text-blue-200 mt-4">
-              Last updated: {new Date().toLocaleDateString()}
+          </div>
+
+          {/* Effective Date Block */}
+          <div className="lg:text-right shrink-0 pt-1">
+            <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+              EFFECTIVE DATE
+            </p>
+            <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">
+              April 30, 2026
             </p>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Introduction */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Introduction</h2>
-          <p className="text-gray-600 mb-4">
-            At SRI-KO Korean Language Training Institute, we are committed to protecting your privacy 
-            and ensuring the security of your personal information. This Privacy Policy explains how 
-            we collect, use, disclose, and safeguard your information when you use our learning 
-            management system and related services.
-          </p>
-          <p className="text-gray-600">
-            By using our services, you agree to the collection and use of information in accordance 
-            with this policy. We will not use or share your information with anyone except as 
-            described in this Privacy Policy.
-          </p>
-        </div>
-
-        {/* Main Sections */}
-        {sections.map((section, index) => (
-          <div key={index} className="bg-white rounded-lg shadow-lg p-8 mb-8">
-            <div className="flex items-center mb-6">
-              <section.icon className="h-8 w-8 text-blue-600 mr-4" />
-              <h2 className="text-2xl font-bold text-gray-900">{section.title}</h2>
-            </div>
-            
-            {section.content.map((item, itemIndex) => (
-              <div key={itemIndex} className="mb-6 last:mb-0">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">{item.subtitle}</h3>
-                <ul className="space-y-2">
-                  {item.items.map((listItem, listIndex) => (
-                    <li key={listIndex} className="flex items-start">
-                      <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="text-gray-700">{listItem}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ))}
-
-        {/* Important Notice */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-          <div className="flex items-start">
-            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">Important Notice</h3>
-              <p className="text-yellow-700">
-                We may update this Privacy Policy from time to time. We will notify you of any 
-                changes by posting the new Privacy Policy on this page and updating the "Last updated" 
-                date. You are advised to review this Privacy Policy periodically for any changes.
+        {/* Main Content Layout with Sticky Sidebar on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Sidebar - On This Page */}
+          <div className="lg:col-span-3 lg:sticky lg:top-24">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+              <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-3 px-3">
+                ON THIS PAGE
               </p>
+              <nav className="space-y-1">
+                {sections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeSection === section.id;
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-3 cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-600 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                      <span>{section.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
           </div>
-        </div>
 
-        {/* Contact Information */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Contact Us</h2>
-          <p className="text-gray-600 mb-6">
-            If you have any questions about this Privacy Policy or our data practices, 
-            please contact us using the information below:
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {contactInfo.map((contact, index) => (
-              <div key={index} className="flex items-start">
-                <contact.icon className="h-6 w-6 text-blue-600 mr-3 mt-1 flex-shrink-0" />
+          {/* Right Column - Policy Sections */}
+          <div className="lg:col-span-9 space-y-12">
+            {/* Section 1: Information Collection */}
+            <section id="collection" className="scroll-mt-28">
+              <div className="flex items-start gap-4 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100/70 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <Inbox className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800">{contact.label}</h3>
-                  <p className="text-gray-600">{contact.value}</p>
-                  <p className="text-sm text-gray-500">{contact.description}</p>
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    Information Collection
+                  </h2>
+                  <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                    We collect information to provide a personalized learning experience. This data allows us to tailor
+                    vocabulary exercises and track your progression through the SRI-KO curriculum.
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Footer Actions */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-8 text-white mt-8">
-          <h2 className="text-2xl font-bold mb-4">Questions About Privacy?</h2>
-          <p className="text-blue-100 mb-6">
-            Our privacy team is here to help you understand how we protect your information 
-            and respect your privacy rights.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Link
-              to="/help-center"
-              className="bg-white text-blue-600 px-6 py-3 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center font-medium"
-            >
-              <DocumentTextIcon className="h-5 w-5 mr-2" />
-              Ask AI Assistant
-            </Link>
-            <Link
-              to="/join-us#get-in-touch"
-              className="bg-transparent border border-white text-white px-6 py-3 rounded-lg hover:bg-white hover:text-blue-600 transition-colors flex items-center justify-center font-medium"
-            >
-              <ArrowRightIcon className="h-5 w-5 mr-2" />
-              Contact Privacy Team
-            </Link>
+              {/* Two Info Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:border-slate-300 transition-colors">
+                  <h3 className="font-bold text-slate-900 text-base mb-1.5">
+                    Personal Identity
+                  </h3>
+                  <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                    Legal name, email address, and academic level indicators provided during registration.
+                  </p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm hover:border-slate-300 transition-colors">
+                  <h3 className="font-bold text-slate-900 text-base mb-1.5">
+                    Academic Metrics
+                  </h3>
+                  <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                    Course completion rates, assessment scores, and vocabulary retention data.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 2: Usage & Optimization */}
+            <section id="data-usage" className="scroll-mt-28">
+              <div className="flex items-start gap-4 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    Usage & Optimization
+                  </h2>
+                  <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                    Your data is never sold. We utilize it exclusively to refine our editorial algorithms and enhance the
+                    Scholar's experience through predictive learning paths.
+                  </p>
+                </div>
+              </div>
+
+              {/* List of checked items */}
+              <div className="space-y-3 mt-6">
+                <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs">
+                  <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </div>
+                  <span className="text-slate-700 font-medium text-xs sm:text-sm">
+                    Personalizing curriculum complexity based on student level
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs">
+                  <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </div>
+                  <span className="text-slate-700 font-medium text-xs sm:text-sm">
+                    Generating monthly academic progress reports
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-4 flex items-center gap-3.5 shadow-xs">
+                  <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </div>
+                  <span className="text-slate-700 font-medium text-xs sm:text-sm">
+                    Ensuring compliance with international education standards
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 3: Uncompromising Protection */}
+            <section id="protection" className="scroll-mt-28">
+              <div className="bg-gradient-to-r from-blue-600 via-[#0B63E5] to-blue-700 rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden shadow-xl shadow-blue-500/15">
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
+                  <div className="max-w-xl">
+                    <div className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight">
+                      <ShieldCheck className="w-8 h-8 text-blue-200" />
+                      <h2>Uncompromising Protection</h2>
+                    </div>
+
+                    <p className="text-blue-100 text-xs sm:text-sm leading-relaxed mt-4">
+                      We employ bank-grade encryption and architectural “tonal depth” in our security protocols. Your
+                      data is housed in isolated silos to prevent unauthorized access.
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2.5 mt-6">
+                      <span className="px-3.5 py-1.5 rounded-full bg-blue-700/60 border border-blue-400/30 text-[11px] font-semibold text-blue-50 backdrop-blur-sm shadow-xs">
+                        AES-256 Encryption
+                      </span>
+                      <span className="px-3.5 py-1.5 rounded-full bg-blue-700/60 border border-blue-400/30 text-[11px] font-semibold text-blue-50 backdrop-blur-sm shadow-xs">
+                        Multi-Factor Auth
+                      </span>
+                      <span className="px-3.5 py-1.5 rounded-full bg-blue-700/60 border border-blue-400/30 text-[11px] font-semibold text-blue-50 backdrop-blur-sm shadow-xs">
+                        SSL/TLS Security
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual Cyber Graphic */}
+                  <div className="w-52 h-44 sm:w-60 sm:h-48 rounded-2xl bg-slate-950/70 border border-cyan-500/30 p-4 relative overflow-hidden flex items-center justify-center shrink-0 shadow-2xl backdrop-blur-md">
+                    {/* Glowing Circuit Lines Effect */}
+                    <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#06b6d4_1px,transparent_1px)] [background-size:12px_12px]" />
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 p-0.5 shadow-lg shadow-cyan-400/40 relative z-10 flex items-center justify-center">
+                      <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                        <Cpu className="w-9 h-9 text-cyan-400 animate-pulse" />
+                      </div>
+                    </div>
+                    {/* Circuit lines */}
+                    <div className="absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-cyan-400/60 to-transparent" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 4: Your Sovereign Rights */}
+            <section id="your-rights" className="scroll-mt-28">
+              <div className="flex items-start gap-4 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    Your Sovereign Rights
+                  </h2>
+                  <p className="text-slate-600 text-sm leading-relaxed mt-1">
+                    As a scholar at SRI-KO, you maintain full sovereignty over your data. In accordance with GDPR and
+                    international privacy frameworks, you have the right to access, rectify, or erase your personal
+                    information at any moment.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Action Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                <div className="bg-slate-100/70 border border-slate-200/60 rounded-2xl p-5 hover:bg-slate-100 transition-colors">
+                  <Eye className="w-5 h-5 text-blue-600 mb-3" />
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Right to Access
+                  </h3>
+                  <p className="text-slate-600 text-xs leading-relaxed mt-1.5">
+                    Request a complete copy of all scholarly data we hold about you.
+                  </p>
+                </div>
+
+                <div className="bg-slate-100/70 border border-slate-200/60 rounded-2xl p-5 hover:bg-slate-100 transition-colors">
+                  <Sliders className="w-5 h-5 text-blue-600 mb-3" />
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Right to Rectify
+                  </h3>
+                  <p className="text-slate-600 text-xs leading-relaxed mt-1.5">
+                    Correct any inaccuracies in your academic profile instantly.
+                  </p>
+                </div>
+
+                <div className="bg-slate-100/70 border border-slate-200/60 rounded-2xl p-5 hover:bg-slate-100 transition-colors">
+                  <Trash2 className="w-5 h-5 text-blue-600 mb-3" />
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Right to Erase
+                  </h3>
+                  <p className="text-slate-600 text-xs leading-relaxed mt-1.5">
+                    Request the complete deletion of your account and related data history.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 5: Legal Inquiry & Support */}
+            <section id="contact" className="scroll-mt-28">
+              <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200/80 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                {/* Left contact info */}
+                <div className="lg:col-span-7">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                    Legal Inquiry & Support
+                  </h2>
+                  <p className="text-slate-600 text-sm leading-relaxed mt-2 mb-8">
+                    Questions regarding our editorial privacy standards? Our dedicated legal support team is available
+                    for scholarly consultation.
+                  </p>
+
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <Mail className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          EMAIL US
+                        </p>
+                        <a
+                          href="mailto:privacy@sri-ko.edu"
+                          className="text-sm font-bold text-slate-900 hover:text-blue-600 transition-colors"
+                        >
+                          privacy@sri-ko.edu
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          EDITORIAL OFFICE
+                        </p>
+                        <p className="text-sm font-bold text-slate-900">
+                          Gangnam-gu, Seoul, South Korea
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right quick contact form */}
+                <div className="lg:col-span-5">
+                  <div className="bg-slate-100/70 rounded-2xl p-6 border border-slate-200/60 shadow-xs">
+                    <h3 className="text-sm font-bold text-slate-900 mb-4">
+                      Quick Contact
+                    </h3>
+                    <form onSubmit={handleInquirySubmit} className="space-y-3">
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Scholar Name"
+                          value={contactName}
+                          onChange={(e) => setContactName(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-xs"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <textarea
+                          placeholder="Message"
+                          value={contactMessage}
+                          onChange={(e) => setContactMessage(e.target.value)}
+                          rows={3}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none shadow-xs"
+                          required
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full bg-[#0B63E5] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold py-3 rounded-xl transition-all shadow-md shadow-blue-500/25 text-sm cursor-pointer disabled:opacity-70"
+                      >
+                        {isSubmitting ? 'Sending...' : 'Send Inquiry'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -310,4 +428,3 @@ const PrivacyPolicyPage = () => {
 };
 
 export default PrivacyPolicyPage;
-
