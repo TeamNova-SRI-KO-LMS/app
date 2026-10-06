@@ -26,6 +26,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import RegisterPage from "./pages/RegisterPage";
 import ScrollToTop from "./components/ScrollToTop";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
+import DocumentationPage from "./pages/DocumentationPage";
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -58,6 +59,7 @@ function App() {
           <Route path="/help" element={<HelpCenterPage />} />
           <Route path="/help-center" element={<HelpCenterPage />} />
           <Route path="/courses" element={<CoursesPage />} />
+          <Route path="/docs" element={<DocumentationPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route
             path="/announcements"
