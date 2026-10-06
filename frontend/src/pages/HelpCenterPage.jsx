@@ -11,10 +11,11 @@ import {
   SparklesIcon,
 } from "@heroicons/react/24/outline";
 import React, { useEffect, useRef, useState } from "react";
-
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 const HelpCenterPage = () => {
+  const location = useLocation();
+  const chatInputRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -42,6 +43,21 @@ const HelpCenterPage = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  const handleStartChatting = () => {
+    chatInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 400);
+  };
+
+  useEffect(() => {
+    if (location.hash === "#chat" || location.hash === "#chat-input" || location.state?.focusChat) {
+      setTimeout(() => {
+        handleStartChatting();
+      }, 300);
+    }
+  }, [location]);
 
   useEffect(() => {
     scrollToBottom();
@@ -277,158 +293,162 @@ const HelpCenterPage = () => {
               advanced intelligence.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
-              <button className="rounded-xl bg-gradient-to-r from-[#2b5cf7] to-[#6b5cf9] px-6 py-3 text-base font-semibold text-white shadow-[0_12px_25px_rgba(59,98,255,0.25)] transition hover:opacity-95">
+              <button
+                onClick={handleStartChatting}
+                className="rounded-xl bg-gradient-to-r from-[#2b5cf7] to-[#6b5cf9] px-6 py-3 text-base font-semibold text-white shadow-[0_12px_25px_rgba(59,98,255,0.25)] transition hover:opacity-95"
+              >
                 Start Chatting Now
               </button>
-              <button className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50">
+              <Link
+               to="/docs"
+               className="rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+               >
                 View Documentation
-              </button>
+              </Link>
             </div>
           </div>
 
-          <div className="w-full max-w-[500px] rounded-[28px] bg-[#7ec0c3] p-4 shadow-[0_16px_35px_rgba(25,49,90,0.08)]">
-            <svg
-              viewBox="0 0 500 340"
-              className="h-[280px] w-full"
-              role="img"
-              aria-label="AI assistant illustration"
-            >
-              <defs>
-                <linearGradient id="shirt" x1="0%" x2="100%" y1="0%" y2="100%">
-                  <stop offset="0%" stopColor="#eefafc" />
-                  <stop offset="100%" stopColor="#d8edf0" />
-                </linearGradient>
-                <linearGradient id="hair" x1="0%" x2="100%" y1="0%" y2="100%">
-                  <stop offset="0%" stopColor="#8d4f26" />
-                  <stop offset="100%" stopColor="#6f3d1d" />
-                </linearGradient>
-              </defs>
+          <div className="w-full max-w-[450px] rounded-[28px] bg-[#7ec0c3] p-4 shadow-[0_16px_35px_rgba(25,49,90,0.08)]">
+            <img
+              src="/public/girl_AI.png"
+              alt="AI assistant illustration"
+              className="h-[280px] w-full object-contain"
+            />
+            <defs>
+              <linearGradient id="shirt" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stopColor="#eefafc" />
+                <stop offset="100%" stopColor="#d8edf0" />
+              </linearGradient>
+              <linearGradient id="hair" x1="0%" x2="100%" y1="0%" y2="100%">
+                <stop offset="0%" stopColor="#8d4f26" />
+                <stop offset="100%" stopColor="#6f3d1d" />
+              </linearGradient>
+            </defs>
 
-              <rect
-                x="0"
-                y="15"
-                width="500"
-                height="295"
-                rx="24"
-                fill="#6db6ba"
-                opacity="0.15"
-              />
-              <ellipse
-                cx="290"
-                cy="300"
-                rx="130"
-                ry="20"
-                fill="#5ab0b5"
-                opacity="0.18"
-              />
+            <rect
+              x="0"
+              y="15"
+              width="500"
+              height="295"
+              rx="24"
+              fill="#6db6ba"
+              opacity="0.15"
+            />
+            <ellipse
+              cx="290"
+              cy="300"
+              rx="130"
+              ry="20"
+              fill="#5ab0b5"
+              opacity="0.18"
+            />
 
-              <path
-                d="M186 230 C200 180, 270 165, 320 185 L345 252 C318 270, 225 276, 177 255 Z"
-                fill="url(#shirt)"
-              />
-              <path
-                d="M206 235 L176 260 L240 280 L288 272 L332 255 L300 230 Z"
-                fill="#d6eff1"
-                opacity="0.85"
-              />
+            <path
+              d="M186 230 C200 180, 270 165, 320 185 L345 252 C318 270, 225 276, 177 255 Z"
+              fill="url(#shirt)"
+            />
+            <path
+              d="M206 235 L176 260 L240 280 L288 272 L332 255 L300 230 Z"
+              fill="#d6eff1"
+              opacity="0.85"
+            />
 
-              <path
-                d="M230 145 C206 145, 190 166, 190 192 C190 222, 215 244, 246 244 L255 244 C279 244, 302 220, 302 192 C302 163, 287 145, 261 145 Z"
-                fill="#e1a16d"
-                opacity="0.18"
-              />
+            <path
+              d="M230 145 C206 145, 190 166, 190 192 C190 222, 215 244, 246 244 L255 244 C279 244, 302 220, 302 192 C302 163, 287 145, 261 145 Z"
+              fill="#e1a16d"
+              opacity="0.18"
+            />
 
-              <path
-                d="M226 150 C232 116, 261 93, 291 98 C310 102, 326 120, 332 139 C346 161, 340 196, 327 212 C304 200, 284 193, 254 193 C239 193, 226 179, 226 150 Z"
-                fill="url(#hair)"
-              />
-              <path
-                d="M280 160 C294 166, 306 177, 311 196 C307 205, 300 215, 290 222 C278 230, 260 231, 246 225 C236 212, 238 198, 245 183 C252 170, 264 164, 280 160 Z"
-                fill="#f1c39f"
-              />
-              <circle cx="286" cy="182" r="65" fill="#f4c7a1" />
-              <path
-                d="M216 195 C231 155, 258 136, 295 137 C330 138, 350 157, 361 193 C345 177, 332 172, 318 168 C306 163, 291 160, 274 162 C261 163, 244 170, 231 183 Z"
-                fill="url(#hair)"
-              />
+            <path
+              d="M226 150 C232 116, 261 93, 291 98 C310 102, 326 120, 332 139 C346 161, 340 196, 327 212 C304 200, 284 193, 254 193 C239 193, 226 179, 226 150 Z"
+              fill="url(#hair)"
+            />
+            <path
+              d="M280 160 C294 166, 306 177, 311 196 C307 205, 300 215, 290 222 C278 230, 260 231, 246 225 C236 212, 238 198, 245 183 C252 170, 264 164, 280 160 Z"
+              fill="#f1c39f"
+            />
+            <circle cx="286" cy="182" r="65" fill="#f4c7a1" />
+            <path
+              d="M216 195 C231 155, 258 136, 295 137 C330 138, 350 157, 361 193 C345 177, 332 172, 318 168 C306 163, 291 160, 274 162 C261 163, 244 170, 231 183 Z"
+              fill="url(#hair)"
+            />
 
-              <path
-                d="M235 183 C248 175, 262 171, 277 172 C294 174, 307 180, 318 191"
-                fill="none"
-                stroke="#7c4a28"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-              <circle cx="246" cy="184" r="5" fill="#2d2f36" />
-              <circle cx="301" cy="184" r="5" fill="#2d2f36" />
-              <path
-                d="M264 202 C273 208, 286 208, 294 202"
-                fill="none"
-                stroke="#a35b50"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
+            <path
+              d="M235 183 C248 175, 262 171, 277 172 C294 174, 307 180, 318 191"
+              fill="none"
+              stroke="#7c4a28"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <circle cx="246" cy="184" r="5" fill="#2d2f36" />
+            <circle cx="301" cy="184" r="5" fill="#2d2f36" />
+            <path
+              d="M264 202 C273 208, 286 208, 294 202"
+              fill="none"
+              stroke="#a35b50"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
 
-              <path d="M286 204 L326 205 L335 246 L290 247 Z" fill="#f0f5fa" />
-              <path d="M287 210 L334 210 L312 247 L277 244 Z" fill="#dfeaf2" />
+            <path d="M286 204 L326 205 L335 246 L290 247 Z" fill="#f0f5fa" />
+            <path d="M287 210 L334 210 L312 247 L277 244 Z" fill="#dfeaf2" />
 
-              <path d="M233 245 L270 245 L275 272 L212 275 Z" fill="#f1f6fb" />
-              <path d="M287 246 L344 246 L356 278 L291 279 Z" fill="#edf2f8" />
+            <path d="M233 245 L270 245 L275 272 L212 275 Z" fill="#f1f6fb" />
+            <path d="M287 246 L344 246 L356 278 L291 279 Z" fill="#edf2f8" />
 
-              <path
-                d="M216 260 L150 250 L176 308 L228 307 Z"
-                fill="#e8eef5"
-                opacity="0.8"
-              />
-              <path
-                d="M315 259 L368 259 L392 310 L330 309 Z"
-                fill="#edf4f8"
-                opacity="0.9"
-              />
+            <path
+              d="M216 260 L150 250 L176 308 L228 307 Z"
+              fill="#e8eef5"
+              opacity="0.8"
+            />
+            <path
+              d="M315 259 L368 259 L392 310 L330 309 Z"
+              fill="#edf4f8"
+              opacity="0.9"
+            />
 
-              <rect
-                x="150"
-                y="130"
-                width="140"
-                height="96"
-                rx="12"
-                fill="#f7f8fa"
-                stroke="#cfe0ea"
-                strokeWidth="2"
-              />
-              <path
-                d="M164 148 h114"
-                stroke="#d8e3ef"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-              <path
-                d="M164 167 h100"
-                stroke="#d8e3ef"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-              <path
-                d="M164 186 h86"
-                stroke="#d8e3ef"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-              <path
-                d="M164 205 h86"
-                stroke="#d8e3ef"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
+            <rect
+              x="150"
+              y="130"
+              width="140"
+              height="96"
+              rx="12"
+              fill="#f7f8fa"
+              stroke="#cfe0ea"
+              strokeWidth="2"
+            />
+            <path
+              d="M164 148 h114"
+              stroke="#d8e3ef"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+            <path
+              d="M164 167 h100"
+              stroke="#d8e3ef"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+            <path
+              d="M164 186 h86"
+              stroke="#d8e3ef"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+            <path
+              d="M164 205 h86"
+              stroke="#d8e3ef"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
 
-              <path
-                d="M154 130 C170 105, 196 97, 213 100"
-                fill="none"
-                stroke="#d3cad3"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-            </svg>
+            <path
+              d="M154 130 C170 105, 196 97, 213 100"
+              fill="none"
+              stroke="#d3cad3"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
           </div>
         </div>
 
@@ -459,11 +479,10 @@ const HelpCenterPage = () => {
                   className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[82%] rounded-[18px] px-4 py-3 text-[14px] leading-6 ${
-                      message.sender === "user"
-                        ? "bg-gradient-to-r from-[#2d5af8] to-[#5a67ff] text-white"
-                        : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200/80"
-                    }`}
+                    className={`max-w-[82%] rounded-[18px] px-4 py-3 text-[14px] leading-6 ${message.sender === "user"
+                      ? "bg-gradient-to-r from-[#2d5af8] to-[#5a67ff] text-white"
+                      : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200/80"
+                      }`}
                   >
                     <div className="flex items-start gap-2">
                       {message.sender === "bot" && (
@@ -506,9 +525,10 @@ const HelpCenterPage = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-[#e7e7e7] bg-white px-4 py-4">
+            <div id="chat-input-bar" className="border-t border-[#e7e7e7] bg-white px-4 py-4">
               <div className="flex items-center gap-3 rounded-full border border-[#e4e4e7] bg-[#f9f9f9] px-3 py-2 shadow-inner">
                 <input
+                  ref={chatInputRef}
                   value={inputMessage}
                   onChange={(event) => setInputMessage(event.target.value)}
                   onKeyDown={handleKeyPress}
