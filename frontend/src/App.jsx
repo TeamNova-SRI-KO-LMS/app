@@ -25,7 +25,6 @@ import HelpCenterPage from './pages/HelpCenterPage';
 import JoinUsPage from './pages/JoinUsPage';
 import CreateCoursePage from './pages/CreateCoursePage';
 import EditCoursePage from './pages/EditCoursePage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
 import { Toaster } from 'react-hot-toast';
 
 
