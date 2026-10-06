@@ -1,45 +1,46 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import {
-  PaperAirplaneIcon,
-  QuestionMarkCircleIcon,
-  ClockIcon,
-  MapPinIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  BookOpenIcon,
-  SparklesIcon,
   ArrowRightIcon,
+  BookOpenIcon,
   ChevronRightIcon,
-} from '@heroicons/react/24/outline';
+  ClockIcon,
+  EnvelopeIcon,
+  MapPinIcon,
+  PaperAirplaneIcon,
+  PhoneIcon,
+  QuestionMarkCircleIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
+import React, { useEffect, useRef, useState } from "react";
+
+import { Link } from "react-router-dom";
 
 const HelpCenterPage = () => {
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: 'Hello Scholar! I\'m your SRI-KO AI Assistant. I can help you with course navigation, Hangul pronunciation, and course settings. What\'s on your mind today?',
-      sender: 'bot',
-      timestamp: new Date('2024-01-01T09:00:00'),
+      text: "Hello Scholar! I'm your SRI-KO AI Assistant. I can help you with course navigation, Hangul pronunciation, and course settings. What's on your mind today?",
+      sender: "bot",
+      timestamp: new Date("2024-01-01T09:00:00"),
     },
     {
       id: 2,
-      text: 'Can you explain the difference between formal and informal endings in Korean?',
-      sender: 'user',
-      timestamp: new Date('2024-01-01T09:01:00'),
+      text: "Can you explain the difference between formal and informal endings in Korean?",
+      sender: "user",
+      timestamp: new Date("2024-01-01T09:01:00"),
     },
     {
       id: 3,
-      text: 'That\'s a great question! In Korean, speech levels are important. Informal endings like “-아/어” are used with friends or close peers. Formal endings like “-습니다/-ㅂ니다” are used in polite or professional settings. If you want, I can give you examples for everyday conversation or business Korean.',
-      sender: 'bot',
-      timestamp: new Date('2024-01-01T09:02:00'),
+      text: "That's a great question! In Korean, speech levels are important. Informal endings like “-아/어” are used with friends or close peers. Formal endings like “-습니다/-ㅂ니다” are used in polite or professional settings. If you want, I can give you examples for everyday conversation or business Korean.",
+      sender: "bot",
+      timestamp: new Date("2024-01-01T09:02:00"),
     },
   ]);
-  const [inputMessage, setInputMessage] = useState('');
+  const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -48,99 +49,169 @@ const HelpCenterPage = () => {
 
   const knowledgeBase = {
     greeting: [
-      'Hello! I can help with courses, pricing, schedules, enrollment, and Korean language basics.',
-      'Welcome to SRI-KO! Ask me anything about your learning journey or course details.',
-      'Hi there! I’m here to guide you through course options, study plans, and support.',
+      "Hello! I can help with courses, pricing, schedules, enrollment, and Korean language basics.",
+      "Welcome to SRI-KO! Ask me anything about your learning journey or course details.",
+      "Hi there! I’m here to guide you through course options, study plans, and support.",
     ],
     courses: [
-      'We offer beginner to advanced Korean language courses, including business, travel, and culture-focused tracks.',
-      'Our learning paths are designed around speaking, listening, reading, and writing proficiency.',
-      'Every program is paced for practical communication and confident daily use of Korean.',
+      "We offer beginner to advanced Korean language courses, including business, travel, and culture-focused tracks.",
+      "Our learning paths are designed around speaking, listening, reading, and writing proficiency.",
+      "Every program is paced for practical communication and confident daily use of Korean.",
     ],
     pricing: [
-      'We offer flexible pricing plans for individuals, groups, and premium coaching support.',
-      'You can compare course options and payment details on the pricing page, and we also offer bundles.',
-      'Private sessions and group courses have different pricing based on duration and level.',
+      "We offer flexible pricing plans for individuals, groups, and premium coaching support.",
+      "You can compare course options and payment details on the pricing page, and we also offer bundles.",
+      "Private sessions and group courses have different pricing based on duration and level.",
     ],
     enrollment: [
-      'To enroll, visit our application page and complete the form with your preferred course and timeline.',
-      'Our team can help you choose the right class based on your current Korean level and goals.',
-      'You can also reach out to us by email or phone if you need guidance before registering.',
+      "To enroll, visit our application page and complete the form with your preferred course and timeline.",
+      "Our team can help you choose the right class based on your current Korean level and goals.",
+      "You can also reach out to us by email or phone if you need guidance before registering.",
     ],
     schedule: [
-      'We offer morning, afternoon, evening, weekend, and flexible online learning options.',
-      'Class timings are designed to support students with different routines and commitments.',
-      'If you are unsure which slot suits you best, we can help recommend one based on your schedule.',
+      "We offer morning, afternoon, evening, weekend, and flexible online learning options.",
+      "Class timings are designed to support students with different routines and commitments.",
+      "If you are unsure which slot suits you best, we can help recommend one based on your schedule.",
     ],
     location: [
-      'We are based in Colombo and cater to both local and international learners.',
-      'You can contact us for campus details and directions before your visit.',
-      'Online learning options are also available for students outside the local area.',
+      "We are based in Colombo and cater to both local and international learners.",
+      "You can contact us for campus details and directions before your visit.",
+      "Online learning options are also available for students outside the local area.",
     ],
     contact: [
-      'You can email or call our support team for any assistance with course information or registration.',
-      'We usually respond to general queries within one business day.',
-      'Our staff can help with onboarding, scheduling, and course recommendations.',
+      "You can email or call our support team for any assistance with course information or registration.",
+      "We usually respond to general queries within one business day.",
+      "Our staff can help with onboarding, scheduling, and course recommendations.",
     ],
     instructors: [
-      'Our instructors are experienced Korean language educators with a student-focused teaching style.',
-      'They guide learners through grammar, speaking, pronunciation, and cultural understanding.',
-      'Every program is designed to make progress practical and engaging.',
+      "Our instructors are experienced Korean language educators with a student-focused teaching style.",
+      "They guide learners through grammar, speaking, pronunciation, and cultural understanding.",
+      "Every program is designed to make progress practical and engaging.",
     ],
     materials: [
-      'Students receive learning materials, guided practice, and digital support throughout their course.',
-      'We focus on both textbook learning and real-world conversation practice.',
-      'Our resources are designed to improve confidence in everyday Korean use.',
+      "Students receive learning materials, guided practice, and digital support throughout their course.",
+      "We focus on both textbook learning and real-world conversation practice.",
+      "Our resources are designed to improve confidence in everyday Korean use.",
     ],
     certification: [
-      'We provide certificates based on course completion and student progress.',
-      'Students may also prepare for Korean proficiency recognition and academic pathways.',
-      'Certification is available depending on the selected program and completion requirements.',
+      "We provide certificates based on course completion and student progress.",
+      "Students may also prepare for Korean proficiency recognition and academic pathways.",
+      "Certification is available depending on the selected program and completion requirements.",
     ],
   };
 
   const getBotResponse = (userMessage) => {
     const message = userMessage.toLowerCase();
 
-    if (message.includes('hello') || message.includes('hi') || message.includes('hey') || message.includes('안녕')) {
-      return knowledgeBase.greeting[Math.floor(Math.random() * knowledgeBase.greeting.length)];
+    if (
+      message.includes("hello") ||
+      message.includes("hi") ||
+      message.includes("hey") ||
+      message.includes("안녕")
+    ) {
+      return knowledgeBase.greeting[
+        Math.floor(Math.random() * knowledgeBase.greeting.length)
+      ];
     }
-    if (message.includes('course') || message.includes('class') || message.includes('lesson') || message.includes('learn') || message.includes('korean')) {
-      return knowledgeBase.courses[Math.floor(Math.random() * knowledgeBase.courses.length)];
+    if (
+      message.includes("course") ||
+      message.includes("class") ||
+      message.includes("lesson") ||
+      message.includes("learn") ||
+      message.includes("korean")
+    ) {
+      return knowledgeBase.courses[
+        Math.floor(Math.random() * knowledgeBase.courses.length)
+      ];
     }
-    if (message.includes('price') || message.includes('cost') || message.includes('fee') || message.includes('payment')) {
-      return knowledgeBase.pricing[Math.floor(Math.random() * knowledgeBase.pricing.length)];
+    if (
+      message.includes("price") ||
+      message.includes("cost") ||
+      message.includes("fee") ||
+      message.includes("payment")
+    ) {
+      return knowledgeBase.pricing[
+        Math.floor(Math.random() * knowledgeBase.pricing.length)
+      ];
     }
-    if (message.includes('enroll') || message.includes('join') || message.includes('register') || message.includes('sign up')) {
-      return knowledgeBase.enrollment[Math.floor(Math.random() * knowledgeBase.enrollment.length)];
+    if (
+      message.includes("enroll") ||
+      message.includes("join") ||
+      message.includes("register") ||
+      message.includes("sign up")
+    ) {
+      return knowledgeBase.enrollment[
+        Math.floor(Math.random() * knowledgeBase.enrollment.length)
+      ];
     }
-    if (message.includes('schedule') || message.includes('time') || message.includes('when') || message.includes('hours')) {
-      return knowledgeBase.schedule[Math.floor(Math.random() * knowledgeBase.schedule.length)];
+    if (
+      message.includes("schedule") ||
+      message.includes("time") ||
+      message.includes("when") ||
+      message.includes("hours")
+    ) {
+      return knowledgeBase.schedule[
+        Math.floor(Math.random() * knowledgeBase.schedule.length)
+      ];
     }
-    if (message.includes('location') || message.includes('address') || message.includes('where') || message.includes('place')) {
-      return knowledgeBase.location[Math.floor(Math.random() * knowledgeBase.location.length)];
+    if (
+      message.includes("location") ||
+      message.includes("address") ||
+      message.includes("where") ||
+      message.includes("place")
+    ) {
+      return knowledgeBase.location[
+        Math.floor(Math.random() * knowledgeBase.location.length)
+      ];
     }
-    if (message.includes('contact') || message.includes('phone') || message.includes('email') || message.includes('reach')) {
-      return knowledgeBase.contact[Math.floor(Math.random() * knowledgeBase.contact.length)];
+    if (
+      message.includes("contact") ||
+      message.includes("phone") ||
+      message.includes("email") ||
+      message.includes("reach")
+    ) {
+      return knowledgeBase.contact[
+        Math.floor(Math.random() * knowledgeBase.contact.length)
+      ];
     }
-    if (message.includes('teacher') || message.includes('instructor') || message.includes('guide')) {
-      return knowledgeBase.instructors[Math.floor(Math.random() * knowledgeBase.instructors.length)];
+    if (
+      message.includes("teacher") ||
+      message.includes("instructor") ||
+      message.includes("guide")
+    ) {
+      return knowledgeBase.instructors[
+        Math.floor(Math.random() * knowledgeBase.instructors.length)
+      ];
     }
-    if (message.includes('book') || message.includes('material') || message.includes('resource')) {
-      return knowledgeBase.materials[Math.floor(Math.random() * knowledgeBase.materials.length)];
+    if (
+      message.includes("book") ||
+      message.includes("material") ||
+      message.includes("resource")
+    ) {
+      return knowledgeBase.materials[
+        Math.floor(Math.random() * knowledgeBase.materials.length)
+      ];
     }
-    if (message.includes('certificate') || message.includes('certification') || message.includes('diploma')) {
-      return knowledgeBase.certification[Math.floor(Math.random() * knowledgeBase.certification.length)];
+    if (
+      message.includes("certificate") ||
+      message.includes("certification") ||
+      message.includes("diploma")
+    ) {
+      return knowledgeBase.certification[
+        Math.floor(Math.random() * knowledgeBase.certification.length)
+      ];
     }
 
     const defaultResponses = [
-      'I can help with course recommendations, payments, enrollment steps, and learning support. Tell me what you want to know.',
-      'That sounds important. I can guide you through course options, schedules, and next steps for your Korean study plan.',
-      'I’m happy to help! Ask me about classes, certificates, pricing, or how to get started.',
-      'I can answer many common questions about SRI-KO programs, support, and learning pathways. What would you like to know?',
+      "I can help with course recommendations, payments, enrollment steps, and learning support. Tell me what you want to know.",
+      "That sounds important. I can guide you through course options, schedules, and next steps for your Korean study plan.",
+      "I’m happy to help! Ask me about classes, certificates, pricing, or how to get started.",
+      "I can answer many common questions about SRI-KO programs, support, and learning pathways. What would you like to know?",
     ];
 
-    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+    return defaultResponses[
+      Math.floor(Math.random() * defaultResponses.length)
+    ];
   };
 
   const handleSendMessage = () => {
@@ -149,19 +220,19 @@ const HelpCenterPage = () => {
     const nextUserMessage = {
       id: Date.now(),
       text: inputMessage,
-      sender: 'user',
+      sender: "user",
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, nextUserMessage]);
-    setInputMessage('');
+    setInputMessage("");
     setIsTyping(true);
 
     setTimeout(() => {
       const botResponse = {
         id: Date.now() + 1,
         text: getBotResponse(nextUserMessage.text),
-        sender: 'bot',
+        sender: "bot",
         timestamp: new Date(),
       };
 
@@ -171,17 +242,17 @@ const HelpCenterPage = () => {
   };
 
   const handleKeyPress = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleSendMessage();
     }
   };
 
   const quickQuestions = [
-    'How do I track my progress?',
-    'Password reset instructions',
-    'Pronunciation guide help',
-    'Booking a tutoring session',
+    "How do I track my progress?",
+    "Password reset instructions",
+    "Pronunciation guide help",
+    "Booking a tutoring session",
   ];
 
   const handleQuickQuestion = (question) => {
@@ -201,7 +272,9 @@ const HelpCenterPage = () => {
               <span className="mt-2 block">24/7 AI Assistant</span>
             </h1>
             <p className="mt-6 max-w-[470px] text-base leading-7 text-slate-600">
-              Experience the Sejong Modern approach to learning support. Instant answers, cultural insights, and technical guidance powered by advanced intelligence.
+              Experience the Sejong Modern approach to learning support. Instant
+              answers, cultural insights, and technical guidance powered by
+              advanced intelligence.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <button className="rounded-xl bg-gradient-to-r from-[#2b5cf7] to-[#6b5cf9] px-6 py-3 text-base font-semibold text-white shadow-[0_12px_25px_rgba(59,98,255,0.25)] transition hover:opacity-95">
@@ -214,7 +287,12 @@ const HelpCenterPage = () => {
           </div>
 
           <div className="w-full max-w-[500px] rounded-[28px] bg-[#7ec0c3] p-4 shadow-[0_16px_35px_rgba(25,49,90,0.08)]">
-            <svg viewBox="0 0 500 340" className="h-[280px] w-full" role="img" aria-label="AI assistant illustration">
+            <svg
+              viewBox="0 0 500 340"
+              className="h-[280px] w-full"
+              role="img"
+              aria-label="AI assistant illustration"
+            >
               <defs>
                 <linearGradient id="shirt" x1="0%" x2="100%" y1="0%" y2="100%">
                   <stop offset="0%" stopColor="#eefafc" />
@@ -226,23 +304,70 @@ const HelpCenterPage = () => {
                 </linearGradient>
               </defs>
 
-              <rect x="0" y="15" width="500" height="295" rx="24" fill="#6db6ba" opacity="0.15" />
-              <ellipse cx="290" cy="300" rx="130" ry="20" fill="#5ab0b5" opacity="0.18" />
+              <rect
+                x="0"
+                y="15"
+                width="500"
+                height="295"
+                rx="24"
+                fill="#6db6ba"
+                opacity="0.15"
+              />
+              <ellipse
+                cx="290"
+                cy="300"
+                rx="130"
+                ry="20"
+                fill="#5ab0b5"
+                opacity="0.18"
+              />
 
-              <path d="M186 230 C200 180, 270 165, 320 185 L345 252 C318 270, 225 276, 177 255 Z" fill="url(#shirt)" />
-              <path d="M206 235 L176 260 L240 280 L288 272 L332 255 L300 230 Z" fill="#d6eff1" opacity="0.85" />
+              <path
+                d="M186 230 C200 180, 270 165, 320 185 L345 252 C318 270, 225 276, 177 255 Z"
+                fill="url(#shirt)"
+              />
+              <path
+                d="M206 235 L176 260 L240 280 L288 272 L332 255 L300 230 Z"
+                fill="#d6eff1"
+                opacity="0.85"
+              />
 
-              <path d="M230 145 C206 145, 190 166, 190 192 C190 222, 215 244, 246 244 L255 244 C279 244, 302 220, 302 192 C302 163, 287 145, 261 145 Z" fill="#e1a16d" opacity="0.18" />
+              <path
+                d="M230 145 C206 145, 190 166, 190 192 C190 222, 215 244, 246 244 L255 244 C279 244, 302 220, 302 192 C302 163, 287 145, 261 145 Z"
+                fill="#e1a16d"
+                opacity="0.18"
+              />
 
-              <path d="M226 150 C232 116, 261 93, 291 98 C310 102, 326 120, 332 139 C346 161, 340 196, 327 212 C304 200, 284 193, 254 193 C239 193, 226 179, 226 150 Z" fill="url(#hair)" />
-              <path d="M280 160 C294 166, 306 177, 311 196 C307 205, 300 215, 290 222 C278 230, 260 231, 246 225 C236 212, 238 198, 245 183 C252 170, 264 164, 280 160 Z" fill="#f1c39f" />
+              <path
+                d="M226 150 C232 116, 261 93, 291 98 C310 102, 326 120, 332 139 C346 161, 340 196, 327 212 C304 200, 284 193, 254 193 C239 193, 226 179, 226 150 Z"
+                fill="url(#hair)"
+              />
+              <path
+                d="M280 160 C294 166, 306 177, 311 196 C307 205, 300 215, 290 222 C278 230, 260 231, 246 225 C236 212, 238 198, 245 183 C252 170, 264 164, 280 160 Z"
+                fill="#f1c39f"
+              />
               <circle cx="286" cy="182" r="65" fill="#f4c7a1" />
-              <path d="M216 195 C231 155, 258 136, 295 137 C330 138, 350 157, 361 193 C345 177, 332 172, 318 168 C306 163, 291 160, 274 162 C261 163, 244 170, 231 183 Z" fill="url(#hair)" />
+              <path
+                d="M216 195 C231 155, 258 136, 295 137 C330 138, 350 157, 361 193 C345 177, 332 172, 318 168 C306 163, 291 160, 274 162 C261 163, 244 170, 231 183 Z"
+                fill="url(#hair)"
+              />
 
-              <path d="M235 183 C248 175, 262 171, 277 172 C294 174, 307 180, 318 191" fill="none" stroke="#7c4a28" strokeWidth="4" strokeLinecap="round" />
+              <path
+                d="M235 183 C248 175, 262 171, 277 172 C294 174, 307 180, 318 191"
+                fill="none"
+                stroke="#7c4a28"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
               <circle cx="246" cy="184" r="5" fill="#2d2f36" />
               <circle cx="301" cy="184" r="5" fill="#2d2f36" />
-              <path d="M264 202 C273 208, 286 208, 294 202" fill="none" stroke="#a35b50" strokeWidth="3" strokeLinecap="round" />
+              <path
+                d="M264 202 C273 208, 286 208, 294 202"
+                fill="none"
+                stroke="#a35b50"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
 
               <path d="M286 204 L326 205 L335 246 L290 247 Z" fill="#f0f5fa" />
               <path d="M287 210 L334 210 L312 247 L277 244 Z" fill="#dfeaf2" />
@@ -250,16 +375,59 @@ const HelpCenterPage = () => {
               <path d="M233 245 L270 245 L275 272 L212 275 Z" fill="#f1f6fb" />
               <path d="M287 246 L344 246 L356 278 L291 279 Z" fill="#edf2f8" />
 
-              <path d="M216 260 L150 250 L176 308 L228 307 Z" fill="#e8eef5" opacity="0.8" />
-              <path d="M315 259 L368 259 L392 310 L330 309 Z" fill="#edf4f8" opacity="0.9" />
+              <path
+                d="M216 260 L150 250 L176 308 L228 307 Z"
+                fill="#e8eef5"
+                opacity="0.8"
+              />
+              <path
+                d="M315 259 L368 259 L392 310 L330 309 Z"
+                fill="#edf4f8"
+                opacity="0.9"
+              />
 
-              <rect x="150" y="130" width="140" height="96" rx="12" fill="#f7f8fa" stroke="#cfe0ea" strokeWidth="2" />
-              <path d="M164 148 h114" stroke="#d8e3ef" strokeWidth="3" strokeLinecap="round" />
-              <path d="M164 167 h100" stroke="#d8e3ef" strokeWidth="3" strokeLinecap="round" />
-              <path d="M164 186 h86" stroke="#d8e3ef" strokeWidth="3" strokeLinecap="round" />
-              <path d="M164 205 h86" stroke="#d8e3ef" strokeWidth="3" strokeLinecap="round" />
+              <rect
+                x="150"
+                y="130"
+                width="140"
+                height="96"
+                rx="12"
+                fill="#f7f8fa"
+                stroke="#cfe0ea"
+                strokeWidth="2"
+              />
+              <path
+                d="M164 148 h114"
+                stroke="#d8e3ef"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+              <path
+                d="M164 167 h100"
+                stroke="#d8e3ef"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+              <path
+                d="M164 186 h86"
+                stroke="#d8e3ef"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+              <path
+                d="M164 205 h86"
+                stroke="#d8e3ef"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
 
-              <path d="M154 130 C170 105, 196 97, 213 100" fill="none" stroke="#d3cad3" strokeWidth="4" strokeLinecap="round" />
+              <path
+                d="M154 130 C170 105, 196 97, 213 100"
+                fill="none"
+                stroke="#d3cad3"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
             </svg>
           </div>
         </div>
@@ -272,7 +440,9 @@ const HelpCenterPage = () => {
                   <SparklesIcon className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="text-[15px] font-bold text-slate-800">SRI-KO AI Assistant</div>
+                  <div className="text-[15px] font-bold text-slate-800">
+                    SRI-KO AI Assistant
+                  </div>
                   <div className="text-xs text-slate-500">Online</div>
                 </div>
               </div>
@@ -284,24 +454,32 @@ const HelpCenterPage = () => {
 
             <div className="h-[470px] space-y-4 overflow-y-auto bg-[#f7f7f6] p-4 sm:p-5">
               {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                >
                   <div
                     className={`max-w-[82%] rounded-[18px] px-4 py-3 text-[14px] leading-6 ${
-                      message.sender === 'user'
-                        ? 'bg-gradient-to-r from-[#2d5af8] to-[#5a67ff] text-white'
-                        : 'bg-white text-slate-700 shadow-sm ring-1 ring-slate-200/80'
+                      message.sender === "user"
+                        ? "bg-gradient-to-r from-[#2d5af8] to-[#5a67ff] text-white"
+                        : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200/80"
                     }`}
                   >
                     <div className="flex items-start gap-2">
-                      {message.sender === 'bot' && (
+                      {message.sender === "bot" && (
                         <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#edf1ff] text-[#3556da]">
                           <SparklesIcon className="h-3.5 w-3.5" />
                         </div>
                       )}
                       <div>
                         <p>{message.text}</p>
-                        <div className={`mt-2 text-[10px] ${message.sender === 'user' ? 'text-blue-100' : 'text-slate-400'}`}>
-                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div
+                          className={`mt-2 text-[10px] ${message.sender === "user" ? "text-blue-100" : "text-slate-400"}`}
+                        >
+                          {message.timestamp.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </div>
                       </div>
                     </div>

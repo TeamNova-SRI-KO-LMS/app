@@ -1,32 +1,32 @@
-import './App.css'
+import "./App.css";
 
-import { Route, Routes } from 'react-router-dom';
-import AboutUs from './pages/AboutusPage';
-import DashboardPage from './pages/DashboardPage';
-import HomePage from './pages/HomePage';
-import Layout from './components/Layout';
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import ProtectedRoute from './components/ProtectedRoute';
-import RegisterPage from './pages/RegisterPage';
-import ScrollToTop from './components/ScrollToTop';
-import AdminLogin from './admin/adminLogin';
-import AdminDashboard from './admin/AdminDashboard';
-import CoursesPage from './pages/CoursesPage';
-import EventsPage from './pages/EventsPage';
-import AnnouncementsPage from './pages/AnnouncementsPage';
-import CourseDetails from './pages/CourseDetailsPage';
-import CourseInfoPage from './pages/CourseInfoPage';
-import PaymentInfo from './pages/PaymentInfoPage';
-import FloatingAiSupport from './components/FloatingAiSupport';
-import TermsOfServicePage from './pages/TermsOfServicePage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import HelpCenterPage from './pages/HelpCenterPage';
-import JoinUsPage from './pages/JoinUsPage';
-import CreateCoursePage from './pages/CreateCoursePage';
-import EditCoursePage from './pages/EditCoursePage';
-import { Toaster } from 'react-hot-toast';
+import { Route, Routes } from "react-router-dom";
 
+import AboutUs from "./pages/AboutusPage";
+import AdminDashboard from "./admin/AdminDashboard";
+import AdminLogin from "./admin/adminLogin";
+import AnnouncementsPage from "./pages/AnnouncementsPage";
+import CourseDetails from "./pages/CourseDetailsPage";
+import CourseInfoPage from "./pages/CourseInfoPage";
+import CoursesPage from "./pages/CoursesPage";
+import CreateCoursePage from "./pages/CreateCoursePage";
+import DashboardPage from "./pages/DashboardPage";
+import EditCoursePage from "./pages/EditCoursePage";
+import EventsPage from "./pages/EventsPage";
+import FloatingAiSupport from "./components/FloatingAiSupport";
+import HelpCenterPage from "./pages/HelpCenterPage";
+import HomePage from "./pages/HomePage";
+import JoinUsPage from "./pages/JoinUsPage";
+import LandingPage from "./pages/LandingPage";
+import Layout from "./components/Layout";
+import LoginPage from "./pages/LoginPage";
+import PaymentInfo from "./pages/PaymentInfoPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import ProtectedRoute from "./components/ProtectedRoute";
+import RegisterPage from "./pages/RegisterPage";
+import ScrollToTop from "./components/ScrollToTop";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   return (
@@ -49,7 +49,10 @@ function App() {
           <Route path="/join-us" element={<JoinUsPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-          <Route path="/terms-and-conditions" element={<TermsOfServicePage />} />
+          <Route
+            path="/terms-and-conditions"
+            element={<TermsOfServicePage />}
+          />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/help" element={<HelpCenterPage />} />
@@ -99,7 +102,7 @@ function App() {
       <Toaster position="top-right" />
       <FloatingAiSupport />
     </>
-  )
+  );
 }
 
-export default App
+export default App;
