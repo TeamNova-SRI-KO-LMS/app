@@ -90,17 +90,17 @@ const TermsOfServicePage = () => {
             {/* Last Updated */}
             <div className="flex items-center gap-2 text-sm text-slate-700 font-medium">
               <Clock className="w-4 h-4 text-blue-600" />
-              <span>Last updated: October 24, 2023</span>
+              <span>Last updated: April 30, 2026</span>
             </div>
           </div>
 
           {/* Glowing Shield Icon Card */}
           <div className="w-full lg:w-auto flex justify-center lg:justify-end">
-            <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-[2.2rem] bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-0.5 shadow-2xl shadow-indigo-500/25 flex items-center justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 lg:w-40 lg:h-40 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 p-0.5 shadow-xl shadow-indigo-500/20 flex items-center justify-center relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
               <div className="absolute inset-0 bg-white/10 opacity-30 group-hover:opacity-40 transition-opacity" />
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/40 shadow-inner">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/40 shadow-inner">
                 <svg
-                  className="w-14 h-14 sm:w-16 sm:h-16 text-white drop-shadow-md"
+                  className="w-7 h-7 sm:w-9 sm:h-9 lg:w-11 lg:h-11 text-white drop-shadow-md"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                 >
@@ -111,10 +111,10 @@ const TermsOfServicePage = () => {
           </div>
         </div>
 
-        {/* Main Content Layout with Sticky Sidebar */}
+        {/* Main Content Layout with Sticky Sidebar on desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Sidebar - Jump to section */}
-          <div className="lg:col-span-3 sticky top-24 z-10">
+          <div className="lg:col-span-3 lg:sticky lg:top-24">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/80 shadow-sm">
               <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-3 px-3">
                 JUMP TO SECTION
