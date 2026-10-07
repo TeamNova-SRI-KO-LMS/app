@@ -1,15 +1,26 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import apiService from '../services/apiService';
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [verificationCode, setVerificationCode] = useState(['', '', '', '']);
+  const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSendOtp = event => {
+  const handleSendOtp = async event => {
     event.preventDefault();
-    setOtpSent(true);
+    setError('');
+    setMessage('');
+    try {
+      await apiService.post('/auth/forgot-password', { email });
+      setOtpSent(true);
+      setMessage('If an account exists for this email, a verification code has been sent.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to send the verification code.');
+    }
   };
 
   const handleVerificationChange = (index, value) => {
@@ -22,13 +33,22 @@ const ForgotPasswordPage = () => {
     });
   };
 
-  const handleVerifyOtp = event => {
+  const handleVerifyOtp = async event => {
     event.preventDefault();
     if (verificationCode.join('').length !== verificationCode.length) return;
 
-    navigate('/reset-password', {
-      state: { email },
-    });
+    setError('');
+    try {
+      const response = await apiService.post('/auth/verify-reset-otp', {
+        email,
+        otp: verificationCode.join(''),
+      });
+      navigate('/reset-password', {
+        state: { email, resetToken: response.data.resetToken },
+      });
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Invalid or expired verification code.');
+    }
   };
 
   return (
@@ -52,6 +72,8 @@ const ForgotPasswordPage = () => {
           <p className="mt-1 text-center text-xs text-gray-500">
             Enter your email address to receive a one-time verification code.
           </p>
+          {message && <p className="mt-3 text-center text-xs text-green-700">{message}</p>}
+          {error && <p className="mt-3 text-center text-xs text-red-600">{error}</p>}
 
           <form className="mt-6 space-y-4" onSubmit={handleSendOtp}>
             <div>
@@ -104,7 +126,7 @@ const ForgotPasswordPage = () => {
                 VERIFICATION CODE
               </label>
               <div className="mt-2 flex justify-center gap-4">
-                {[0, 1, 2, 3].map(index => (
+                {[0, 1, 2, 3, 4, 5].map(index => (
                   <input
                     key={index}
                     id={index === 0 ? 'verification-code' : undefined}

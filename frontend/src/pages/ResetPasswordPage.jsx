@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import apiService from '../services/apiService';
 
 const EyeIcon = ({ hidden = false }) => (
   <svg
@@ -54,14 +55,28 @@ const ResetPasswordPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const email = location.state?.email || 'Testuser@example.com';
+  const resetToken = location.state?.resetToken;
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = event => {
+  const handleSubmit = async event => {
     event.preventDefault();
     if (password.length < 6 || password !== confirmPassword) return;
-    navigate('/login', {
-      replace: true,
-      state: { passwordChanged: true },
-    });
+    if (!resetToken) {
+      setError('Your verification session is missing. Please request a new code.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      await apiService.post('/auth/reset-password', { resetToken, password });
+      navigate('/login', { replace: true, state: { passwordChanged: true } });
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to reset your password.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const passwordInput = (
@@ -114,6 +129,7 @@ const ResetPasswordPage = () => {
             Reset Your Password
           </h1>
           <p className="mt-1 text-center text-[9px] text-gray-500">{email}</p>
+          {error && <p className="mt-3 text-center text-[9px] text-red-600">{error}</p>}
 
           <form className="mt-4 space-y-2.5" onSubmit={handleSubmit}>
             <div>
@@ -144,10 +160,10 @@ const ResetPasswordPage = () => {
             </div>
             <button
               type="submit"
-              disabled={password.length < 6 || password !== confirmPassword}
+              disabled={submitting || password.length < 6 || password !== confirmPassword}
               className="mt-1 h-8 w-full rounded-md bg-linear-to-r from-blue-700 to-purple-600 text-[10px] font-semibold text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Reset Password
+              {submitting ? 'Resetting...' : 'Reset Password'}
             </button>
           </form>
 
