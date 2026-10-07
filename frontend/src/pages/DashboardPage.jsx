@@ -32,11 +32,11 @@ export default function DashboardPage() {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'courses', label: 'My Courses', icon: BookOpen, link: '/courses' },
-    { id: 'profile', label: 'Student Profile', icon: User },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'resources', label: 'Resources', icon: Folder },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'courses', label: 'My Courses', icon: BookOpen, path: '/my-courses' },
+    { id: 'profile', label: 'Student Profile', icon: User, path: '/attendance' },
+    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
+    { id: 'resources', label: 'Resources', icon: Folder, path: '/docs' },
   ];
 
   const stats = [
@@ -171,9 +171,9 @@ export default function DashboardPage() {
                 const Icon = item.icon;
                 const isSelected = activeTab === item.id;
                 return (
-                  <button
+                  <Link
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    to={item.path}
                     className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
                       isSelected
                         ? 'bg-blue-50 text-blue-600 shadow-sm border border-blue-100/80 font-semibold'
@@ -185,7 +185,7 @@ export default function DashboardPage() {
                       className={isSelected ? 'text-blue-600' : 'text-gray-400'}
                     />
                     <span>{item.label}</span>
-                  </button>
+                  </Link>
                 );
               })}
             </nav>
@@ -228,13 +228,13 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() => toast('Attendance record: 98% attendance this month', { icon: '📅' })}
+              <Link
+                to="/attendance"
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-sm transition active:scale-[0.98]"
               >
                 <Clock size={16} />
                 <span>Attendance History</span>
-              </button>
+              </Link>
               <Link
                 to="/courses"
                 className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-sm transition active:scale-[0.98]"
