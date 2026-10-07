@@ -1,384 +1,382 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { apiService } from '../services/apiService';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import useAuth from '../context/useAuth';
+import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import {
-  AcademicCapIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  TrophyIcon,
-  ChartBarIcon,
-  CalendarIcon,
-  UserGroupIcon,
-  BookOpenIcon,
-  XMarkIcon,
-  ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline';
+  BookOpen,
+  Clock,
+  CheckCircle2,
+  Trophy,
+  Play,
+  XCircle,
+  AlertTriangle,
+  GraduationCap,
+  Sparkles,
+  ArrowRight,
+  Search,
+} from 'lucide-react';
+import StudentSidebar from '../components/StudentSidebar';
 
-const MyCoursesPage = () => {
+export default function MyCoursesPage() {
   const { user } = useAuth();
-  const [courses, setCourses] = useState([]);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [unenrollingCourse, setUnenrollingCourse] = useState(null);
-  const [showUnenrollModal, setShowUnenrollModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [courseToUnenroll, setCourseToUnenroll] = useState(null);
+  const [unenrolling, setUnenrolling] = useState(false);
 
   useEffect(() => {
-    fetchMyCourses();
-  }, []);
+    fetchEnrolledCourses();
+  }, [user]);
 
-  const fetchMyCourses = async () => {
+  const fetchEnrolledCourses = async () => {
     try {
       setLoading(true);
-      const response = await apiService.get('/users/dashboard');
+      const res = await apiService.get('/courses/my-courses');
       
-      if (response.data.success) {
-        setCourses(response.data.data.enrolledCourses || []);
+      if (res.data?.success && Array.isArray(res.data.courses)) {
+        setEnrolledCourses(res.data.courses);
       } else {
-        throw new Error(response.data.message || 'Failed to fetch courses');
+        setEnrolledCourses([]);
       }
     } catch (error) {
-      console.error('Error fetching courses:', error);
-      toast.error('Failed to load your courses');
+      console.error('Error fetching enrolled courses:', error);
+      // If API fails or user has local enrolledCourses ids in user object
+      if (user?.enrolledCourses && user.enrolledCourses.length > 0) {
+        try {
+          const allRes = await apiService.get('/courses');
+          const all = allRes.data?.courses || [];
+          const userEnrolled = all.filter(c => 
+            user.enrolledCourses.includes(c._id) || 
+            c.enrolledStudents?.some(s => s._id === user._id || s === user._id)
+          );
+          setEnrolledCourses(userEnrolled);
+        } catch (e) {
+          toast.error('Failed to load your enrolled courses');
+        }
+      } else {
+        setEnrolledCourses([]);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const getLevelColor = (level) => {
-    switch (level?.toLowerCase()) {
-      case 'beginner':
-        return 'bg-green-100 text-green-800';
-      case 'intermediate':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'advanced':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getCategoryColor = (category) => {
-    switch (category?.toLowerCase()) {
-      case 'grammar':
-        return 'bg-blue-100 text-blue-800';
-      case 'vocabulary':
-        return 'bg-purple-100 text-purple-800';
-      case 'conversation':
-        return 'bg-green-100 text-green-800';
-      case 'culture':
-        return 'bg-orange-100 text-orange-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatTime = (minutes) => {
-    if (minutes < 60) {
-      return `${minutes}m`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  };
-
-  const handleUnenrollClick = (course) => {
-    setCourseToUnenroll(course);
-    setShowUnenrollModal(true);
-  };
-
-  const handleUnenrollConfirm = async () => {
+  const handleUnenroll = async () => {
     if (!courseToUnenroll) return;
-
     try {
-      setUnenrollingCourse(courseToUnenroll._id);
-      await apiService.unenrollFromCourse(courseToUnenroll._id);
+      setUnenrolling(true);
+      await apiService.delete(`/courses/${courseToUnenroll._id}/enroll`);
       
-      // Remove course from local state
-      setCourses(prevCourses => 
-        prevCourses.filter(course => course._id !== courseToUnenroll._id)
+      setEnrolledCourses(prev =>
+        prev.filter(c => c._id !== courseToUnenroll._id)
       );
-      
-      toast.success(`Successfully unenrolled from "${courseToUnenroll.title}"`);
-      setShowUnenrollModal(false);
+      toast.success(`Unenrolled from "${courseToUnenroll.title}"`);
       setCourseToUnenroll(null);
     } catch (error) {
-      console.error('Error unenrolling from course:', error);
+      console.error('Failed to unenroll:', error);
       toast.error('Failed to unenroll from course. Please try again.');
     } finally {
-      setUnenrollingCourse(null);
+      setUnenrolling(false);
     }
   };
 
-  const handleUnenrollCancel = () => {
-    setShowUnenrollModal(false);
-    setCourseToUnenroll(null);
+  const getLevelBadge = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'beginner':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+            Beginner
+          </span>
+        );
+      case 'intermediate':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+            Intermediate
+          </span>
+        );
+      case 'advanced':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+            Advanced
+          </span>
+        );
+      default:
+        return (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+            {level || 'All Levels'}
+          </span>
+        );
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your courses...</p>
-        </div>
-      </div>
-    );
-  }
+  const filteredCourses = enrolledCourses.filter(course =>
+    course.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    course.category?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Courses</h1>
-          <p className="text-gray-600">
-            Track your learning journey and progress across all enrolled courses
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        {/* Left Sidebar */}
+        <StudentSidebar activeTab="courses" />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <AcademicCapIcon className="w-6 h-6 text-blue-600" />
+        {/* Main Content Area */}
+        <main className="flex-1 space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <span className="inline-block bg-blue-100/80 text-blue-700 font-bold text-[11px] uppercase tracking-wider px-3 py-1 rounded-full mb-1.5">
+                STUDENT PORTAL
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+                My Enrolled Courses
+              </h1>
+              <p className="text-sm text-gray-500 font-medium mt-0.5">
+                Manage and continue your active enrolled courses.
+              </p>
+            </div>
+
+            <Link
+              to="/courses"
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-sm transition self-start sm:self-auto"
+            >
+              <BookOpen size={16} />
+              <span>Explore More Courses</span>
+            </Link>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <BookOpen size={22} />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Courses</p>
-                <p className="text-2xl font-bold text-gray-900">{courses.length}</p>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Enrolled Courses
+                </p>
+                <h3 className="text-2xl font-extrabold text-gray-900">
+                  {enrolledCourses.length}
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Clock size={22} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  In Progress
+                </p>
+                <h3 className="text-2xl font-extrabold text-gray-900">
+                  {enrolledCourses.length}
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <Trophy size={22} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Certificates
+                </p>
+                <h3 className="text-2xl font-extrabold text-gray-900">
+                  {enrolledCourses.filter(c => c.progress === 100).length}
+                </h3>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CheckCircleIcon className="w-6 h-6 text-green-600" />
+          {/* Search Filter when student has courses */}
+          {enrolledCourses.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-3">
+              <Search size={18} className="text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search your enrolled courses..."
+                className="w-full text-sm outline-none placeholder-gray-400 text-gray-800"
+              />
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-sm">
+              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-sm font-medium text-gray-600">
+                Loading your enrolled courses...
+              </p>
+            </div>
+          ) : enrolledCourses.length === 0 ? (
+            /* Empty State: ONLY Enrolled Courses Shown (0 currently enrolled) */
+            <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 shadow-sm space-y-5">
+              <div className="w-20 h-20 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center">
+                <GraduationCap size={40} />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {courses.filter(course => course.progress?.completedLessons === course.progress?.totalLessons).length}
+              <div className="max-w-md mx-auto space-y-2">
+                <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+                  No Enrolled Courses Found
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  You haven't enrolled in any courses yet. Explore our Korean language catalog to begin your learning journey!
                 </p>
               </div>
+              <Link
+                to="/courses"
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm px-6 py-3 rounded-xl shadow-md transition active:scale-95"
+              >
+                <span>Browse All Courses</span>
+                <ArrowRight size={16} />
+              </Link>
             </div>
-          </div>
+          ) : (
+            /* Enrolled Courses Grid */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCourses.map((course) => {
+                const progressPercentage = course.progress || 35;
+                return (
+                  <div
+                    key={course._id}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition flex flex-col justify-between overflow-hidden group"
+                  >
+                    <div>
+                      {/* Course Thumbnail Banner */}
+                      <div className="h-44 bg-gradient-to-br from-slate-900 to-indigo-950 relative overflow-hidden flex items-center justify-center">
+                        {course.thumbnail ? (
+                          <img
+                            src={course.thumbnail}
+                            alt={course.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          />
+                        ) : (
+                          <div className="text-center p-4">
+                            <span className="text-xs font-mono text-cyan-300 font-bold tracking-widest block uppercase mb-1">
+                              {course.category || 'SRI-KO'}
+                            </span>
+                            <span className="text-lg font-extrabold text-white">
+                              {course.title}
+                            </span>
+                          </div>
+                        )}
+                        <div className="absolute top-3 right-3">
+                          {getLevelBadge(course.level)}
+                        </div>
+                      </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <ClockIcon className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">In Progress</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {courses.filter(course => course.progress?.completedLessons > 0 && course.progress?.completedLessons < course.progress?.totalLessons).length}
-                </p>
-              </div>
-            </div>
-          </div>
+                      {/* Course Info */}
+                      <div className="p-5 space-y-4">
+                        <div>
+                          <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">
+                            {course.category || 'Korean Language'}
+                          </span>
+                          <h3 className="text-base font-bold text-gray-900 line-clamp-1 mt-0.5">
+                            {course.title}
+                          </h3>
+                          <p className="text-xs text-gray-500 line-clamp-2 mt-1 font-normal">
+                            {course.description}
+                          </p>
+                        </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <TrophyIcon className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Certificates</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {courses.filter(course => course.progress?.completedLessons === course.progress?.totalLessons).length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+                        {/* Progress Bar */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex justify-between text-xs font-semibold text-gray-600">
+                            <span>Course Progress</span>
+                            <span className="text-blue-600 font-bold">
+                              {progressPercentage}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${progressPercentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
 
-        {/* Courses Grid */}
-        {courses.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses.map((course) => (
-              <div key={course._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {/* Course Thumbnail */}
-                <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  {course.thumbnail ? (
-                    <img
-                      src={course.thumbnail}
-                      alt={course.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <BookOpenIcon className="w-16 h-16 text-white opacity-50" />
-                  )}
-                </div>
+                        {/* Course Metadata (Duration & Instructor) */}
+                        <div className="pt-2 border-t border-gray-50 flex items-center justify-between text-xs text-gray-500">
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={14} className="text-gray-400" />
+                            <span>{course.duration || '4'} Weeks</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-medium text-gray-700">
+                            <span>{course.instructor?.name || 'SRI-KO Expert'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Course Content */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
-                      {course.title}
-                    </h3>
-                    <div className="flex space-x-2 ml-2">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getLevelColor(course.level)}`}>
-                        {course.level}
-                      </span>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getCategoryColor(course.category)}`}>
-                        {course.category}
-                      </span>
+                    {/* Action Buttons */}
+                    <div className="p-5 pt-0 space-y-2">
+                      <Link
+                        to={`/courses/${course._id}/learn`}
+                        className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-xs sm:text-sm py-2.5 rounded-xl shadow-xs transition"
+                      >
+                        <Play size={15} className="fill-white" />
+                        <span>Continue Learning</span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => setCourseToUnenroll(course)}
+                        className="w-full py-2 text-xs font-semibold text-rose-500 hover:text-rose-600 hover:bg-rose-50/70 rounded-xl transition"
+                      >
+                        Unenroll from Course
+                      </button>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
 
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                    {course.description}
+          {/* Unenroll Modal Confirmation */}
+          {courseToUnenroll && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <AlertTriangle size={24} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-gray-900 tracking-tight">
+                    Confirm Unenrollment
+                  </h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Are you sure you want to unenroll from{' '}
+                    <strong className="text-gray-900 font-semibold">
+                      "{courseToUnenroll.title}"
+                    </strong>
+                    ? Your lesson progress for this course will be reset.
                   </p>
-
-                  {/* Progress Bar */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-gray-600 mb-1">
-                      <span>Progress</span>
-                      <span>
-                        {course.progress?.completedLessons || 0} / {course.progress?.totalLessons || 0} lessons
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${course.progress?.totalLessons > 0 
-                            ? (course.progress.completedLessons / course.progress.totalLessons) * 100 
-                            : 0}%`
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Course Stats */}
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">Duration</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {formatTime(course.duration || 0)}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">Last Accessed</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {course.progress?.lastAccessed ? formatDate(course.progress.lastAccessed) : 'Never'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Instructor */}
-                  {course.instructor && (
-                    <div className="flex items-center mb-4">
-                      <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-3">
-                        <span className="text-sm font-medium text-gray-600">
-                          {course.instructor.name?.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {course.instructor.name}
-                        </p>
-                        <p className="text-xs text-gray-500">Instructor</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="space-y-2">
-                    <button className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
-                      {course.progress?.completedLessons === course.progress?.totalLessons ? 'View Certificate' : 'Continue Learning'}
-                    </button>
-                    <button 
-                      onClick={() => handleUnenrollClick(course)}
-                      disabled={unenrollingCourse === course._id}
-                      className="w-full bg-red-50 text-red-600 py-2 px-4 rounded-lg hover:bg-red-100 transition-colors border border-red-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {unenrollingCourse === course._id ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-                          Unenrolling...
-                        </>
-                      ) : (
-                        <>
-                          <XMarkIcon className="w-4 h-4 mr-2" />
-                          Unenroll
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Certificate Badge */}
-                  {course.progress?.completedLessons === course.progress?.totalLessons && (
-                    <div className="mt-3 flex items-center justify-center">
-                      <TrophyIcon className="w-5 h-5 text-yellow-500 mr-2" />
-                      <span className="text-sm font-medium text-yellow-600">Certificate Earned!</span>
-                    </div>
-                  )}
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setCourseToUnenroll(null)}
+                    disabled={unenrolling}
+                    className="flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUnenroll}
+                    disabled={unenrolling}
+                    className="flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition disabled:opacity-60"
+                  >
+                    {unenrolling ? 'Unenrolling...' : 'Yes, Unenroll'}
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <AcademicCapIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No courses enrolled</h3>
-            <p className="text-gray-600 mb-6">
-              Start your Korean language learning journey by enrolling in courses.
-            </p>
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
-              Browse Courses
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+        </main>
       </div>
-
-      {/* Unenroll Confirmation Modal */}
-      {showUnenrollModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center mb-4">
-              <div className="p-2 bg-red-100 rounded-lg mr-3">
-                <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">Confirm Unenrollment</h3>
-            </div>
-            
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to unenroll from <strong>"{courseToUnenroll?.title}"</strong>? 
-              This action will remove all your progress and you'll need to re-enroll to access the course again.
-            </p>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={handleUnenrollCancel}
-                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUnenrollConfirm}
-                disabled={unenrollingCourse}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {unenrollingCourse ? 'Unenrolling...' : 'Yes, Unenroll'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
-};
-
-export default MyCoursesPage;
-
+}
