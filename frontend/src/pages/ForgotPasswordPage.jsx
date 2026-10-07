@@ -1,13 +1,34 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [verificationCode, setVerificationCode] = useState(['', '', '', '']);
+  const navigate = useNavigate();
 
   const handleSendOtp = event => {
     event.preventDefault();
     setOtpSent(true);
+  };
+
+  const handleVerificationChange = (index, value) => {
+    if (!/^\d?$/.test(value)) return;
+
+    setVerificationCode(currentCode => {
+      const nextCode = [...currentCode];
+      nextCode[index] = value;
+      return nextCode;
+    });
+  };
+
+  const handleVerifyOtp = event => {
+    event.preventDefault();
+    if (verificationCode.join('').length !== verificationCode.length) return;
+
+    navigate('/reset-password', {
+      state: { email },
+    });
   };
 
   return (
@@ -92,6 +113,10 @@ const ForgotPasswordPage = () => {
                     inputMode="numeric"
                     maxLength={1}
                     aria-label={`Verification code digit ${index + 1}`}
+                    value={verificationCode[index]}
+                    onChange={event =>
+                      handleVerificationChange(index, event.target.value)
+                    }
                     className="h-10 w-10 rounded-md border border-transparent bg-gray-200 text-center text-sm text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                   />
                 ))}
@@ -100,7 +125,9 @@ const ForgotPasswordPage = () => {
 
             <button
               type="button"
-              className="w-full rounded-md bg-linear-to-r from-blue-700 to-purple-600 py-2 text-xs font-medium text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              onClick={handleVerifyOtp}
+              disabled={!otpSent || verificationCode.join('').length !== verificationCode.length}
+              className="w-full rounded-md bg-linear-to-r from-blue-700 to-purple-600 py-2 text-xs font-medium text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Submit
             </button>

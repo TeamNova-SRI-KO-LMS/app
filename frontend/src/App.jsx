@@ -26,6 +26,7 @@ import PaymentInfo from "./pages/PaymentInfoPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RegisterPage from "./pages/RegisterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ScrollToTop from "./components/ScrollToTop";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import { Toaster } from "react-hot-toast";
@@ -86,6 +87,7 @@ function App() {
         </Route>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminLogin" element={<AdminLogin />} />
         <Route path="/admin/courses/create" element={<CreateCoursePage />} />
