@@ -86,11 +86,46 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminLogin" element={<AdminLogin />} />
-        <Route path="/admin/courses/create" element={<CreateCoursePage />} />
-        <Route path="/admin/courses/edit/:id" element={<EditCoursePage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/*" element={<AdminDashboard />} />
+        <Route
+          path="/admin/courses/create"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <CreateCoursePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/courses/edit/:id"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <EditCoursePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/register" element={<RegisterPage />} />
         <Route
           path="/payment-info"

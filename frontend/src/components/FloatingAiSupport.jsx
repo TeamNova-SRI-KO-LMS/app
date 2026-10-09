@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Bot, X, Send, Sparkles, RefreshCw, MessageSquare, ChevronDown, User, CheckCircle2 } from 'lucide-react';
+import useAuth from '../context/useAuth';
 
 const SUGGESTED_QUESTIONS = [
   "📚 What Korean courses are available?",
@@ -18,6 +20,17 @@ const INITIAL_MESSAGES = [
 ];
 
 const FloatingAiSupport = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  // Hide AI chatbot icon for Admins and on Admin Portal routes
+  const isAdmin = user?.role === 'admin' || localStorage.getItem('adminUser') !== null;
+  const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname === '/adminLogin';
+
+  if (isAdmin || isAdminRoute) {
+    return null;
+  }
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState('');
