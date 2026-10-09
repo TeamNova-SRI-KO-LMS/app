@@ -20,6 +20,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
+const discussionForumRoutes = require('./routes/discussionForumRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -87,4 +88,5 @@ app.use('/api/subscriptions', checkDatabase, subscriptionRoutes);
 app.use('/api/payments', checkDatabase, paymentRoutes);
 app.use('/api/notifications', checkDatabase, notificationRoutes);
 app.use('/api/announcements', checkDatabase, announcementRoutes);
+app.use('/api/forums', checkDatabase, discussionForumRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);
