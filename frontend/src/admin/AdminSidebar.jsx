@@ -20,7 +20,7 @@ const navItems = [
   { id: 'users', label: 'User Management', icon: Users },
   { id: 'courses', label: 'Course Management', icon: GraduationCap },
   { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
-  { id: 'payments', label: 'Payment Details', icon: CreditCard },
+  { id: 'payments', label: 'Payment Management', icon: CreditCard },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'forums', label: 'Discussion Forums', icon: MessageSquare },

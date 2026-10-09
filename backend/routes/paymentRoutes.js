@@ -574,16 +574,41 @@ router.post(
 // @access  Private (Admin only)
 router.get('/stats', protect, authorize('admin'), async (req, res) => {
   try {
-
     const { startDate, endDate } = req.query;
 
     const stats = await Payment.getPaymentStats(startDate, endDate);
     const revenueByPlan = await Payment.getRevenueByPlan(startDate, endDate);
     const monthlyRevenue = await Payment.getMonthlyRevenue(new Date().getFullYear());
 
+    // Aggregate counts & totals by status
+    const statusBreakdown = await Payment.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const totalCount = await Payment.countDocuments();
+    const completedCount = await Payment.countDocuments({ status: 'completed' });
+    const pendingCount = await Payment.countDocuments({ status: 'pending' });
+    const failedCount = await Payment.countDocuments({ status: 'failed' });
+    const refundedCount = await Payment.countDocuments({ status: 'refunded' });
+
     res.json({
       success: true,
-      stats,
+      stats: {
+        totalRevenue: stats.totalRevenue || 0,
+        totalTransactions: totalCount,
+        completedTransactions: completedCount,
+        pendingTransactions: pendingCount,
+        failedTransactions: failedCount,
+        refundedTransactions: refundedCount,
+        avgTransactionValue: stats.avgTransactionValue || 0,
+        statusBreakdown,
+      },
       revenueByPlan,
       monthlyRevenue,
     });
@@ -601,14 +626,13 @@ router.get('/stats', protect, authorize('admin'), async (req, res) => {
 // @access  Private (Admin only)
 router.get('/recent', protect, authorize('admin'), async (req, res) => {
   try {
-
     const { limit = 10 } = req.query;
 
     const payments = await Payment.find()
-      .populate('user', 'name email')
-      .populate('course', 'title price thumbnail')
+      .populate('user', 'name email avatar')
+      .populate('course', 'title price thumbnail category')
       .populate('subscription', 'plan billingCycle')
-      .sort({ paymentDate: -1 })
+      .sort({ createdAt: -1, paymentDate: -1 })
       .limit(parseInt(limit));
 
     res.json({
@@ -625,28 +649,74 @@ router.get('/recent', protect, authorize('admin'), async (req, res) => {
 });
 
 // @route   GET /api/payments/all
-// @desc    Get all payments for admin
+// @desc    Get all payments for admin with filtering, search, and pagination
 // @access  Private (Admin only)
 router.get('/all', protect, authorize('admin'), async (req, res) => {
   try {
-
-    const { page = 1, limit = 20, status, plan, startDate, endDate } = req.query;
+    const { 
+      page = 1, 
+      limit = 20, 
+      status, 
+      plan, 
+      paymentMethod,
+      paymentType,
+      search,
+      startDate, 
+      endDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
 
     const filter = {};
-    if (status) filter.status = status;
-    if (plan) filter.plan = plan;
+    if (status && status !== 'all') filter.status = status;
+    if (plan && plan !== 'all') filter.plan = plan;
+    if (paymentMethod && paymentMethod !== 'all') filter.paymentMethod = paymentMethod;
+    if (paymentType && paymentType !== 'all') filter.paymentType = paymentType;
+
     if (startDate && endDate) {
-      filter.paymentDate = {
+      filter.createdAt = {
         $gte: new Date(startDate),
         $lte: new Date(endDate),
       };
     }
 
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      const matchingUsers = await User.find({
+        $or: [
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { email: { $regex: searchTerm, $options: 'i' } }
+        ]
+      }).select('_id');
+      
+      const matchingCourses = await Course.find({
+        title: { $regex: searchTerm, $options: 'i' }
+      }).select('_id');
+
+      const userIds = matchingUsers.map((u) => u._id);
+      const courseIds = matchingCourses.map((c) => c._id);
+
+      filter.$or = [
+        { receiptNumber: { $regex: searchTerm, $options: 'i' } },
+        { gatewayTransactionId: { $regex: searchTerm, $options: 'i' } },
+        { invoiceNumber: { $regex: searchTerm, $options: 'i' } },
+        { 'metadata.courseTitle': { $regex: searchTerm, $options: 'i' } },
+        { user: { $in: userIds } },
+        { course: { $in: courseIds } }
+      ];
+    }
+
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    if (sortBy !== 'createdAt') {
+      sortOptions.createdAt = -1;
+    }
+
     const payments = await Payment.find(filter)
-      .populate('user', 'name email')
-      .populate('course', 'title price thumbnail')
+      .populate('user', 'name email avatar phone')
+      .populate('course', 'title price thumbnail category level duration')
       .populate('subscription', 'plan billingCycle')
-      .sort({ paymentDate: -1 })
+      .sort(sortOptions)
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
@@ -657,7 +727,7 @@ router.get('/all', protect, authorize('admin'), async (req, res) => {
       payments,
       pagination: {
         current: parseInt(page),
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limit) || 1,
         total,
       },
     });
@@ -670,17 +740,187 @@ router.get('/all', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// @route   PUT /api/payments/admin/:id/status
+// @desc    Admin update payment status (e.g. approve bank slip, refund)
+// @access  Private (Admin only)
+router.put('/admin/:id/status', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { status, notes, failureReason, refundReason } = req.body;
+    const payment = await Payment.findById(req.params.id)
+      .populate('user', 'name email enrolledCourses')
+      .populate('course', 'title enrolledStudents');
+
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found' });
+    }
+
+    const previousStatus = payment.status;
+    payment.status = status;
+    if (notes) payment.notes = notes;
+
+    if (status === 'completed' && previousStatus !== 'completed') {
+      payment.paidDate = new Date();
+      payment.paymentDate = payment.paidDate;
+      if (!payment.receiptNumber) {
+        payment.receiptNumber = `SRIKO-MAN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      // If this is a course payment, ensure student is enrolled
+      if (payment.course && payment.user) {
+        const course = await Course.findById(payment.course._id || payment.course);
+        if (course) {
+          const isEnrolled = course.enrolledStudents?.some(
+            (id) => id.toString() === payment.user._id.toString()
+          );
+          if (!isEnrolled) {
+            course.enrolledStudents.push(payment.user._id);
+            await course.save();
+          }
+        }
+
+        await User.findByIdAndUpdate(payment.user._id, {
+          $addToSet: { enrolledCourses: payment.course._id || payment.course },
+        });
+
+        const progressExists = await Progress.findOne({
+          student: payment.user._id,
+          course: payment.course._id || payment.course,
+        });
+        if (!progressExists) {
+          await Progress.create({
+            student: payment.user._id,
+            course: payment.course._id || payment.course,
+            currentWeek: 1,
+            overallProgress: 0,
+          });
+        }
+
+        try {
+          await Notification.create({
+            title: 'Payment Confirmed by Admin',
+            message: `Your payment for "${payment.course.title || 'Course'}" has been approved. You now have full access.`,
+            type: 'course_update',
+            priority: 'high',
+            targetAudience: 'specific_users',
+            targetUsers: [payment.user._id],
+            targetCourses: [payment.course._id || payment.course],
+          });
+        } catch (nErr) {
+          console.warn('Notification error:', nErr.message);
+        }
+      }
+    } else if (status === 'refunded') {
+      payment.refundDate = new Date();
+      payment.refundReason = refundReason || 'Refunded by administrator';
+      payment.refundAmount = payment.amount;
+    } else if (status === 'failed') {
+      payment.failureReason = failureReason || 'Marked failed by administrator';
+    }
+
+    await payment.save();
+
+    res.json({
+      success: true,
+      message: `Payment status updated to ${status}`,
+      payment,
+    });
+  } catch (error) {
+    console.error('Error updating payment status:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error' });
+  }
+});
+
+// @route   POST /api/payments/admin/manual
+// @desc    Admin manually records an offline/bank transfer payment
+// @access  Private (Admin only)
+router.post('/admin/manual', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { userId, courseId, amount, paymentMethod = 'bank_transfer', receiptNumber, notes, markCompleted = true } = req.body;
+
+    if (!userId || !courseId || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID, course ID, and amount are required',
+      });
+    }
+
+    const [user, course] = await Promise.all([
+      User.findById(userId),
+      Course.findById(courseId)
+    ]);
+
+    if (!user) return res.status(404).json({ success: false, message: 'Student not found' });
+    if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
+
+    const generatedReceipt = receiptNumber || `SRIKO-MAN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const payment = new Payment({
+      user: user._id,
+      course: course._id,
+      paymentType: 'course',
+      amount: parseFloat(amount),
+      currency: 'LKR',
+      status: markCompleted ? 'completed' : 'pending',
+      paymentMethod,
+      paymentGateway: 'manual',
+      gatewayTransactionId: generatedReceipt,
+      receiptNumber: generatedReceipt,
+      notes: notes || 'Manually recorded by administrator',
+      paymentDate: new Date(),
+      paidDate: markCompleted ? new Date() : undefined,
+      metadata: {
+        courseTitle: course.title,
+        recordedByAdmin: true,
+      }
+    });
+
+    await payment.save();
+
+    if (markCompleted) {
+      const isEnrolled = course.enrolledStudents?.some((id) => id.toString() === user._id.toString());
+      if (!isEnrolled) {
+        course.enrolledStudents.push(user._id);
+        await course.save();
+      }
+
+      await User.findByIdAndUpdate(user._id, {
+        $addToSet: { enrolledCourses: course._id },
+      });
+
+      const progressExists = await Progress.findOne({ student: user._id, course: course._id });
+      if (!progressExists) {
+        await Progress.create({
+          student: user._id,
+          course: course._id,
+          currentWeek: 1,
+          overallProgress: 0,
+        });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Payment recorded successfully',
+      payment,
+    });
+  } catch (error) {
+    console.error('Error recording manual payment:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error' });
+  }
+});
+
 // @route   GET /api/payments/:id
-// @desc    Get payment details
+// @desc    Get payment details (Accessible to admin or payment owner)
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
-    const payment = await Payment.findOne({
-      _id: req.params.id,
-      user: req.user.id,
-    })
-      .populate('user', 'name email')
-      .populate('course', 'title price thumbnail')
+    const filter = req.user.role === 'admin'
+      ? { _id: req.params.id }
+      : { _id: req.params.id, user: req.user.id };
+
+    const payment = await Payment.findOne(filter)
+      .populate('user', 'name email phone avatar')
+      .populate('course', 'title price thumbnail category level duration')
       .populate('subscription', 'plan billingCycle');
 
     if (!payment) {
