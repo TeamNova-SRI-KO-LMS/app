@@ -117,7 +117,7 @@ export default function Courses() {
 
         <div className="relative z-10 text-center w-full max-w-3xl mx-auto mt-8">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-wide drop-shadow-md">
-            Explore Our Courses
+            Explore Courses
           </h1>
           <p className="text-lg text-gray-200 mb-8 max-w-2xl mx-auto drop-shadow-sm">
             Choose from a wide range of Korean language courses designed by expert instructors.
@@ -142,18 +142,30 @@ export default function Courses() {
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8">
-          <p className="text-sm text-gray-500 font-medium">
-            {loading ? 'Loading...' : `${filtered.length} course${filtered.length !== 1 ? 's' : ''} found`}
-          </p>
+          {/* Tab Selector: All Courses & My Courses */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="bg-[#0052cc] text-white px-5 py-2 rounded-full text-xs sm:text-sm font-semibold shadow-xs transition"
+            >
+              All Courses
+            </button>
+            <Link
+              to="/my-courses"
+              className="bg-gray-200/80 hover:bg-gray-300/80 text-gray-700 px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition"
+            >
+              My Courses
+            </Link>
+          </div>
 
-          <div className="flex gap-3 relative">
+          <div className="flex items-center gap-3 relative">
             {/* Level filter */}
             <div className="relative">
               <button
                 onClick={() => { setLevelOpen(o => !o); setSortOpen(false); }}
-                className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-300 transition-colors"
+                className="bg-gray-200/80 text-gray-700 px-4 py-2 rounded-full text-xs sm:text-sm font-medium flex items-center gap-2 hover:bg-gray-300 transition-colors"
               >
-                Level: {levelFilter} <ChevronDown className="w-4 h-4 text-gray-500" />
+                Level: {levelFilter} <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
               </button>
               {levelOpen && (
                 <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
@@ -174,9 +186,9 @@ export default function Courses() {
             <div className="relative">
               <button
                 onClick={() => { setSortOpen(o => !o); setLevelOpen(false); }}
-                className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-300 transition-colors"
+                className="bg-gray-200/80 text-gray-700 px-4 py-2 rounded-full text-xs sm:text-sm font-medium flex items-center gap-2 hover:bg-gray-300 transition-colors"
               >
-                Sort: {sortBy} <ChevronDown className="w-4 h-4 text-gray-500" />
+                Sort: {sortBy} <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
               </button>
               {sortOpen && (
                 <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">

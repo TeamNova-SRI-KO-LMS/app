@@ -137,7 +137,7 @@ export default function CourseDetails() {
           <AlertCircle className="w-12 h-12 text-red-500" />
           <p className="text-gray-700 font-semibold text-lg">{error ?? 'Course not found.'}</p>
           <Link to="/courses" className="text-blue-600 text-sm font-semibold hover:underline">
-            ← Back to Courses
+            ← Back to Explore Courses
           </Link>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function CourseDetails() {
               className="inline-flex items-center text-white/90 hover:text-white text-sm font-semibold mb-6 transition-colors group"
             >
               <ArrowLeft className="w-4 h-4 mr-2 transition-transform group-hover:-translate-x-1" />
-              Back to Courses
+              Back to Explore Courses
             </Link>
 
             {/* Level + category badges */}
