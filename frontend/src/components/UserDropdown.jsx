@@ -65,35 +65,30 @@ export default function UserDropdown() {
       label: 'Dashboard',
       path: '/dashboard',
       icon: LayoutDashboard,
-      description: 'Overview & learning stats',
     },
     {
       id: 'courses',
       label: 'My Courses',
       path: '/my-courses',
       icon: BookOpen,
-      description: 'Active lessons & enrolled courses',
     },
     {
       id: 'profile',
       label: 'Student Profile',
       path: '/profile',
       icon: User,
-      description: 'Account info & credentials',
     },
     {
       id: 'settings',
       label: 'Settings',
       path: '/settings',
       icon: Settings,
-      description: 'Preferences & security',
     },
     {
       id: 'resources',
       label: 'Resources',
       path: '/resources',
       icon: Folder,
-      description: 'Guides, docs & materials',
     },
   ];
 
@@ -122,13 +117,13 @@ export default function UserDropdown() {
       {/* Dropdown Panel */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2.5 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 transform origin-top-right transition-all duration-200 animate-in fade-in slide-in-from-top-2"
+          className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 transform origin-top-right transition-all duration-150 animate-in fade-in slide-in-from-top-1"
           role="menu"
         >
-          {/* User Info Header Card */}
-          <div className="px-4 py-3.5 border-b border-gray-100 bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-transparent rounded-t-2xl">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-pink-100 border-2 border-white shadow-sm overflow-hidden flex-shrink-0">
+          {/* User Info Header */}
+          <div className="px-3.5 py-2.5 border-b border-gray-100 bg-gray-50/60 rounded-t-xl">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-pink-100 border border-white shadow-xs overflow-hidden flex-shrink-0">
                 <img
                   src={userAvatar}
                   alt={user?.name || 'User'}
@@ -136,29 +131,21 @@ export default function UserDropdown() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-bold text-gray-900 truncate">
+                <div className="flex items-center gap-1">
+                  <p className="text-xs font-bold text-gray-900 truncate">
                     {user?.name || 'Student'}
                   </p>
-                  <Sparkles size={13} className="text-amber-500 fill-amber-400 flex-shrink-0" />
+                  <Sparkles size={11} className="text-amber-500 fill-amber-400 flex-shrink-0" />
                 </div>
-                <p className="text-xs text-gray-500 truncate mt-0.5">
+                <p className="text-[11px] text-gray-500 truncate leading-tight mt-0.5">
                   {user?.email || 'student@sriko.com'}
                 </p>
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
-                    Level: Intermediate
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
-                    Active
-                  </span>
-                </div>
               </div>
             </div>
           </div>
 
           {/* Navigation Links */}
-          <div className="py-2 px-2 space-y-0.5">
+          <div className="py-1 px-1.5 space-y-0.5">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -171,35 +158,23 @@ export default function UserDropdown() {
                   key={item.id}
                   to={item.path}
                   onClick={() => setIsOpen(false)}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors group ${
+                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                     isActive
                       ? 'bg-blue-50 text-blue-600 font-semibold'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+                      : 'text-gray-700 hover:bg-gray-100/70 hover:text-blue-600'
                   }`}
                   role="menuitem"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                        isActive
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600'
-                      }`}
-                    >
-                      <Icon size={16} />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-xs sm:text-sm font-semibold leading-none">
-                        {item.label}
-                      </p>
-                      <p className="text-[11px] text-gray-400 mt-1 font-normal hidden sm:block">
-                        {item.description}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon
+                      size={15}
+                      className={isActive ? 'text-blue-600' : 'text-gray-500'}
+                    />
+                    <span className="truncate">{item.label}</span>
                   </div>
                   <ChevronRight
-                    size={14}
-                    className={`transition-transform text-gray-300 group-hover:text-blue-600 group-hover:translate-x-0.5 ${
+                    size={13}
+                    className={`transition-transform text-gray-300 ${
                       isActive ? 'text-blue-600' : ''
                     }`}
                   />
@@ -212,17 +187,15 @@ export default function UserDropdown() {
           <div className="my-1 border-t border-gray-100" />
 
           {/* Log Out Button */}
-          <div className="px-2 py-1">
+          <div className="px-1.5 pb-0.5">
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors group"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
               role="menuitem"
             >
-              <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center group-hover:bg-red-100 transition-colors">
-                <LogOut size={16} />
-              </div>
-              <span className="font-semibold text-xs sm:text-sm">Log out</span>
+              <LogOut size={15} className="text-red-500" />
+              <span>Log out</span>
             </button>
           </div>
         </div>
