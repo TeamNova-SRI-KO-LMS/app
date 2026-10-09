@@ -1,15 +1,25 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Search, Menu, X } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Search, Menu, X, LayoutDashboard, BookOpen, User, Settings, Folder, LogOut } from 'lucide-react';
 import useAuth from '../context/useAuth';
+import UserDropdown from './UserDropdown';
+import toast from 'react-hot-toast';
 
 export default function Header() {
   const location = useLocation();
-  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const isActive = (path) => location.pathname === path;
+
+  const handleMobileLogout = () => {
+    setMobileMenuOpen(false);
+    logout();
+    toast.success('Signed out successfully');
+    navigate('/login');
+  };
 
   // Home destination depends on auth state, Announcements requires auth
   const allNavLinks = [
@@ -72,20 +82,8 @@ export default function Header() {
 
           {/* Auth area */}
           {isAuthenticated ? (
-            /* Profile avatar — links to dashboard */
-            <Link
-              to="/dashboard"
-              className="w-9 h-9 rounded-full bg-pink-200 border-2 border-white shadow-sm overflow-hidden cursor-pointer flex-shrink-0"
-            >
-              <img
-                src={
-                  user?.avatar ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`
-                }
-                alt="User Avatar"
-                className="w-full h-full object-cover"
-              />
-            </Link>
+            /* User Profile Dropdown Component */
+            <UserDropdown />
           ) : (
             /* Sign In + Join Us Today — shown when logged out */
             <div className="hidden md:flex items-center space-x-3">
@@ -146,8 +144,73 @@ export default function Header() {
               />
             </div>
 
-            {/* Auth links on mobile — only when logged out */}
-            {!isAuthenticated && (
+            {/* Authenticated user mobile section */}
+            {isAuthenticated ? (
+              <div className="pt-4 mt-3 border-t border-gray-100 space-y-1">
+                <div className="px-4 py-2 mb-2 bg-blue-50/60 rounded-xl flex items-center gap-3">
+                  <img
+                    src={
+                      user?.avatar ||
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`
+                    }
+                    alt="User Avatar"
+                    className="w-9 h-9 rounded-full object-cover bg-pink-100 border border-white"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{user?.name || 'Student'}</p>
+                    <p className="text-xs text-gray-500">Level: Intermediate</p>
+                  </div>
+                </div>
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                >
+                  <LayoutDashboard size={16} />
+                  <span>Dashboard</span>
+                </Link>
+                <Link
+                  to="/my-courses"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                >
+                  <BookOpen size={16} />
+                  <span>My Courses</span>
+                </Link>
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                >
+                  <User size={16} />
+                  <span>Student Profile</span>
+                </Link>
+                <Link
+                  to="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                >
+                  <Settings size={16} />
+                  <span>Settings</span>
+                </Link>
+                <Link
+                  to="/resources"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                >
+                  <Folder size={16} />
+                  <span>Resources</span>
+                </Link>
+                <button
+                  onClick={handleMobileLogout}
+                  className="w-full flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition text-left"
+                >
+                  <LogOut size={16} />
+                  <span>Log out</span>
+                </button>
+              </div>
+            ) : (
+              /* Auth links on mobile — only when logged out */
               <div className="flex flex-col gap-2 mt-3">
                 <Link
                   to="/login"

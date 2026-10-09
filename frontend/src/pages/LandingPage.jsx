@@ -57,10 +57,13 @@ const LandingPage = () => {
               Join Us Today <span className="text-xl">→</span>
               <Link to="/register" className="hover:text-blue-600 transition">Register</Link>
             </button>
-            <button className="bg-transparent border border-blue-600 text-blue-600 px-8 py-3 rounded-md font-medium hover:bg-white/10 transition flex items-center justify-center gap-2">
-              Browse Courses <BookOpen size={18} />
-              <Link to="/courses" className="hover:text-blue-600 transition">Courses</Link>
-            </button>
+            <Link
+              to="/courses"
+              className="bg-transparent border border-blue-600 text-blue-600 px-8 py-3 rounded-md font-medium hover:bg-blue-50 transition flex items-center justify-center gap-2"
+            >
+              <span>Explore Courses</span>
+              <BookOpen size={18} />
+            </Link>
           </div>
         </section>
       {/* Features Section */}
