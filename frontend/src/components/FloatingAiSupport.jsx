@@ -237,20 +237,21 @@ const FloatingAiSupport = () => {
         /* Floating Button Widget Trigger */
         <button
           onClick={() => setIsOpen(true)}
-          className="group bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 hover:from-blue-800 hover:to-indigo-950 text-white rounded-full shadow-lg shadow-blue-900/25 hover:shadow-xl hover:shadow-blue-800/35 px-2.5 py-1.5 sm:px-3.5 sm:py-2 md:px-4 md:py-2.5 flex items-center gap-2 sm:gap-2.5 transition-all duration-300 transform hover:scale-105 active:scale-95 border border-white/20 cursor-pointer backdrop-blur-md"
+          aria-label="Chat with AI"
+          className="group bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 hover:from-blue-800 hover:to-indigo-950 text-white rounded-full shadow-lg shadow-blue-900/25 hover:shadow-xl hover:shadow-blue-800/35 p-2 sm:p-2.5 flex items-center group-hover:gap-2 sm:group-hover:gap-2.5 group-hover:pr-3.5 sm:group-hover:pr-4 md:group-hover:pr-4.5 transition-all duration-500 ease-in-out transform hover:scale-105 active:scale-95 border border-white/20 cursor-pointer backdrop-blur-md"
         >
-          <div className="relative">
-            <div className="bg-white/20 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 rounded-full backdrop-blur-sm group-hover:bg-white/30 transition-colors flex items-center justify-center shrink-0">
-              <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          <div className="relative shrink-0">
+            <div className="bg-white/20 w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full backdrop-blur-sm group-hover:bg-white/30 transition-colors duration-500 flex items-center justify-center shrink-0">
+              <Bot className="w-4 h-4 sm:w-4.5 sm:h-4.5 md:w-5 md:h-5 text-white" />
             </div>
             <span className="absolute -top-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-400 border-2 border-blue-900 rounded-full animate-pulse shadow-xs"></span>
           </div>
 
-          <div className="text-left pr-0.5">
+          <div className="max-w-0 opacity-0 group-hover:max-w-[160px] sm:group-hover:max-w-[200px] group-hover:opacity-100 overflow-hidden transition-all duration-500 ease-in-out text-left whitespace-nowrap">
             <p className="text-[8px] sm:text-[9px] md:text-[10px] text-blue-200 leading-none uppercase tracking-wider font-bold mb-0.5">NEED HELP?</p>
-            <p className="text-[11px] sm:text-xs md:text-sm font-extrabold leading-tight flex items-center gap-1 text-white whitespace-nowrap">
+            <p className="text-[11px] sm:text-xs md:text-sm font-extrabold leading-tight flex items-center gap-1 text-white">
               Chat with AI
-              <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 text-yellow-300 opacity-90 group-hover:opacity-100 transition-opacity" />
+              <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 text-yellow-300 opacity-90 group-hover:opacity-100 transition-opacity duration-500" />
             </p>
           </div>
         </button>
