@@ -8,6 +8,7 @@ const LoginPage = () => {
     email: '',
     password: '',
   });
+  const [localError, setLocalError] = useState('');
 
   const { login, googleLogin, loading, error } = useAuth();
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (error) {
-      console.error('Login error:', error);
+      setLocalError(error);
     }
   }, [error]);
 
@@ -26,18 +27,21 @@ const LoginPage = () => {
       ...formData,
       [e.target.name]: e.target.value,
     });
+    if (localError) setLocalError('');
   };
 
   const handleSubmit = async e => {
     e.preventDefault();
-    const result = await login(formData.email, formData.password);
+    setLocalError('');
+    const result = await login(formData.email, formData.password, 'user');
     if (result.success) {
-      // Check if user is admin and redirect to admin dashboard
       if (result.user && result.user.role === 'admin') {
-        navigate('/admin/dashboard', { replace: true });
+        setLocalError('Admin accounts cannot log in through the user login. Please use the Admin Access Portal.');
       } else {
         navigate(from, { replace: true });
       }
+    } else {
+      setLocalError(result.error || 'Login failed. Please check your credentials.');
     }
   };
 
@@ -48,17 +52,18 @@ const LoginPage = () => {
       return;
     }
 
-    // Try to login existing user only
+    setLocalError('');
     const result = await googleLogin(credentialResponse.credential);
 
     if (result.success) {
       if (result.user && result.user.role === 'admin') {
-        navigate('/admin/dashboard', { replace: true });
+        setLocalError('Admin accounts cannot log in through the user login. Please use the Admin Access Portal.');
       } else {
         navigate(from, { replace: true });
       }
+    } else {
+      setLocalError(result.error || 'Google sign-in failed.');
     }
-    // If user doesn't exist, show error (don't redirect to register)
   };
 
   return (
@@ -89,6 +94,37 @@ const LoginPage = () => {
         </div>
 
         {/* Form Section */}
+        {localError && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs sm:text-sm text-red-600 flex items-start gap-2.5 animate-fadeIn">
+            <svg
+              className="w-5 h-5 shrink-0 text-red-500 mt-0.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div className="flex-1">
+              <span className="font-medium">{localError}</span>
+              {localError.includes('Admin') && (
+                <div className="mt-1">
+                  <Link
+                    to="/admin/login"
+                    className="font-semibold text-blue-700 hover:text-blue-800 underline inline-flex items-center gap-1"
+                  >
+                    Go to Admin Access Portal →
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-3">
             <div>
