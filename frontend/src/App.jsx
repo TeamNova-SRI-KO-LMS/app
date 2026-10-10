@@ -9,11 +9,11 @@ import AnnouncementsPage from "./pages/AnnouncementsPage"
 import CourseDetails from "./pages/CourseDetailsPage";
 import CourseInfoPage from "./pages/CourseInfoPage";
 import CoursesPage from "./pages/CoursesPage";
-import CreateCoursePage from "./pages/CreateCoursePage";
+import CreateCoursePage from "./admin/CreateCoursePage";
 import DashboardPage from "./pages/DashboardPage";
 import DiscussionForums from "./admin/DiscussionForums";
 import DocumentationPage from "./pages/DocumentationPage";
-import EditCoursePage from "./pages/EditCoursePage";
+import EditCoursePage from "./admin/EditCoursePage";
 import EventsPage from "./pages/EventsPage";
 import FloatingAiSupport from "./components/FloatingAiSupport";
 import HelpCenterPage from "./pages/HelpCenterPage";
