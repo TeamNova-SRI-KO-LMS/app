@@ -31,7 +31,8 @@ const AdminSidebar = ({
   activeTab = 'dashboard', 
   setActiveTab, 
   isOpen = true, 
-  onClose 
+  onClose,
+  className = '',
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ const AdminSidebar = ({
     if (setActiveTab) {
       setActiveTab(id);
     }
+    navigate(id === 'dashboard' ? '/admin/dashboard' : `/admin/${id}`);
     if (onClose && window.innerWidth < 1024) {
       onClose();
     }
@@ -62,7 +64,7 @@ const AdminSidebar = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-white border-r border-gray-100 z-50 flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0 ${
+        className={`${className} fixed lg:sticky top-0 left-0 h-screen w-64 bg-white border-r border-gray-100 z-50 flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
