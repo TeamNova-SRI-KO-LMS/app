@@ -11,9 +11,11 @@ import CourseInfoPage from "./pages/CourseInfoPage";
 import CoursesPage from "./pages/CoursesPage";
 import CreateCoursePage from "./pages/CreateCoursePage";
 import DashboardPage from "./pages/DashboardPage";
+import DocumentationPage from "./pages/DocumentationPage";
 import EditCoursePage from "./pages/EditCoursePage";
 import EventsPage from "./pages/EventsPage";
 import FloatingAiSupport from "./components/FloatingAiSupport";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
 import HomePage from "./pages/HomePage";
 import JoinUsPage from "./pages/JoinUsPage";
@@ -24,9 +26,9 @@ import PaymentInfo from "./pages/PaymentInfoPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RegisterPage from "./pages/RegisterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ScrollToTop from "./components/ScrollToTop";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
-import DocumentationPage from "./pages/DocumentationPage";
 import { Toaster } from "react-hot-toast";
 import DiscussionForums from "./admin/DiscussionForums";
 import ProfilePage from "./pages/ProfilePage";
@@ -121,6 +123,8 @@ function App() {
           />
         </Route>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminLogin" element={<AdminLogin />} />
         <Route path="/forum" element={<DiscussionForums />} />
