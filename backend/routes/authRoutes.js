@@ -111,6 +111,9 @@ router.post(
         });
       }
 
+      user.lastLogin = new Date();
+      await user.save();
+
       const token = generateToken(user._id);
 
       res.status(200).json({
@@ -163,8 +166,10 @@ router.post('/google', async (req, res) => {
     if (!user.googleId) {
       user.googleId = googleId;
       user.avatar = user.avatar || picture;
-      await user.save();
     }
+
+    user.lastLogin = new Date();
+    await user.save();
 
     const token = generateToken(user._id);
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   FileText, 
   Download, 
@@ -11,11 +11,82 @@ import {
   ChevronDown,
   BarChart2
 } from 'lucide-react';
+import apiService from '../services/apiService';
 
 const AnalyticsReports = () => {
-  const [selectedYear, setSelectedYear] = useState('2024');
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [selectedRange, setSelectedRange] = useState('Last 30 Days');
   const [chartToggle, setChartToggle] = useState('Users');
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      setLoading(true);
+      try {
+        const period = selectedRange === 'Last 90 Days'
+          ? 90
+          : selectedRange === 'This Year'
+            ? 365
+            : 30;
+        const response = await apiService.get('/admin/analytics', {
+          params: { year: selectedYear, period },
+        });
+        if (!response.data?.success || !response.data.analytics) {
+          throw new Error(response.data?.message || 'Analytics data was not returned');
+        }
+        setAnalytics(response.data.analytics);
+      } catch (error) {
+        console.error('Failed to load analytics cards:', error);
+        setAnalytics(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, [selectedRange, selectedYear]);
+
+  const overview = analytics?.overview;
+  const activity = analytics?.userActivity;
+  const formatNumber = value => Number(value || 0).toLocaleString('en-US');
+  const formatCurrency = value => `LKR ${Number(value || 0).toLocaleString('en-LK')}`;
+  const formatGrowth = value => {
+    const number = Number(value || 0);
+    return `${number >= 0 ? '↑' : '↓'}${Math.abs(number).toFixed(1)}%`;
+  };
+  const growthData = analytics?.userGrowth || [];
+  const revenueData = analytics?.revenueData || [];
+  const chartValues = chartToggle === 'Users'
+    ? growthData.map(item => Number(item.newUsers ?? item.users ?? 0))
+    : growthData.map(item => Number(item.enrollments ?? item.courses ?? 0));
+  const maxChartValue = Math.max(...chartValues, 1);
+  const maxGrowthValue = Math.max(...growthData.map(row => Math.max(
+    Number(row.newUsers ?? row.users ?? 0),
+    Number(row.enrollments ?? row.courses ?? 0),
+  )), 1);
+  const chartPath = values => values
+    .map((value, index) => {
+      const x = values.length > 1 ? 10 + (index * 480) / (values.length - 1) : 250;
+      const y = 140 - (value / maxChartValue) * 110;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const maxRevenue = Math.max(...revenueData.map(item => Number(item.revenue || 0)), 1);
+  const revenuePath = revenueData
+    .map((item, index) => {
+      const x = revenueData.length > 1 ? 10 + (index * 480) / (revenueData.length - 1) : 250;
+      const y = 140 - (Number(item.revenue || 0) / maxRevenue) * 110;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+  const chartLabels = growthData.length
+    ? growthData.map(item => `${item.month} ${String(item.year).slice(-2)}`)
+    : [];
+  const revenueLabels = revenueData.length
+    ? revenueData.map(item => item.month)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -37,8 +108,9 @@ const AnalyticsReports = () => {
             onChange={(e) => setSelectedYear(e.target.value)}
             className="px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 cursor-pointer shadow-xs"
           >
-            <option value="2024">Year: 2024</option>
-            <option value="2023">Year: 2023</option>
+            <option value={String(currentYear)}>Year: {currentYear}</option>
+            <option value={String(currentYear - 1)}>Year: {currentYear - 1}</option>
+            <option value={String(currentYear - 2)}>Year: {currentYear - 2}</option>
           </select>
 
           <select
@@ -71,10 +143,14 @@ const AnalyticsReports = () => {
             <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
               <Users size={18} />
             </div>
-            <span className="text-xs font-bold text-emerald-600">↑5.2%</span>
+            <span className={`text-xs font-bold ${Number(overview?.usersGrowth) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {loading ? '—' : formatGrowth(overview?.usersGrowth)}
+            </span>
           </div>
           <span className="text-xs font-semibold text-gray-500 block mt-3">Total Users</span>
-          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">12,842</span>
+          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">
+            {loading ? '—' : formatNumber(overview?.totalUsers)}
+          </span>
         </div>
 
         {/* Total Courses */}
@@ -83,10 +159,14 @@ const AnalyticsReports = () => {
             <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
               <BookOpen size={18} />
             </div>
-            <span className="text-xs font-bold text-emerald-600">↑2.4%</span>
+            <span className={`text-xs font-bold ${Number(overview?.coursesGrowth) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {loading ? '—' : formatGrowth(overview?.coursesGrowth)}
+            </span>
           </div>
           <span className="text-xs font-semibold text-gray-500 block mt-3">Total Courses</span>
-          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">148</span>
+          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">
+            {loading ? '—' : formatNumber(overview?.totalCourses)}
+          </span>
         </div>
 
         {/* Total Revenue */}
@@ -95,10 +175,14 @@ const AnalyticsReports = () => {
             <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
               <CreditCard size={18} />
             </div>
-            <span className="text-xs font-bold text-emerald-600">↑12.8%</span>
+            <span className={`text-xs font-bold ${Number(overview?.revenueGrowth) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {loading ? '—' : formatGrowth(overview?.revenueGrowth)}
+            </span>
           </div>
           <span className="text-xs font-semibold text-gray-500 block mt-3">Total Revenue</span>
-          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">LKR 4.2M</span>
+          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">
+            {loading ? '—' : formatCurrency(overview?.totalRevenue)}
+          </span>
         </div>
 
         {/* Active Users */}
@@ -107,10 +191,14 @@ const AnalyticsReports = () => {
             <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
               <Zap size={18} />
             </div>
-            <span className="text-xs font-bold text-red-500">↓1.1%</span>
+            <span className={`text-xs font-bold ${Number(overview?.activeUsersGrowth) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {loading ? '—' : formatGrowth(overview?.activeUsersGrowth)}
+            </span>
           </div>
           <span className="text-xs font-semibold text-gray-500 block mt-3">Active Users</span>
-          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">3,120</span>
+          <span className="text-2xl font-extrabold text-gray-900 mt-0.5 block">
+            {loading ? '—' : formatNumber(overview?.activeUsers)}
+          </span>
         </div>
       </div>
 
@@ -157,27 +245,23 @@ const AnalyticsReports = () => {
 
               {/* Smooth blue growth line path */}
               <path
-                d="M 10 140 L 60 140 L 110 30 L 160 80 L 210 120 L 260 120 L 310 120 L 360 120 L 410 120 L 460 120"
+                d={chartPath(chartValues)}
                 fill="none"
                 stroke="#2563eb"
                 strokeWidth="3"
                 strokeLinecap="round"
               />
-              <circle cx="110" cy="30" r="4" fill="#2563eb" />
+              {chartValues.length > 0 && (
+                <circle
+                  cx={chartValues.length > 1 ? 10 + ((chartValues.length - 1) * 480) / (chartValues.length - 1) : 250}
+                  cy={140 - (chartValues[chartValues.length - 1] / maxChartValue) * 110}
+                  r="4"
+                  fill="#2563eb"
+                />
+              )}
             </svg>
             <div className="flex justify-between text-[10px] text-gray-400 font-semibold mt-2">
-              <span>Jan 26</span>
-              <span>Feb 26</span>
-              <span>Mar 26</span>
-              <span>Apr 26</span>
-              <span>May 26</span>
-              <span>Jun 26</span>
-              <span>Jul 26</span>
-              <span>Aug 26</span>
-              <span>Sep 26</span>
-              <span>Oct 26</span>
-              <span>Nov 26</span>
-              <span>Dec 26</span>
+              {chartLabels.map(label => <span key={label}>{label}</span>)}
             </div>
           </div>
         </div>
@@ -193,7 +277,7 @@ const AnalyticsReports = () => {
               </div>
             </div>
 
-            <span className="text-xs font-semibold text-gray-400">Last 30 days</span>
+            <span className="text-xs font-semibold text-gray-400">{selectedRange}</span>
           </div>
 
           {/* SVG Revenue Chart */}
@@ -204,22 +288,23 @@ const AnalyticsReports = () => {
               <line x1="0" y1="110" x2="500" y2="110" stroke="#f1f5f9" strokeWidth="1" />
 
               <path
-                d="M 10 140 L 60 140 L 110 30 L 160 100 L 210 120 L 260 120 L 310 120 L 360 120 L 410 120 L 460 120"
+                d={revenuePath}
                 fill="none"
                 stroke="#f59e0b"
                 strokeWidth="3"
                 strokeLinecap="round"
               />
-              <circle cx="110" cy="30" r="4" fill="#f59e0b" />
+              {revenueData.length > 0 && (
+                <circle
+                  cx={revenueData.length > 1 ? 490 : 250}
+                  cy={140 - (Number(revenueData[revenueData.length - 1].revenue || 0) / maxRevenue) * 110}
+                  r="4"
+                  fill="#f59e0b"
+                />
+              )}
             </svg>
             <div className="flex justify-between text-[10px] text-gray-400 font-semibold mt-2">
-              <span>LKR 0</span>
-              <span>LKR 5,000</span>
-              <span>LKR 10,000</span>
-              <span>LKR 15,000</span>
-              <span>LKR 20,000</span>
-              <span>LKR 25,000</span>
-              <span>LKR 30,000</span>
+              {revenueLabels.map(label => <span key={label}>{label}</span>)}
             </div>
           </div>
         </div>
@@ -247,13 +332,19 @@ const AnalyticsReports = () => {
 
         {/* Bar Chart Representation */}
         <div className="h-44 w-full flex items-end justify-between px-4 pt-6 pb-2 border-b border-gray-100 gap-2">
-          {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, idx) => (
-            <div key={month} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+          {growthData.map((item) => {
+            const users = Number(item.newUsers ?? item.users ?? 0);
+            const courses = Number(item.enrollments ?? item.courses ?? 0);
+            return (
+            <div key={`${item.month}-${item.year}`} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
               <div className="w-full max-w-[20px] bg-blue-600 rounded-t-md transition-all duration-300" 
-                   style={{ height: idx === 2 ? '80%' : idx === 3 ? '25%' : '4px' }} />
-              <span className="text-[10px] text-gray-400 font-semibold">{month} 26</span>
+                   style={{ height: `${Math.max((users / maxGrowthValue) * 100, users ? 4 : 0)}%` }} />
+              <div className="w-full max-w-[20px] bg-emerald-500 rounded-t-md transition-all duration-300" 
+                   style={{ height: `${Math.max((courses / maxGrowthValue) * 100, courses ? 4 : 0)}%` }} />
+              <span className="text-[10px] text-gray-400 font-semibold">{item.month} {String(item.year).slice(-2)}</span>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -360,25 +451,37 @@ const AnalyticsReports = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">DAILY ACTIVE USERS</span>
-                  <span className="text-lg font-bold text-gray-900">2,420</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {loading ? '—' : formatNumber(activity?.dailyActiveUsers)}
+                  </span>
                 </div>
-                <span className="text-xs font-bold text-emerald-600">↑4.2%</span>
+                  <span className="text-xs font-bold text-emerald-600">
+                    {loading ? '—' : formatGrowth(activity?.dailyActiveUsersGrowth)}
+                  </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">COURSE COMPLETIONS</span>
-                  <span className="text-lg font-bold text-gray-900">856</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {loading ? '—' : formatNumber(activity?.courseCompletionsThisMonth)}
+                  </span>
                 </div>
-                <span className="text-xs font-bold text-emerald-600">↑12%</span>
+                <span className="text-xs font-bold text-emerald-600">
+                  {loading ? '—' : formatGrowth(activity?.courseCompletionsGrowth)}
+                </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">AVERAGE RATING</span>
-                  <span className="text-lg font-bold text-gray-900">4.85</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {loading ? '—' : Number(activity?.averageRating || 0).toFixed(2)}
+                  </span>
                 </div>
-                <span className="text-xs font-bold text-emerald-600">↑0.5%</span>
+                <span className="text-xs font-bold text-emerald-600">
+                  {loading ? '—' : formatGrowth(activity?.averageRatingChange)}
+                </span>
               </div>
             </div>
 
@@ -392,23 +495,13 @@ const AnalyticsReports = () => {
                   <span>REVENUE</span>
                 </div>
 
-                <div className="flex justify-between text-gray-700 py-1 border-b border-gray-50">
-                  <span className="font-semibold">July</span>
-                  <span>+1,420</span>
-                  <span className="font-bold text-gray-900">LKR 450k</span>
-                </div>
-
-                <div className="flex justify-between text-gray-700 py-1 border-b border-gray-50">
-                  <span className="font-semibold">June</span>
-                  <span>+1,100</span>
-                  <span className="font-bold text-gray-900">LKR 380k</span>
-                </div>
-
-                <div className="flex justify-between text-gray-700 py-1">
-                  <span className="font-semibold">May</span>
-                  <span>+980</span>
-                  <span className="font-bold text-gray-900">LKR 340k</span>
-                </div>
+                {(analytics?.monthlyStats || []).slice(-3).reverse().map(stat => (
+                  <div key={`${stat.month}-${stat.year}`} className="flex justify-between text-gray-700 py-1 border-b border-gray-50 last:border-b-0">
+                    <span className="font-semibold">{stat.month}</span>
+                    <span>+{formatNumber(stat.users)}</span>
+                    <span className="font-bold text-gray-900">{formatCurrency(stat.revenue)}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

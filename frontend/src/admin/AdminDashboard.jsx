@@ -18,7 +18,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
 import UserManagement from './UserManagement';
@@ -34,6 +34,7 @@ import apiService from '../services/apiService';
 
 const AdminDashboard = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => {
     const path = window.location.pathname.replace('/admin', '').replace('/', '');
     const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'forums', 'settings', 'applications'];
@@ -47,6 +48,11 @@ const AdminDashboard = () => {
       setActiveTab(path);
     }
   }, [location.pathname]);
+
+  const handleTabNavigation = (tab) => {
+    setActiveTab(tab);
+    navigate(tab === 'dashboard' ? '/admin/dashboard' : `/admin/${tab}`);
+  };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -241,7 +247,7 @@ const AdminDashboard = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 {/* Manage Users */}
                 <button
-                  onClick={() => setActiveTab('users')}
+                  onClick={() => handleTabNavigation('users')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
                 >
                   <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform mb-2.5">
@@ -253,7 +259,7 @@ const AdminDashboard = () => {
 
                 {/* Manage Courses */}
                 <button
-                  onClick={() => setActiveTab('courses')}
+                  onClick={() => handleTabNavigation('courses')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
                 >
                   <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-110 transition-transform mb-2.5">
@@ -265,7 +271,7 @@ const AdminDashboard = () => {
 
                 {/* Analytics */}
                 <button
-                  onClick={() => setActiveTab('analytics')}
+                  onClick={() => handleTabNavigation('analytics')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-purple-200 hover:bg-purple-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
                 >
                   <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 group-hover:scale-110 transition-transform mb-2.5">
@@ -277,7 +283,7 @@ const AdminDashboard = () => {
 
                 {/* Subscriptions */}
                 <button
-                  onClick={() => setActiveTab('payments')}
+                  onClick={() => handleTabNavigation('payments')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
                 >
                   <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:scale-110 transition-transform mb-2.5">
@@ -289,7 +295,7 @@ const AdminDashboard = () => {
 
                 {/* Settings */}
                 <button
-                  onClick={() => setActiveTab('settings')}
+                  onClick={() => handleTabNavigation('settings')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-gray-300 hover:bg-gray-50 hover:shadow-xs transition-all cursor-pointer text-center group"
                 >
                   <div className="p-2.5 rounded-xl bg-gray-100 text-gray-600 group-hover:scale-110 transition-transform mb-2.5">
@@ -301,7 +307,7 @@ const AdminDashboard = () => {
 
                 {/* Join Us */}
                 <button
-                  onClick={() => setActiveTab('applications')}
+                  onClick={() => handleTabNavigation('applications')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
                 >
                   <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform mb-2.5">
@@ -317,7 +323,7 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
               {/* Korean Program Applications */}
               <div 
-                onClick={() => setActiveTab('applications')}
+                onClick={() => handleTabNavigation('applications')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
               >
                 <div className="p-3.5 rounded-2xl bg-indigo-50 text-indigo-600 shrink-0">
@@ -333,7 +339,7 @@ const AdminDashboard = () => {
 
               {/* Pending Applications */}
               <div 
-                onClick={() => setActiveTab('applications')}
+                onClick={() => handleTabNavigation('applications')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
               >
                 <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-600 shrink-0">
@@ -349,7 +355,7 @@ const AdminDashboard = () => {
 
               {/* Enrolled Students */}
               <div 
-                onClick={() => setActiveTab('users')}
+                onClick={() => handleTabNavigation('users')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
               >
                 <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-600 shrink-0">
@@ -377,7 +383,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-sm sm:text-base text-gray-900">Recent Users</h3>
                   <button
-                    onClick={() => setActiveTab('users')}
+                    onClick={() => handleTabNavigation('users')}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
                     View All
@@ -457,7 +463,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-sm sm:text-base text-gray-900">Recent Courses</h3>
                   <button
-                    onClick={() => setActiveTab('courses')}
+                    onClick={() => handleTabNavigation('courses')}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
                     View All
@@ -495,7 +501,7 @@ const AdminDashboard = () => {
                   Recent Korean Program Applications
                 </h3>
                 <button
-                  onClick={() => setActiveTab('applications')}
+                  onClick={() => handleTabNavigation('applications')}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                 >
                   View All

@@ -124,7 +124,7 @@ const getReport = async ({ year, period }) => {
 
   const totalRevenue = currentPayments.reduce((sum, payment) => sum + payment.amount, 0);
   const previousRevenue = previousPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const activeSince = new Date(bounds.end);
+  const activeSince = new Date(Math.min(bounds.end.getTime(), Date.now()));
   activeSince.setUTCDate(activeSince.getUTCDate() - 1);
   const dailyActiveUsers = allUsers.filter(user => user.lastLogin && new Date(user.lastLogin) >= activeSince).length;
   const currentAverageRating = allCourses.length

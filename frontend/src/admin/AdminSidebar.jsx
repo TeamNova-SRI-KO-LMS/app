@@ -45,6 +45,7 @@ const AdminSidebar = ({
     if (setActiveTab) {
       setActiveTab(id);
     }
+    navigate(id === 'dashboard' ? '/admin/dashboard' : `/admin/${id}`);
     if (onClose && window.innerWidth < 1024) {
       onClose();
     }
