@@ -11,6 +11,8 @@ import CourseInfoPage from "./pages/CourseInfoPage";
 import CoursesPage from "./pages/CoursesPage";
 import CreateCoursePage from "./pages/CreateCoursePage";
 import DashboardPage from "./pages/DashboardPage";
+import DiscussionForums from "./admin/DiscussionForums";
+import DocumentationPage from "./pages/DocumentationPage";
 import EditCoursePage from "./pages/EditCoursePage";
 import EventsPage from "./pages/EventsPage";
 import FloatingAiSupport from "./components/FloatingAiSupport";
@@ -20,18 +22,16 @@ import JoinUsPage from "./pages/JoinUsPage";
 import LandingPage from "./pages/LandingPage";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
+import MyCoursesPage from "./pages/MyCoursesPage";
 import PaymentInfo from "./pages/PaymentInfoPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import ProfilePage from "./pages/ProfilePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RegisterPage from "./pages/RegisterPage";
 import ScrollToTop from "./components/ScrollToTop";
-import TermsOfServicePage from "./pages/TermsOfServicePage";
-import DocumentationPage from "./pages/DocumentationPage";
-import { Toaster } from "react-hot-toast";
-import DiscussionForums from "./admin/DiscussionForums";
-import ProfilePage from "./pages/ProfilePage";
-import MyCoursesPage from "./pages/MyCoursesPage";
 import SettingsPage from "./pages/SettingsPage";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   return (
@@ -53,7 +53,6 @@ function App() {
           <Route path="/join" element={<JoinUsPage />} />
           <Route path="/join-us" element={<JoinUsPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
-          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route
             path="/terms-and-conditions"
             element={<TermsOfServicePage />}
