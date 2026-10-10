@@ -13,6 +13,7 @@ import {
   Bot,
   Sparkles,
 } from 'lucide-react';
+import DiscussionForumSection from '../components/DiscussionForumSection';
 
 const DEFAULT_COURSES = [
   {
@@ -330,6 +331,9 @@ export default function MyCoursesPage() {
             Explore Course Catalog
           </Link>
         </div>
+
+        {/* Discussion Forums Section */}
+        <DiscussionForumSection />
 
       </div>
 
