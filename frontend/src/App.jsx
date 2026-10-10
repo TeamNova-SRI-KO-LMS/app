@@ -1,3 +1,4 @@
+
 import "./App.css";
 
 import { Route, Routes } from "react-router-dom";
@@ -5,7 +6,7 @@ import { Route, Routes } from "react-router-dom";
 import AboutUs from "./pages/AboutusPage";
 import AdminDashboard from "./admin/AdminDashboard";
 import AdminLogin from "./admin/adminLogin";
-import AnnouncementsPage from "./pages/AnnouncementsPage"
+import AnnouncementsPage from "./pages/AnnouncementsPage";
 import CourseDetails from "./pages/CourseDetailsPage";
 import CourseInfoPage from "./pages/CourseInfoPage";
 import CoursesPage from "./pages/CoursesPage";
@@ -16,6 +17,7 @@ import DocumentationPage from "./pages/DocumentationPage";
 import EditCoursePage from "./admin/EditCoursePage";
 import EventsPage from "./pages/EventsPage";
 import FloatingAiSupport from "./components/FloatingAiSupport";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
 import HomePage from "./pages/HomePage";
 import JoinUsPage from "./pages/JoinUsPage";
@@ -28,6 +30,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import ProfilePage from "./pages/ProfilePage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RegisterPage from "./pages/RegisterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ScrollToTop from "./components/ScrollToTop";
 import SettingsPage from "./pages/SettingsPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
@@ -37,9 +40,12 @@ function App() {
   return (
     <>
       <ScrollToTop />
+
       <Routes>
+        {/* Public pages and authenticated user pages */}
         <Route element={<Layout />}>
           <Route path="/" element={<LandingPage />} />
+
           <Route
             path="/home"
             element={
@@ -48,6 +54,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<JoinUsPage />} />
           <Route path="/join" element={<JoinUsPage />} />
@@ -61,10 +68,13 @@ function App() {
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/help" element={<HelpCenterPage />} />
           <Route path="/help-center" element={<HelpCenterPage />} />
+
+          {/* Course and learning routes */}
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/docs" element={<DocumentationPage />} />
           <Route path="/resources" element={<DocumentationPage />} />
           <Route path="/events" element={<EventsPage />} />
+
           <Route
             path="/announcements"
             element={
@@ -73,11 +83,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route path="/course-details" element={<CourseDetails />} />
           <Route path="/courses/:id" element={<CourseDetails />} />
           <Route path="/course-info" element={<CourseInfoPage />} />
           <Route path="/course-info/:id" element={<CourseInfoPage />} />
           <Route path="/courses/:id/learn" element={<CourseInfoPage />} />
+
+          {/* Protected student routes */}
           <Route
             path="/dashboard"
             element={
@@ -86,6 +99,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/my-courses"
             element={
@@ -94,6 +108,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/profile"
             element={
@@ -102,6 +117,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/student-profile"
             element={
@@ -110,6 +126,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route
             path="/settings"
             element={
@@ -119,16 +136,70 @@ function App() {
             }
           />
         </Route>
+
+        {/* Authentication routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Admin authentication routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminLogin" element={<AdminLogin />} />
+
+        {/* Discussion forum */}
         <Route path="/forum" element={<DiscussionForums />} />
-        <Route path="/admin/courses/create" element={<CreateCoursePage />} />
-        <Route path="/admin/courses/edit/:id" element={<EditCoursePage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/*" element={<AdminDashboard />} />
+
+        {/* Protected admin course management */}
+        <Route
+          path="/admin/courses/create"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <CreateCoursePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/courses/edit/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <EditCoursePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected admin dashboard */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Registration */}
         <Route path="/register" element={<RegisterPage />} />
+
+        {/* Protected payment route */}
         <Route
           path="/payment-info"
           element={
@@ -138,7 +209,11 @@ function App() {
           }
         />
       </Routes>
+
+      {/* Global toast notifications */}
       <Toaster position="top-right" />
+
+      {/* Floating AI support widget */}
       <FloatingAiSupport />
     </>
   );

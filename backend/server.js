@@ -21,6 +21,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const discussionForumRoutes = require('./routes/discussionForumRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -90,3 +91,4 @@ app.use('/api/notifications', checkDatabase, notificationRoutes);
 app.use('/api/announcements', checkDatabase, announcementRoutes);
 app.use('/api/forums', checkDatabase, discussionForumRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);
+app.use('/api/admin/analytics', checkDatabase, analyticsRoutes);
