@@ -600,6 +600,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans antialiased text-gray-800">
       {/* Sidebar Component */}
       <AdminSidebar
+        className="admin-sidebar"
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         isOpen={isSidebarOpen}
@@ -609,14 +610,16 @@ const AdminDashboard = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header Navbar */}
-        <AdminHeader
+        <div className="admin-header">
+          <AdminHeader
           onToggleSidebar={toggleSidebar}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-        />
+          />
+        </div>
 
         {/* Dynamic Main Body Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto admin-main">
           {renderContent()}
         </main>
       </div>

@@ -25,11 +25,7 @@ const AnalyticsReports = () => {
     const loadAnalytics = async () => {
       setLoading(true);
       try {
-        const period = selectedRange === 'Last 90 Days'
-          ? 90
-          : selectedRange === 'This Year'
-            ? 365
-            : 30;
+        const period = getPeriod();
         const response = await apiService.get('/admin/analytics', {
           params: { year: selectedYear, period },
         });
@@ -55,6 +51,30 @@ const AnalyticsReports = () => {
   const formatGrowth = value => {
     const number = Number(value || 0);
     return `${number >= 0 ? '↑' : '↓'}${Math.abs(number).toFixed(1)}%`;
+  };
+  const getPeriod = () => selectedRange === 'This Year'
+    ? 'year'
+    : selectedRange === 'Last 90 Days' ? 90 : 30;
+  const exportReport = async format => {
+    try {
+      const response = await apiService.get('/admin/analytics/export', {
+        params: { format, year: selectedYear, period: getPeriod() },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `analytics-report-${selectedYear}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(`Failed to export ${format} analytics report:`, error);
+    }
+  };
+  const printReport = () => {
+    window.print();
   };
   const growthData = analytics?.userGrowth || [];
   const revenueData = analytics?.revenueData || [];
@@ -89,7 +109,7 @@ const AnalyticsReports = () => {
     : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 analytics-print-area">
       {/* Title & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -102,7 +122,7 @@ const AnalyticsReports = () => {
         </div>
 
         {/* Top Controls */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap print-hidden">
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
@@ -123,12 +143,18 @@ const AnalyticsReports = () => {
             <option value="This Year">This Year</option>
           </select>
 
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
+          <button
+            onClick={printReport}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
             <FileText size={15} />
             <span>Export PDF</span>
           </button>
 
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer">
+          <button
+            onClick={() => exportReport('csv')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer"
+          >
             <Download size={15} />
             <span>Export CSV</span>
           </button>

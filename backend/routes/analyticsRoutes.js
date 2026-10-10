@@ -22,17 +22,20 @@ const percentageChange = (current, previous) => {
 
 const dateBounds = (year, period) => {
   const now = new Date();
-  const end = year ? new Date(`${year}-12-31T23:59:59.999Z`) : now;
-  let start;
-
+  const yearStart = year ? new Date(`${year}-01-01T00:00:00.000Z`) : null;
+  const yearEnd = year ? new Date(`${year}-12-31T23:59:59.999Z`) : null;
   if (year) {
-    start = new Date(`${year}-01-01T00:00:00.000Z`);
-  } else {
-    const days = Math.min(Math.max(toNumber(period, 30), 1), 3650);
-    start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - days + 1);
-    start.setUTCHours(0, 0, 0, 0);
+    return {
+      start: yearStart,
+      end: new Date(Math.min(yearEnd.getTime(), now.getTime())),
+    };
   }
+
+  const end = now;
+  const days = period === 'year' ? 365 : Math.min(Math.max(toNumber(period, 30), 1), 3650);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - days + 1);
+  start.setUTCHours(0, 0, 0, 0);
 
   return { start, end };
 };
@@ -47,6 +50,13 @@ const previousBounds = ({ start, end }) => {
 
 const dateMatch = (field, bounds) => ({
   [field]: { $gte: bounds.start, $lte: bounds.end },
+});
+
+const paymentDateMatch = bounds => ({
+  $or: [
+    dateMatch('paidDate', bounds),
+    dateMatch('paymentDate', bounds),
+  ],
 });
 
 const monthlySeries = (items, dateField, valueField, year) => {
@@ -92,40 +102,41 @@ const getReport = async ({ year, period }) => {
     previousCourses,
     currentPayments,
     previousPayments,
-    allPayments,
+    periodPayments,
     previousProgress,
     completedProgress,
+    periodUsers,
+    periodProgress,
     allUsers,
-    allProgress,
     allCourses,
   ] = await Promise.all([
-    User.countDocuments(),
-    Course.countDocuments(),
+    User.countDocuments(dateMatch('createdAt', bounds)),
+    Course.countDocuments(dateMatch('createdAt', bounds)),
     User.countDocuments(dateMatch('createdAt', bounds)),
     User.countDocuments(dateMatch('createdAt', previous)),
     Course.countDocuments(dateMatch('createdAt', bounds)),
     Course.countDocuments(dateMatch('createdAt', previous)),
-    Payment.find({ ...dateMatch('paidDate', bounds), status: 'completed' })
+    Payment.find({ status: 'completed', ...paymentDateMatch(bounds) })
       .select('amount paidDate paymentDate').lean(),
-    Payment.find({ ...dateMatch('paidDate', previous), status: 'completed' })
+    Payment.find({ status: 'completed', ...paymentDateMatch(previous) })
       .select('amount paidDate paymentDate').lean(),
-    Payment.find({ status: 'completed', ...dateMatch('paidDate', { start: new Date(`${selectedYear}-01-01T00:00:00.000Z`), end: new Date(`${selectedYear}-12-31T23:59:59.999Z`) }) })
+    Payment.find({ status: 'completed', ...paymentDateMatch(bounds) })
       .select('amount paidDate paymentDate').lean(),
     Progress.find(dateMatch('createdAt', previous)).select('createdAt').lean(),
     Progress.find({ isCompleted: true, ...dateMatch('completionDate', bounds) })
       .select('completionDate').lean(),
-    User.find().select('createdAt lastLogin').lean(),
-    Progress.find().select('createdAt').lean(),
+    User.find(dateMatch('createdAt', bounds)).select('createdAt lastLogin').lean(),
+    Progress.find(dateMatch('createdAt', bounds)).select('createdAt').lean(),
+    User.find().select('lastLogin').lean(),
     Course.find()
       .populate('instructor', 'name avatar')
       .select('title price averageRating enrolledStudents instructor')
       .lean(),
   ]);
 
-  const totalRevenue = currentPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const previousRevenue = previousPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const activeSince = new Date(Math.min(bounds.end.getTime(), Date.now()));
-  activeSince.setUTCDate(activeSince.getUTCDate() - 1);
+  const totalRevenue = currentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const previousRevenue = previousPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const activeSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const dailyActiveUsers = allUsers.filter(user => user.lastLogin && new Date(user.lastLogin) >= activeSince).length;
   const currentAverageRating = allCourses.length
     ? allCourses.reduce((sum, course) => sum + (course.averageRating || 0), 0) / allCourses.length
@@ -133,9 +144,6 @@ const getReport = async ({ year, period }) => {
   const topCourses = allCourses
     .sort((a, b) => (b.enrolledStudents?.length || 0) - (a.enrolledStudents?.length || 0))
     .slice(0, 5);
-
-  const usersForYear = allUsers.filter(user => user.createdAt);
-  const progressForYear = allProgress.filter(item => item.createdAt);
 
   return {
     overview: {
@@ -158,8 +166,8 @@ const getReport = async ({ year, period }) => {
       averageRating: Number(currentAverageRating.toFixed(2)),
       averageRatingChange: 0,
     },
-    userGrowth: monthRows(usersForYear, progressForYear, allPayments, selectedYear),
-    revenueData: monthRows([], [], allPayments, selectedYear).map(row => ({
+    userGrowth: monthRows(periodUsers, periodProgress, periodPayments, selectedYear),
+    revenueData: monthRows([], [], periodPayments, selectedYear).map(row => ({
       month: row.month,
       year: row.year,
       revenue: row.revenue,
@@ -173,7 +181,7 @@ const getReport = async ({ year, period }) => {
     })),
     topCourses,
     userEngagement: [],
-    monthlyStats: monthRows(usersForYear, progressForYear, allPayments, selectedYear),
+    monthlyStats: monthRows(periodUsers, periodProgress, periodPayments, selectedYear),
   };
 };
 
