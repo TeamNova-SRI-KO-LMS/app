@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -9,75 +10,131 @@ const LoginPage = () => {
     password: '',
     rememberMe: false,
   });
+
+  // Preserve password reset success state from the feature branch.
   const [successDismissed, setSuccessDismissed] = useState(false);
+
+  // Preserve authentication error handling from develop.
+  const [localError, setLocalError] = useState('');
 
   const { login, googleLogin, loading, error } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/home';
 
+  // Display authentication errors returned by the authentication provider.
+  useEffect(() => {
+    if (error) {
+      setLocalError(error);
+    }
+  }, [error]);
+
+  // Display the password reset confirmation for five seconds.
   useEffect(() => {
     if (location.state?.passwordChanged) {
       const timeoutId = window.setTimeout(() => {
         setSuccessDismissed(true);
-        navigate(location.pathname, { replace: true, state: {} });
+        navigate(location.pathname, {
+          replace: true,
+          state: {},
+        });
       }, 5000);
+
       return () => window.clearTimeout(timeoutId);
     }
+
     return undefined;
   }, [location.pathname, location.state, navigate]);
 
+  // Support both text fields and the Remember Me checkbox.
   const handleChange = event => {
     const { name, value, type, checked } = event.target;
+
     setFormData(current => ({
       ...current,
       [name]: type === 'checkbox' ? checked : value,
     }));
+
+    if (localError) {
+      setLocalError('');
+    }
   };
 
+  // User portal authentication: administrators must use the admin portal.
   const handleSubmit = async event => {
     event.preventDefault();
-    const result = await login(formData.email, formData.password);
+    setLocalError('');
+
+    const result = await login(
+      formData.email,
+      formData.password,
+      'user',
+    );
+
     if (result.success) {
-      navigate(
-        result.user?.role === 'admin' ? '/admin/dashboard' : from,
-        { replace: true },
+      if (result.user?.role === 'admin') {
+        setLocalError(
+          'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.',
+        );
+      } else {
+        navigate(from, { replace: true });
+      }
+    } else {
+      setLocalError(
+        result.error || 'Login failed. Please check your credentials.',
       );
     }
   };
 
+  // Google authentication is available through the user portal only.
   const handleGoogleCredentialResponse = async credentialResponse => {
     if (typeof googleLogin !== 'function') {
-      console.error('Google login is not configured');
+      setLocalError('Google login is not configured.');
       return;
     }
 
+    setLocalError('');
+
     const result = await googleLogin(credentialResponse.credential);
+
     if (result.success) {
-      navigate(
-        result.user?.role === 'admin' ? '/admin/dashboard' : from,
-        { replace: true },
-      );
+      if (result.user?.role === 'admin') {
+        setLocalError(
+          'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.',
+        );
+      } else {
+        navigate(from, { replace: true });
+      }
+    } else {
+      setLocalError(result.error || 'Google sign-in failed.');
     }
   };
 
   return (
     <div className="min-h-screen overflow-auto bg-[#f7f8fc] px-4 py-8 text-gray-900 sm:py-10">
+      {/* Password reset success notification */}
       {location.state?.passwordChanged && !successDismissed && (
         <div className="fixed right-4 top-3 z-10 flex w-56 items-start gap-2 rounded-lg border border-green-100 bg-[#e8f8ed] px-3 py-2.5 shadow-[0_5px_15px_rgba(40,120,70,0.12)]">
           <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-[10px] text-white">
             ✓
           </span>
           <div className="flex-1">
-            <p className="text-[10px] font-semibold text-green-800">Success</p>
-            <p className="text-[8px] text-green-700">Password changed</p>
+            <p className="text-[10px] font-semibold text-green-800">
+              Success
+            </p>
+            <p className="text-[8px] text-green-700">
+              Password changed
+            </p>
           </div>
           <button
             type="button"
             aria-label="Dismiss success message"
             onClick={() => {
               setSuccessDismissed(true);
-              navigate(location.pathname, { replace: true, state: {} });
+              navigate(location.pathname, {
+                replace: true,
+                state: {},
+              });
             }}
             className="text-xs text-green-700/50 hover:text-green-700"
           >
@@ -99,15 +156,43 @@ const LoginPage = () => {
         </header>
 
         <section className="w-full rounded-b-lg bg-white px-5 pb-4 pt-4 shadow-[0_10px_25px_rgba(45,55,90,0.07)]">
-          <h1 className="text-[15px] font-semibold text-gray-900">Welcome back</h1>
+          <h1 className="text-[15px] font-semibold text-gray-900">
+            Welcome back
+          </h1>
           <p className="mt-0.5 text-[9px] text-gray-500">
             Please enter your details to continue
           </p>
 
-          {error && (
-            <p className="mt-3 rounded-md bg-red-50 px-2 py-1.5 text-[9px] text-red-600">
-              {error}
-            </p>
+          {/* Combined login error display and admin portal redirect */}
+          {localError && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+              <svg
+                className="mt-0.5 h-4 w-4 shrink-0 text-red-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div className="flex-1">
+                <span className="font-medium">{localError}</span>
+                {localError.toLowerCase().includes('admin') && (
+                  <div className="mt-1">
+                    <Link
+                      to="/admin/login"
+                      className="font-semibold text-blue-700 underline hover:text-blue-800"
+                    >
+                      Go to Admin Access Portal →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
@@ -159,6 +244,7 @@ const LoginPage = () => {
               />
             </div>
 
+            {/* UI preference; persistent login requires auth-provider support. */}
             <label className="flex items-center gap-1.5 pt-0.5 text-[8px] text-gray-700">
               <input
                 id="rememberMe"
@@ -189,7 +275,7 @@ const LoginPage = () => {
           <div className="flex justify-center overflow-hidden rounded-md border border-gray-200">
             <GoogleLogin
               onSuccess={handleGoogleCredentialResponse}
-              onError={() => console.error('Google login failed')}
+              onError={() => setLocalError('Google login failed.')}
               useOneTap={false}
               width="205"
               text="continue_with"
@@ -203,7 +289,8 @@ const LoginPage = () => {
               to="/admin/login"
               className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-[8px] font-medium text-gray-700 hover:bg-gray-200"
             >
-              <span className="text-blue-600">◉</span> Access Admin Portal
+              <span className="text-blue-600">◉</span>
+              Access Admin Portal
             </Link>
           </div>
         </section>
@@ -214,6 +301,7 @@ const LoginPage = () => {
             Apply for Membership
           </Link>
         </p>
+
         <p className="mt-8 text-[7px] uppercase tracking-[0.16em] text-gray-500">
           © 2024 SRI-KO Editorial Scholar. All rights reserved.
         </p>

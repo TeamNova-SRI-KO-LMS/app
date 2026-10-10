@@ -30,12 +30,12 @@ const AdminLogin = () => {
     setLocalError('');
 
     try {
-      const result = await login(formData.email, formData.password);
+      const result = await login(formData.email, formData.password, 'admin');
       if (result?.success) {
         if (result.user && result.user.role === 'admin') {
           navigate('/admin/dashboard', { replace: true });
         } else {
-          navigate(from, { replace: true });
+          setLocalError('Access denied. Only administrator accounts can log in through the Admin Access Portal.');
         }
       } else {
         setLocalError(result?.error || 'Invalid email or password.');

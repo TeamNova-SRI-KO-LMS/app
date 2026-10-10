@@ -190,13 +190,33 @@ const AuthProvider = ({ children }) => {
     dispatch({ type: 'SET_LOADING', payload: false });
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, portal = 'user') => {
     dispatch({ type: 'LOGIN_START' });
 
     try {
-      const responseData = await apiService.login({ email, password });
+      const responseData = await apiService.login({ email, password, portal });
       const { token, user } = extractAuthPayload(responseData);
       const safeUser = sanitizeUser(user);
+
+      if (portal === 'user' && safeUser.role === 'admin') {
+        clearSession();
+        const errorMsg = 'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.';
+        dispatch({
+          type: 'LOGIN_FAILURE',
+          payload: errorMsg,
+        });
+        return { success: false, error: errorMsg };
+      }
+
+      if (portal === 'admin' && safeUser.role !== 'admin') {
+        clearSession();
+        const errorMsg = 'Access denied. Only administrator accounts can log in through the Admin Access Portal.';
+        dispatch({
+          type: 'LOGIN_FAILURE',
+          payload: errorMsg,
+        });
+        return { success: false, error: errorMsg };
+      }
 
       persistSession({ token, user: safeUser });
 
@@ -284,6 +304,16 @@ const AuthProvider = ({ children }) => {
       const responseData = response.data;
       const { token, user } = extractAuthPayload(responseData);
       const safeUser = sanitizeUser(user);
+
+      if (safeUser.role === 'admin') {
+        clearSession();
+        const errorMsg = 'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.';
+        dispatch({
+          type: 'LOGIN_FAILURE',
+          payload: errorMsg,
+        });
+        return { success: false, error: errorMsg };
+      }
 
       persistSession({ token, user: safeUser });
 

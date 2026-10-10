@@ -53,6 +53,7 @@ const AdminDashboard = () => {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalCourses, setTotalCourses] = useState(0);
   const [enrolledStudents, setEnrolledStudents] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
   const [recentUsers, setRecentUsers] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -79,6 +80,16 @@ const AdminDashboard = () => {
         }
       } catch (cErr) {
         console.warn('Courses fetch error in dashboard:', cErr);
+      }
+
+      // Fetch payment statistics from database
+      try {
+        const paymentsRes = await apiService.get('/payments/stats');
+        if (paymentsRes.data?.stats) {
+          setTotalRevenue(paymentsRes.data.stats.totalRevenue || 0);
+        }
+      } catch (pErr) {
+        console.warn('Payments fetch error in dashboard:', pErr);
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -198,7 +209,13 @@ const AdminDashboard = () => {
                   <span className="text-xs font-medium text-gray-500 block">Total Revenue</span>
                   <div className="flex items-baseline gap-1 mt-0.5">
                     <span className="text-xs font-bold text-gray-700">LKR</span>
-                    <span className="text-2xl font-bold text-gray-900">48,290</span>
+                    <span className="text-2xl font-bold text-gray-900">
+                      {loadingStats ? (
+                        <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded"></span>
+                      ) : (
+                        totalRevenue.toLocaleString()
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>

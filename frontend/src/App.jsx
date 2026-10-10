@@ -5,7 +5,7 @@ import { Route, Routes } from "react-router-dom";
 import AboutUs from "./pages/AboutusPage";
 import AdminDashboard from "./admin/AdminDashboard";
 import AdminLogin from "./admin/adminLogin";
-import AnnouncementsPage from "./pages/AnnouncementsPage";
+import AnnouncementsPage from "./pages/AnnouncementsPage"
 import CourseDetails from "./pages/CourseDetailsPage";
 import CourseInfoPage from "./pages/CourseInfoPage";
 import CoursesPage from "./pages/CoursesPage";
@@ -30,6 +30,10 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ScrollToTop from "./components/ScrollToTop";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import { Toaster } from "react-hot-toast";
+import DiscussionForums from "./admin/DiscussionForums";
+import ProfilePage from "./pages/ProfilePage";
+import MyCoursesPage from "./pages/MyCoursesPage";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
   return (
@@ -62,6 +66,7 @@ function App() {
           <Route path="/help-center" element={<HelpCenterPage />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/docs" element={<DocumentationPage />} />
+          <Route path="/resources" element={<DocumentationPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route
             path="/announcements"
@@ -84,12 +89,45 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/my-courses"
+            element={
+              <ProtectedRoute>
+                <MyCoursesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student-profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/adminLogin" element={<AdminLogin />} />
+        <Route path="/forum" element={<DiscussionForums />} />
         <Route path="/admin/courses/create" element={<CreateCoursePage />} />
         <Route path="/admin/courses/edit/:id" element={<EditCoursePage />} />
         <Route path="/admin" element={<AdminDashboard />} />

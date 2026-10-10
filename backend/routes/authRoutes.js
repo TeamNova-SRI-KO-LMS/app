@@ -102,7 +102,7 @@ router.post(
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email, password, portal } = req.body;
 
       const user = await User.findOne({ email }).select('+password');
       if (!user || !user.isActive) {
@@ -117,6 +117,21 @@ router.post(
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password',
+        });
+      }
+
+      // Role & portal access enforcement
+      if (portal === 'user' && user.role === 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.',
+        });
+      }
+
+      if (portal === 'admin' && user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Only administrator accounts can log in through the Admin Access Portal.',
         });
       }
 
@@ -330,9 +345,9 @@ router.post('/google', async (req, res) => {
       return res.status(401).json({ success: false, message: 'No account found. Please register first.' });
     }
 
-    // Disallow admin login via Google if needed
-    if (user.role && user.role !== 'student') {
-      return res.status(403).json({ success: false, message: 'Google login not allowed for this account type' });
+    // Disallow admin login via Google / user login
+    if (user.role === 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.' });
     }
 
     // Optionally save googleId for future logins
