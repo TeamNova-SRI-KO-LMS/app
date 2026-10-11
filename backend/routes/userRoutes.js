@@ -149,6 +149,10 @@ router.put('/privacy', protect, async (req, res) => {
 // @route   POST /api/users/avatar
 // @access  Private
 router.post('/avatar', protect, (req, res, next) => {
+  // If JSON payload with avatar string was sent, bypass multer
+  if (req.body && req.body.avatar) {
+    return next();
+  }
   uploadSingle(req, res, err => {
     if (err) {
       console.error('Avatar upload error:', err);
@@ -161,27 +165,30 @@ router.post('/avatar', protect, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    if (!req.file) {
+    let avatarDataUri = req.body?.avatar;
+
+    if (!avatarDataUri && req.file) {
+      avatarDataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    }
+
+    if (!avatarDataUri) {
       return res.status(400).json({
         success: false,
-        message: 'No file uploaded',
+        message: 'No photo provided',
       });
     }
 
-    // Generate the file URL
-    const fileUrl = `/uploads/${req.file.filename}`;
-    
-    // Update user's avatar in database
+    // Update user's avatar directly in database
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { avatar: fileUrl },
+      { avatar: avatarDataUri },
       { new: true, runValidators: true }
     );
 
     res.status(200).json({
       success: true,
-      message: 'Avatar uploaded successfully',
-      avatar: fileUrl,
+      message: 'Avatar uploaded and saved to database successfully',
+      avatar: avatarDataUri,
       user: {
         id: user._id,
         name: user.name,
