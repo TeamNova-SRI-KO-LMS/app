@@ -185,6 +185,13 @@ router.post('/avatar', protect, (req, res, next) => {
       { new: true, runValidators: true }
     );
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Avatar uploaded and saved to database successfully',
@@ -538,4 +545,3 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
 });
 
 module.exports = router;
-
