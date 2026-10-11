@@ -1,4 +1,5 @@
 import { apiClient } from './apiService';
+import { uploadToSupabase } from './uploadService';
 
 /**
  * Announcement Service
@@ -129,6 +130,26 @@ const announcementService = {
   async toggleActiveAnnouncement(id) {
     const response = await apiClient.put(`/announcements/${id}/active`);
     return response.data;
+  },
+
+  /**
+   * Upload an announcement photo directly to Supabase Storage
+   * @param {File} file - Image file object
+   * @returns {Promise<{success: boolean, url: string, storage: string}>}
+   */
+  async uploadPhoto(file) {
+    const publicUrl = await uploadToSupabase(file, undefined, 'announcements');
+    return { success: true, url: publicUrl, storage: 'supabase' };
+  },
+
+  /**
+   * Upload a thumbnail/photo for an announcement strictly to Supabase Storage
+   * @param {File} file - Image file object
+   * @returns {Promise<{success: boolean, url: string, storage: string}>}
+   */
+  async uploadThumbnail(file) {
+    const publicUrl = await uploadToSupabase(file, undefined, 'announcements');
+    return { success: true, url: publicUrl, storage: 'supabase' };
   },
 
   /**
