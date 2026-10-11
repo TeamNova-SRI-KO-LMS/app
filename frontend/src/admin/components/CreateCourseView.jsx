@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { 
   Info, BookOpen, Clock, Edit2, Trash2, Plus, 
   Upload, CheckCircle, ChevronDown, ArrowLeft, 
-  Globe, HelpCircle, X, Image as ImageIcon
+  Globe, HelpCircle, X, Image as ImageIcon, Loader2
 } from 'lucide-react';
+import { uploadToSupabase } from '../../services/uploadService';
 
 export default function CreateCourseView({ onBack, onSave, loading }) {
   const [title, setTitle] = useState('');
@@ -15,6 +16,7 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
   const [tags, setTags] = useState(['Business', 'Culture']);
   const [tagInput, setTagInput] = useState('');
   const [thumbnailPreview, setThumbnailPreview] = useState('');
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   // Curriculum weeks state
   const [weeks, setWeeks] = useState([
@@ -286,7 +288,15 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
             
             <div className="border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-[#f8fafc] hover:bg-blue-50/10 transition cursor-pointer relative overflow-hidden group">
               {thumbnailPreview ? (
-                <img src={thumbnailPreview} alt="Preview" className="w-full h-36 object-cover rounded-xl" />
+                <div className="relative w-full h-36 rounded-xl overflow-hidden">
+                  <img src={thumbnailPreview} alt="Preview" className="w-full h-full object-cover" />
+                  {uploadingThumbnail && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 text-white">
+                      <Loader2 size={18} className="animate-spin text-blue-400" />
+                      <span className="text-xs font-bold">Uploading to Supabase...</span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-blue-50 text-gray-400 group-hover:text-blue-600 flex items-center justify-center mb-3 transition">
@@ -300,10 +310,19 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
               <input 
                 type="file" 
                 accept="image/*"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
                     setThumbnailPreview(URL.createObjectURL(file));
+                    setUploadingThumbnail(true);
+                    try {
+                      const url = await uploadToSupabase(file, 'courses', 'thumbnails');
+                      setThumbnailPreview(url);
+                    } catch (err) {
+                      console.error('Course thumbnail Supabase upload error:', err);
+                    } finally {
+                      setUploadingThumbnail(false);
+                    }
                   }
                 }}
                 className="absolute inset-0 opacity-0 cursor-pointer"

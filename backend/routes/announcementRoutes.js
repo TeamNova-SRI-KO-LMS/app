@@ -1,7 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 const Announcement = require('../models/Announcement');
 const { protect, authorize } = require('../middleware/auth');
+
+// Announcements use Supabase Storage for photos and thumbnails - no local disk storage
+
 
 // @desc    Get active announcements for users/students (public or authenticated)
 // @route   GET /api/announcements
@@ -226,7 +231,9 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       startDate,
       endDate,
       tags,
-      attachments
+      attachments,
+      thumbnail,
+      photo
     } = req.body;
 
     // Validate required fields
@@ -256,6 +263,8 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       parsedTags = tags.split(',').map(t => t.trim()).filter(Boolean);
     }
 
+    const photoUrl = photo || thumbnail || null;
+
     const newAnnouncement = new Announcement({
       title: title.trim(),
       content: content.trim(),
@@ -268,6 +277,8 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       endDate: parsedEndDate,
       tags: parsedTags,
       attachments: Array.isArray(attachments) ? attachments : [],
+      thumbnail: photoUrl,
+      photo: photoUrl,
       createdBy: req.user._id
     });
 
@@ -313,7 +324,9 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
       startDate,
       endDate,
       tags,
-      attachments
+      attachments,
+      thumbnail,
+      photo
     } = req.body;
 
     if (title !== undefined) announcement.title = title.trim();
@@ -325,6 +338,12 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     if (isPinned !== undefined) announcement.isPinned = isPinned;
     if (startDate !== undefined) announcement.startDate = startDate ? new Date(startDate) : null;
     if (endDate !== undefined) announcement.endDate = endDate ? new Date(endDate) : null;
+
+    if (photo !== undefined || thumbnail !== undefined) {
+      const photoUrl = photo !== undefined ? photo : thumbnail;
+      announcement.photo = photoUrl || null;
+      announcement.thumbnail = photoUrl || null;
+    }
 
     if (tags !== undefined) {
       if (Array.isArray(tags)) {
@@ -367,6 +386,14 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
         success: false,
         message: 'Announcement not found'
       });
+    }
+
+    // Delete thumbnail file if it exists locally
+    if (announcement.thumbnail && !announcement.thumbnail.startsWith('http')) {
+      const thumbPath = path.join(__dirname, '..', announcement.thumbnail);
+      if (fs.existsSync(thumbPath)) {
+        try { fs.unlinkSync(thumbPath); } catch (e) { /* ignore */ }
+      }
     }
 
     await Announcement.findByIdAndDelete(req.params.id);
