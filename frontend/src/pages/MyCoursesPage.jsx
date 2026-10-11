@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
@@ -17,6 +17,7 @@ import DiscussionForumSection from '../components/DiscussionForumSection';
 
 export default function MyCoursesPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,11 +111,12 @@ export default function MyCoursesPage() {
   const completedCount = courses.filter(course => (course.progress ?? 0) >= 100).length;
   const inProgressCount = courses.filter(course => (course.progress ?? 0) < 100).length;
   const certificateCount = completedCount;
+  const showSidebar = location.state?.source !== 'top-nav';
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-800 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 flex flex-col lg:flex-row gap-8">
-        <StudentSidebar activeTab="courses" />
+        {showSidebar && <StudentSidebar activeTab="courses" />}
         <main className="flex-1 min-w-0">
 
         {/* Top Controls Bar */}

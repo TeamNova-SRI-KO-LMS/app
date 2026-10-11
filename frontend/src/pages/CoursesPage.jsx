@@ -152,6 +152,7 @@ export default function Courses() {
             </button>
             <Link
               to="/my-courses"
+              state={{ source: 'top-nav' }}
               className="bg-gray-200/80 hover:bg-gray-300/80 text-gray-700 px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition"
             >
               My Courses

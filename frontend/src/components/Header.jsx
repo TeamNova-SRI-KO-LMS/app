@@ -171,6 +171,7 @@ export default function Header() {
                 </Link>
                 <Link
                   to="/my-courses"
+                  state={{ source: 'top-nav' }}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
                 >
@@ -234,4 +235,3 @@ export default function Header() {
     </header>
   );
 }
-
