@@ -296,11 +296,15 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const googleLogin = async (idToken) => {
+  const googleLogin = async (idToken, role) => {
     dispatch({ type: 'LOGIN_START' });
 
     try {
-      const response = await apiService.post('/auth/google', { idToken });
+      const payload = { idToken };
+      if (role) {
+        payload.role = role;
+      }
+      const response = await apiService.post('/auth/google', payload);
       const responseData = response.data;
       const { token, user } = extractAuthPayload(responseData);
       const safeUser = sanitizeUser(user);

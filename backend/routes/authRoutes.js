@@ -328,9 +328,9 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/google - verify Google ID token and login existing users (no auto-register)
+// POST /api/auth/google - verify Google ID token and login or auto-register user
 router.post('/google', async (req, res) => {
-  const { idToken } = req.body;
+  const { idToken, role } = req.body;
   if (!idToken) return res.status(400).json({ success: false, message: 'idToken required' });
 
   try {
@@ -342,31 +342,54 @@ router.post('/google', async (req, res) => {
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
 
-    // Find user by googleId or email. Do NOT auto-register new users here.
-    let user = await User.findOne({ googleId }) || await User.findOne({ email });
+    // Find user by googleId or email
+    let user = (await User.findOne({ googleId })) || (await User.findOne({ email }));
+    let isNewUser = false;
+
     if (!user) {
-      return res.status(401).json({ success: false, message: 'No account found. Please register first.' });
-    }
+      // Auto-register new user
+      const assignedRole = role === 'instructor' ? 'instructor' : 'student';
+      const randomPassword = crypto.randomBytes(32).toString('hex');
 
-    // Disallow admin login via Google / user login
-    if (user.role === 'admin') {
-      return res.status(403).json({ success: false, message: 'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.' });
-    }
+      user = await User.create({
+        name: name || 'Google User',
+        email,
+        password: randomPassword,
+        googleId,
+        avatar: picture,
+        role: assignedRole,
+        emailVerified: true,
+        lastLogin: new Date(),
+      });
+      isNewUser = true;
+    } else {
+      // Disallow admin login via Google / user login
+      if (user.role === 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin accounts cannot log in through the user login. Please use the Admin Access Portal.',
+        });
+      }
 
-    // Optionally save googleId for future logins
-    if (!user.googleId) {
-      user.googleId = googleId;
-      user.avatar = user.avatar || picture;
-    }
+      // Link googleId and avatar if not yet set
+      if (!user.googleId) {
+        user.googleId = googleId;
+      }
+      if (!user.avatar && picture) {
+        user.avatar = picture;
+      }
 
-    user.lastLogin = new Date();
-    await user.save();
+      user.lastLogin = new Date();
+      await user.save();
+    }
 
     const token = generateToken(user._id);
 
-    return res.status(200).json({
+    return res.status(isNewUser ? 201 : 200).json({
       success: true,
-      message: 'Login successful via Google',
+      message: isNewUser
+        ? 'Account registered successfully with Google'
+        : 'Login successful via Google',
       token,
       user: {
         id: user._id,
@@ -377,6 +400,7 @@ router.post('/google', async (req, res) => {
       },
     });
   } catch (err) {
+    console.error('Google OAuth verification error:', err);
     return res.status(401).json({ success: false, message: 'Invalid Google ID token' });
   }
 });
