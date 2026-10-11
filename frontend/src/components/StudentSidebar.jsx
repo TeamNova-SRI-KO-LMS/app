@@ -75,6 +75,7 @@ export default function StudentSidebar({ activeTab: propActiveTab }) {
               <Link
                 key={item.id}
                 to={item.path}
+                state={item.id === 'courses' ? { source: 'profile-sidebar' } : undefined}
                 className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-full text-sm font-medium transition-all ${
                   isSelected
                     ? 'bg-blue-50 text-blue-600 shadow-sm border border-blue-100/80 font-semibold'

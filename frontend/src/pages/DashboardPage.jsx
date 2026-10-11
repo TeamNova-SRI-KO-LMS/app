@@ -367,6 +367,7 @@ export default function DashboardPage() {
               </h2>
               <Link
                 to="/my-courses"
+                state={{ source: 'top-nav' }}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
               >
                 View My Courses
@@ -486,4 +487,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

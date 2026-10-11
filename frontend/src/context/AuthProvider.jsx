@@ -45,7 +45,30 @@ const persistSession = (session) => {
       ...session,
       user: sanitizeUser(session.user),
     };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(safeSession));
+
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(safeSession));
+    } catch (error) {
+      // Data-URI avatars can exceed the browser's localStorage quota. Keep the
+      // token and user profile persisted, but let the next auth refresh fetch
+      // the avatar from the database instead of breaking the state update.
+      if (safeSession.user?.avatar) {
+        const userWithoutAvatar = { ...safeSession.user };
+        delete userWithoutAvatar.avatar;
+        try {
+          localStorage.setItem(
+            SESSION_KEY,
+            JSON.stringify({ token: null, user: userWithoutAvatar }),
+          );
+          console.warn('Avatar was not cached in localStorage:', error);
+        } catch (fallbackError) {
+          console.error('Could not persist the authentication session:', fallbackError);
+        }
+      } else {
+        console.error('Could not persist the authentication session:', error);
+      }
+    }
+
     if (safeSession.token) {
       localStorage.setItem('token', safeSession.token);
     }
@@ -348,12 +371,26 @@ const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGOUT' });
   };
 
+  const updateUser = (userData) => {
+    if (!userData) return;
+    const updatedUser = sanitizeUser({
+      ...state.user,
+      ...userData,
+    });
+    persistSession({ token: state.token, user: updatedUser });
+    dispatch({
+      type: 'UPDATE_USER',
+      payload: userData,
+    });
+  };
+
   const value = {
     ...state,
     login,
     register,
     googleLogin,
     logout,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
