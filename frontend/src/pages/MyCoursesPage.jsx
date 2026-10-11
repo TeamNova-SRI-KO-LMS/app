@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
+import StudentSidebar from '../components/StudentSidebar';
 import {
   Star,
   Bookmark,
@@ -11,39 +12,8 @@ import {
   PlusCircle,
   AlertTriangle,
   Bot,
-  Sparkles,
 } from 'lucide-react';
 import DiscussionForumSection from '../components/DiscussionForumSection';
-
-const DEFAULT_COURSES = [
-  {
-    _id: 'editorial-1',
-    title: 'Advanced Hangul Syntax & Editorial Flow',
-    level: 'intermediate',
-    progress: 65,
-    iconType: 'star',
-    thumbnail:
-      'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&q=80&w=800',
-  },
-  {
-    _id: 'editorial-2',
-    title: 'Literary Criticism & Modern Prose',
-    level: 'advanced',
-    progress: 22,
-    iconType: 'bookmark',
-    thumbnail:
-      'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=800',
-  },
-  {
-    _id: 'editorial-3',
-    title: 'Foundations of Journalistic Korean',
-    level: 'beginner',
-    progress: 90,
-    iconType: 'verified',
-    thumbnail:
-      'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=800',
-  },
-];
 
 export default function MyCoursesPage() {
   const { user } = useAuth();
@@ -53,11 +23,7 @@ export default function MyCoursesPage() {
   const [courseToUnenroll, setCourseToUnenroll] = useState(null);
   const [unenrolling, setUnenrolling] = useState(false);
 
-  useEffect(() => {
-    fetchEnrolledCourses();
-  }, [user]);
-
-  const fetchEnrolledCourses = async () => {
+  const fetchEnrolledCourses = useCallback(async () => {
     try {
       setLoading(true);
       const res = await apiService.get('/courses/my-courses');
@@ -70,17 +36,23 @@ export default function MyCoursesPage() {
           user.enrolledCourses.includes(c._id) ||
           c.enrolledStudents?.some(s => s._id === user._id || s === user._id)
         );
-        setCourses(userEnrolled.length > 0 ? userEnrolled : DEFAULT_COURSES);
+        setCourses(userEnrolled);
       } else {
-        setCourses(DEFAULT_COURSES);
+        setCourses([]);
       }
     } catch (error) {
       console.error('Error fetching enrolled courses:', error);
-      setCourses(DEFAULT_COURSES);
+      setCourses([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    // The async request updates the page when the enrolled-course response arrives.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEnrolledCourses();
+  }, [fetchEnrolledCourses]);
 
   const handleUnenroll = async () => {
     if (!courseToUnenroll) return;
@@ -134,14 +106,16 @@ export default function MyCoursesPage() {
   };
 
   // Compute metrics
-  const totalCount = Math.max(courses.length, 12);
-  const completedCount = 8;
-  const inProgressCount = 4;
-  const certificateCount = 5;
+  const totalCount = courses.length;
+  const completedCount = courses.filter(course => (course.progress ?? 0) >= 100).length;
+  const inProgressCount = courses.filter(course => (course.progress ?? 0) < 100).length;
+  const certificateCount = completedCount;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-800 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 flex flex-col lg:flex-row gap-8">
+        <StudentSidebar activeTab="courses" />
+        <main className="flex-1 min-w-0">
 
         {/* Top Controls Bar */}
         <div className="flex items-center justify-between gap-4 mb-6">
@@ -233,8 +207,22 @@ export default function MyCoursesPage() {
 
         {/* Courses Grid */}
         {!loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12">
-            {courses.map((course) => {
+          courses.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center mb-12">
+              <h2 className="text-lg font-bold text-gray-900">No courses yet</h2>
+              <p className="text-sm text-gray-500 mt-2 mb-5">
+                Explore the course catalog and enroll in a course to see it here.
+              </p>
+              <Link
+                to="/courses"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-semibold text-sm transition"
+              >
+                Explore Courses
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12">
+              {courses.map((course) => {
               const progressVal = course.progress ?? 45;
               const courseId = course._id || course.id;
               const learnLink = courseId.startsWith('editorial-')
@@ -309,8 +297,9 @@ export default function MyCoursesPage() {
                   </div>
                 </div>
               );
-            })}
-          </div>
+              })}
+            </div>
+          )
         )}
 
         {/* Want to learn more? Banner */}
@@ -335,6 +324,7 @@ export default function MyCoursesPage() {
         {/* Discussion Forums Section */}
         <DiscussionForumSection />
 
+        </main>
       </div>
 
       {/* Unenroll Modal Confirmation */}
