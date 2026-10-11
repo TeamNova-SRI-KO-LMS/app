@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import useAuth from '../context/useAuth';
 import { useState } from 'react';
 
@@ -12,8 +13,23 @@ const RegisterPage = () => {
   });
 
   const [validationError, setValidationError] = useState('');
-  const { register, loading, error } = useAuth();
+  const { register, googleLogin, loading, error } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogleCredentialResponse = async credentialResponse => {
+    if (typeof googleLogin !== 'function') {
+      setValidationError('Google sign-up is not configured.');
+      return;
+    }
+
+    setValidationError('');
+    const result = await googleLogin(credentialResponse.credential, formData.role);
+    if (result.success) {
+      navigate('/home');
+    } else {
+      setValidationError(result.error || 'Google sign-up failed.');
+    }
+  };
 
   const handleChange = e => {
     setFormData({
@@ -48,7 +64,7 @@ const RegisterPage = () => {
   const formError = validationError || error;
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen py-10 overflow-y-auto flex flex-col items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-4">
         
         {/* Header Section */}
@@ -194,6 +210,22 @@ const RegisterPage = () => {
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>
+          </div>
+
+          <div className="my-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400">OR</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleCredentialResponse}
+              onError={() => setValidationError('Google sign-up failed.')}
+              useOneTap={false}
+              text="signup_with"
+              shape="rectangular"
+            />
           </div>
         </form>
       </div>
