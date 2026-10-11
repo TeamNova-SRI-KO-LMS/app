@@ -344,12 +344,26 @@ const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGOUT' });
   };
 
+  const updateUser = (userData) => {
+    if (!userData) return;
+    const updatedUser = sanitizeUser({
+      ...state.user,
+      ...userData,
+    });
+    persistSession({ token: state.token, user: updatedUser });
+    dispatch({
+      type: 'UPDATE_USER',
+      payload: userData,
+    });
+  };
+
   const value = {
     ...state,
     login,
     register,
     googleLogin,
     logout,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

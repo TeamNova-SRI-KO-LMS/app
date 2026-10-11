@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
 const {
@@ -63,6 +65,8 @@ router.put(
         location: req.body.location,
         website: req.body.website,
         socialLinks: req.body.socialLinks,
+        notifications: req.body.notifications,
+        privacy: req.body.privacy,
       };
 
       // Remove undefined values
@@ -101,15 +105,66 @@ router.put(
   },
 );
 
+// @desc    Update notification preferences
+// @route   PUT /api/users/notifications
+// @access  Private
+router.put('/notifications', protect, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { notifications: req.body.notifications },
+      { new: true }
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Notification preferences updated successfully',
+      notifications: user.notifications,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Update privacy settings
+// @route   PUT /api/users/privacy
+// @access  Private
+router.put('/privacy', protect, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { privacy: req.body.privacy },
+      { new: true }
+    );
+    res.status(200).json({
+      success: true,
+      message: 'Privacy settings updated successfully',
+      privacy: user.privacy,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // @desc    Upload user avatar
 // @route   POST /api/users/avatar
 // @access  Private
-router.post('/avatar', protect, uploadSingle, handleUploadError, async (req, res) => {
+router.post('/avatar', protect, (req, res, next) => {
+  uploadSingle(req, res, err => {
+    if (err) {
+      console.error('Avatar upload error:', err);
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Failed to process avatar upload',
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'No file uploaded'
+        message: 'No file uploaded',
       });
     }
 
@@ -146,6 +201,54 @@ router.post('/avatar', protect, uploadSingle, handleUploadError, async (req, res
       success: false,
       message: 'Server error',
     });
+  }
+});
+
+// @desc    Delete user avatar
+// @route   DELETE /api/users/avatar
+// @access  Private
+router.delete('/avatar', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Delete local uploaded file if it exists
+    if (user.avatar && user.avatar.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', user.avatar);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (unlinkErr) {
+          console.warn('Could not remove file:', unlinkErr.message);
+        }
+      }
+    }
+
+    user.avatar = null;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile photo removed successfully',
+      avatar: null,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: null,
+        bio: user.bio,
+        phone: user.phone,
+        location: user.location,
+        website: user.website,
+        socialLinks: user.socialLinks,
+      },
+    });
+  } catch (error) {
+    console.error('Avatar delete error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
