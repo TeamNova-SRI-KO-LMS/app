@@ -307,6 +307,20 @@ const discussionForumService = {
   },
 
   /**
+   * Toggle locked status
+   */
+  async toggleLockForum(id) {
+    try {
+      const response = await apiClient.patch(`/forums/${id}/lock`);
+      return response.data;
+    } catch (error) {
+      const forum = fallbackForums.find(f => f._id === id);
+      if (forum) forum.isLocked = !forum.isLocked;
+      return { success: true, message: 'Lock status updated', forum };
+    }
+  },
+
+  /**
    * Get posts for a forum
    */
   async getPostsByForum(forumId) {

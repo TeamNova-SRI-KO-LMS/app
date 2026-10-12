@@ -540,45 +540,58 @@ export default function DiscussionForumSection() {
             </div>
 
             {/* Quick Add Message to current forum thread */}
-            <div className="p-4 border-t border-gray-100 bg-white">
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const form = e.target;
-                  const content = form.messageContent.value.trim();
-                  if (!content) return;
-                  try {
-                    const res = await discussionForumService.createPost(activeForum._id, {
-                      content,
-                      title: user?.role === 'admin' ? `[Admin Message] ${content.substring(0, 30)}` : content.substring(0, 30)
-                    });
-                    if (res.success) {
-                      toast.success(user?.role === 'admin' ? 'Admin Message posted!' : 'Reply posted!');
-                      form.reset();
-                      const updated = await discussionForumService.getPostsByForum(activeForum._id);
-                      if (updated.success) setActivePosts(updated.posts);
+            {activeForum.isLocked && user?.role !== 'admin' ? (
+              <div className="p-4 border-t border-gray-100 bg-amber-50/70 flex items-center justify-center gap-2 text-xs font-semibold text-amber-800">
+                <Lock size={15} className="text-amber-600" />
+                <span>This discussion topic is locked by administrators. New replies are disabled.</span>
+              </div>
+            ) : (
+              <div className="p-4 border-t border-gray-100 bg-white">
+                {activeForum.isLocked && (
+                  <div className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg">
+                    <Lock size={12} />
+                    <span>Topic is locked for students. You can post because you are an Administrator.</span>
+                  </div>
+                )}
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    const content = form.messageContent.value.trim();
+                    if (!content) return;
+                    try {
+                      const res = await discussionForumService.createPost(activeForum._id, {
+                        content,
+                        title: user?.role === 'admin' ? `[Admin Message] ${content.substring(0, 30)}` : content.substring(0, 30)
+                      });
+                      if (res.success) {
+                        toast.success(user?.role === 'admin' ? 'Admin Message posted!' : 'Reply posted!');
+                        form.reset();
+                        const updated = await discussionForumService.getPostsByForum(activeForum._id);
+                        if (updated.success) setActivePosts(updated.posts);
+                      }
+                    } catch (err) {
+                      toast.error(err.response?.data?.message || 'Failed to post message');
                     }
-                  } catch (err) {
-                    toast.error('Failed to post message');
-                  }
-                }}
-                className="flex gap-2"
-              >
-                <input
-                  name="messageContent"
-                  type="text"
-                  placeholder={user?.role === 'admin' ? "Post an Admin Message or announcement to this thread..." : "Post a response or reply to this discussion thread..."}
-                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <button
-                  type="submit"
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  }}
+                  className="flex gap-2"
                 >
-                  <Send size={15} />
-                  <span>{user?.role === 'admin' ? 'Post Admin Msg' : 'Reply'}</span>
-                </button>
-              </form>
-            </div>
+                  <input
+                    name="messageContent"
+                    type="text"
+                    placeholder={user?.role === 'admin' ? "Post an Admin Message or announcement to this thread..." : "Post a response or reply to this discussion thread..."}
+                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Send size={15} />
+                    <span>{user?.role === 'admin' ? 'Post Admin Msg' : 'Reply'}</span>
+                  </button>
+                </form>
+              </div>
+            )}
 
           </div>
         </div>
