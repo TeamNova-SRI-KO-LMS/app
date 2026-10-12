@@ -22,12 +22,7 @@ const LoginPage = () => {
   const location = useLocation();
   const from = location.state?.from?.pathname || '/home';
 
-  // Display authentication errors returned by the authentication provider.
-  useEffect(() => {
-    if (error) {
-      setLocalError(error);
-    }
-  }, [error]);
+  const displayError = localError || error;
 
   // Display the password reset confirmation for five seconds.
   useEffect(() => {
@@ -111,19 +106,19 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen overflow-auto bg-[#f7f8fc] px-4 py-8 text-gray-900 sm:py-10">
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#F4F6FB] px-4 py-8 sm:px-6 text-gray-900">
       {/* Password reset success notification */}
       {location.state?.passwordChanged && !successDismissed && (
-        <div className="fixed right-4 top-3 z-10 flex w-56 items-start gap-2 rounded-lg border border-green-100 bg-[#e8f8ed] px-3 py-2.5 shadow-[0_5px_15px_rgba(40,120,70,0.12)]">
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-[10px] text-white">
+        <div className="fixed right-4 top-4 z-50 flex w-72 items-start gap-3 rounded-xl border border-green-200 bg-[#e8f8ed] p-3.5 shadow-lg shadow-green-900/10">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-600 text-xs text-white">
             ✓
           </span>
           <div className="flex-1">
-            <p className="text-[10px] font-semibold text-green-800">
+            <p className="text-xs font-semibold text-green-900">
               Success
             </p>
-            <p className="text-[8px] text-green-700">
-              Password changed
+            <p className="text-xs text-green-700 mt-0.5">
+              Password has been successfully changed.
             </p>
           </div>
           <button
@@ -136,176 +131,213 @@ const LoginPage = () => {
                 state: {},
               });
             }}
-            className="text-xs text-green-700/50 hover:text-green-700"
+            className="text-sm font-semibold text-green-700/60 hover:text-green-900 transition-colors"
           >
             ×
           </button>
         </div>
       )}
 
-      <main className="mx-auto flex w-full max-w-62.5 flex-col items-center sm:max-w-67.5">
-        <header className="w-full bg-white px-4 pb-2 pt-2 text-center">
+      {/* Main Login Card */}
+      <div className="w-full max-w-[460px] bg-white rounded-2xl sm:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.06)] p-8 sm:p-10 border border-gray-100/80 transition-all duration-300">
+        {/* SRI-KO Logo */}
+        <div className="flex justify-center mb-4">
           <img
             src="/sri-ko-logo.png"
             alt="SRI-KO Foreign Language Training Center"
-            className="mx-auto h-16 w-auto object-contain"
+            className="h-20 w-auto object-contain"
           />
-          <p className="mt-1 text-[9px] text-gray-700">
-            Elevate your linguistic scholarship
-          </p>
-        </header>
+        </div>
 
-        <section className="w-full rounded-b-lg bg-white px-5 pb-4 pt-4 shadow-[0_10px_25px_rgba(45,55,90,0.07)]">
-          <h1 className="text-[15px] font-semibold text-gray-900">
+        {/* Title & Subtitle */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl sm:text-[26px] font-bold text-gray-900 tracking-tight">
             Welcome back
           </h1>
-          <p className="mt-0.5 text-[9px] text-gray-500">
+          <p className="text-sm text-gray-500 mt-1 font-normal">
             Please enter your details to continue
           </p>
+        </div>
 
-          {/* Combined login error display and admin portal redirect */}
-          {localError && (
-            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
-              <svg
-                className="mt-0.5 h-4 w-4 shrink-0 text-red-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <div className="flex-1">
-                <span className="font-medium">{localError}</span>
-                {localError.toLowerCase().includes('admin') && (
-                  <div className="mt-1">
-                    <Link
-                      to="/admin/login"
-                      className="font-semibold text-blue-700 underline hover:text-blue-800"
-                    >
-                      Go to Admin Access Portal →
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-[8px] font-bold tracking-wide text-gray-700"
-              >
-                EMAIL ADDRESS
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="scholar@sriko-editorial.com"
-                className="mt-1 h-7 w-full rounded-md border border-transparent bg-gray-200 px-2.5 text-[9px] text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="password"
-                  className="block text-[8px] font-bold tracking-wide text-gray-700"
-                >
-                  PASSWORD
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-[8px] font-semibold text-blue-700 hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="mt-1 h-7 w-full rounded-md border border-transparent bg-gray-200 px-2.5 text-[9px] text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
-              />
-            </div>
-
-            {/* UI preference; persistent login requires auth-provider support. */}
-            <label className="flex items-center gap-1.5 pt-0.5 text-[8px] text-gray-700">
-              <input
-                id="rememberMe"
-                name="rememberMe"
-                type="checkbox"
-                checked={formData.rememberMe}
-                onChange={handleChange}
-                className="h-3 w-3 rounded border-gray-300 accent-blue-600"
-              />
-              Remember me for 30 days
-            </label>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-8 w-full rounded-md bg-linear-to-r from-blue-700 via-indigo-600 to-purple-600 text-[10px] font-semibold text-white shadow-md transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        {/* Error Notification */}
+        {displayError && (
+          <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600 animate-fadeIn">
+            <svg
+              className="mt-0.5 h-4 w-4 shrink-0 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          <div className="my-4 flex items-center gap-2">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-[7px] text-gray-500">OR</span>
-            <div className="h-px flex-1 bg-gray-200" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div className="flex-1">
+              <span className="font-medium">{displayError}</span>
+              {displayError.toLowerCase().includes('admin') && (
+                <div className="mt-1">
+                  <Link
+                    to="/admin/login"
+                    className="font-semibold text-blue-700 underline hover:text-blue-800"
+                  >
+                    Go to Admin Access Portal →
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
+        )}
 
-          <div className="flex justify-center overflow-hidden rounded-md border border-gray-200">
-            <GoogleLogin
-              onSuccess={handleGoogleCredentialResponse}
-              onError={() => setLocalError('Google login failed.')}
-              useOneTap={false}
-              width="205"
-              text="continue_with"
-              shape="rectangular"
-              logo_alignment="left"
+        {/* Login Form */}
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          {/* Email Address */}
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-[11px] font-bold tracking-wider text-gray-700 uppercase mb-2"
+            >
+              EMAIL ADDRESS
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="scholar@sriko-editorial.com"
+              className="w-full h-11 px-4 bg-[#EAEFF4] border border-transparent rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-colors duration-150"
             />
           </div>
 
-          <div className="mt-4 text-center">
-            <Link
-              to="/admin/login"
-              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-[8px] font-medium text-gray-700 hover:bg-gray-200"
-            >
-              <span className="text-blue-600">◉</span>
-              Access Admin Portal
-            </Link>
+          {/* Password */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label
+                htmlFor="password"
+                className="block text-[11px] font-bold tracking-wider text-gray-700 uppercase"
+              >
+                PASSWORD
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              className="w-full h-11 px-4 bg-[#EAEFF4] border border-transparent rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition-colors duration-150"
+            />
           </div>
-        </section>
 
-        <p className="mt-8 text-center text-[8px] text-gray-500">
+          {/* Remember Me */}
+          <div className="flex items-center pt-0.5">
+            <input
+              id="rememberMe"
+              name="rememberMe"
+              type="checkbox"
+              checked={formData.rememberMe}
+              onChange={handleChange}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+            />
+            <label
+              htmlFor="rememberMe"
+              className="ml-2.5 text-xs sm:text-sm font-normal text-gray-600 cursor-pointer select-none"
+            >
+              Remember me for 30 days
+            </label>
+          </div>
+
+          {/* Sign In Button */}
+          <div className="pt-1">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-11 rounded-xl text-white font-semibold text-sm bg-gradient-to-r from-[#1E50DC] via-[#4338CA] to-[#8C3CF0] hover:opacity-95 shadow-md shadow-indigo-500/20 active:scale-[0.99] transition-all duration-200 flex items-center justify-center cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Signing in...</span>
+                </div>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </div>
+        </form>
+
+        {/* OR Divider */}
+        <div className="my-5 flex items-center justify-center">
+          <div className="h-px flex-1 bg-gray-200" />
+          <span className="px-3 text-[11px] font-medium uppercase tracking-wider text-gray-400">
+            OR
+          </span>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+
+        {/* Google Sign In */}
+        <div className="flex justify-center w-full overflow-hidden">
+          <GoogleLogin
+            onSuccess={handleGoogleCredentialResponse}
+            onError={() => setLocalError('Google login failed.')}
+            useOneTap={false}
+            width="380"
+            text="continue_with"
+            shape="rectangular"
+            theme="outline"
+            size="large"
+            logo_alignment="left"
+          />
+        </div>
+
+        {/* Access Admin Portal Button */}
+        <div className="mt-5 flex justify-center">
+          <Link
+            to="/admin/login"
+            className="inline-flex items-center gap-2 rounded-full bg-[#EAEFF4] hover:bg-gray-200/80 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors"
+          >
+            <svg
+              className="w-3.5 h-3.5 text-blue-600 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <circle cx="12" cy="11" r="1.5" />
+              <path d="M12 12.5V15" />
+            </svg>
+            Access Admin Portal
+          </Link>
+        </div>
+
+        {/* Membership Footer */}
+        <div className="mt-6 text-center text-xs text-gray-500 font-normal">
           New to the scholar community?{' '}
-          <Link to="/register" className="text-blue-600 hover:underline">
+          <Link
+            to="/register"
+            className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+          >
             Apply for Membership
           </Link>
-        </p>
-
-        <p className="mt-8 text-[7px] uppercase tracking-[0.16em] text-gray-500">
-          © 2024 SRI-KO Editorial Scholar. All rights reserved.
-        </p>
-      </main>
+        </div>
+      </div>
     </div>
   );
 };
