@@ -395,14 +395,6 @@ const PaymentDetails = () => {
             <span>Refresh</span>
           </button>
 
-          {/* Record Manual Payment */}
-          <button
-            onClick={openManualModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus size={16} className="text-emerald-600" />
-            <span>Record Slip / Manual</span>
-          </button>
 
           {/* Export CSV */}
           <button

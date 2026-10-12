@@ -11,7 +11,7 @@ const discussionForumSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['general', 'korean-basics', 'grammar', 'vocabulary', 'culture', 'other'],
+    enum: ['general', 'korean-basics', 'grammar', 'vocabulary', 'culture', 'linguistics', 'literature', 'study-tips', 'other'],
     default: 'general'
   },
   level: {
@@ -34,7 +34,7 @@ const discussionForumSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
   },
   moderators: [{
     type: mongoose.Schema.Types.ObjectId,
