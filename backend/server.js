@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
@@ -12,6 +13,8 @@ try {
   console.warn('Could not set custom DNS servers:', e.message);
 }
 
+const { initSocket } = require('./socket/socketManager');
+
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const courseRoutes = require('./routes/courseRoutes');
@@ -22,8 +25,13 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const discussionForumRoutes = require('./routes/discussionForumRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
+
+// Initialize Socket.IO with HTTP server
+initSocket(server);
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB database!'))
@@ -40,19 +48,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Serve uploaded files (avatars)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use('/api/auth', authRoutes);
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
 // Enhanced database availability middleware with auto-reconnect
 const checkDatabase = async (req, res, next) => {
   if (mongoose.connection.readyState !== 1) {
     console.log(`⚠️ Database disconnected for ${req.method} ${req.path}. Attempting to reconnect...`);
 
     try {
-      // Attempt to reconnect with enhanced options
       const mongooseOptions = {
         serverSelectionTimeoutMS: 30000,
         socketTimeoutMS: 45000,
@@ -82,10 +83,10 @@ const checkDatabase = async (req, res, next) => {
   next();
 };
 
-
+// Route registrations
+app.use('/api/auth', authRoutes);
 app.use('/api/users', checkDatabase, userRoutes);
 app.use('/api/courses', checkDatabase, courseRoutes);
-
 app.use('/api/subscriptions', checkDatabase, subscriptionRoutes);
 app.use('/api/payments', checkDatabase, paymentRoutes);
 app.use('/api/notifications', checkDatabase, notificationRoutes);
@@ -93,3 +94,7 @@ app.use('/api/announcements', checkDatabase, announcementRoutes);
 app.use('/api/forums', checkDatabase, discussionForumRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);
 app.use('/api/admin/analytics', checkDatabase, analyticsRoutes);
+
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});

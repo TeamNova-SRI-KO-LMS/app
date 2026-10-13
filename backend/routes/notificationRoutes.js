@@ -4,6 +4,7 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Course = require('../models/Course');
 const { protect, authorize } = require('../middleware/auth');
+const NotificationEngine = require('../services/NotificationEngine');
 
 // @desc    Get active notifications for current user
 // @route   GET /api/notifications
@@ -79,13 +80,150 @@ router.get('/stats', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+// @desc    Get unread notification count for current user
+// @route   GET /api/notifications/unread-count
+// @access  Private
+router.get('/unread-count', protect, async (req, res) => {
+  try {
+    const now = new Date();
+    const audienceMatches = [
+      { targetAudience: 'all' },
+      { targetUsers: req.user._id }
+    ];
+
+    if (req.user.role) {
+      audienceMatches.push({ targetAudience: `${req.user.role}s` });
+      audienceMatches.push({ targetRoles: req.user.role });
+    }
+
+    const count = await Notification.countDocuments({
+      isActive: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+        { expiresAt: { $gt: now } }
+      ],
+      'readBy.user': { $ne: req.user._id },
+      $and: [
+        { $or: audienceMatches }
+      ]
+    });
+
+    res.json({
+      success: true,
+      count
+    });
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Mark all unread notifications as read for current user
+// @route   POST /api/notifications/mark-all-read
+// @access  Private
+router.post('/mark-all-read', protect, async (req, res) => {
+  try {
+    const now = new Date();
+    const audienceMatches = [
+      { targetAudience: 'all' },
+      { targetUsers: req.user._id }
+    ];
+
+    if (req.user.role) {
+      audienceMatches.push({ targetAudience: `${req.user.role}s` });
+      audienceMatches.push({ targetRoles: req.user.role });
+    }
+
+    const unreadNotifications = await Notification.find({
+      isActive: true,
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+        { expiresAt: { $gt: now } }
+      ],
+      'readBy.user': { $ne: req.user._id },
+      $and: [
+        { $or: audienceMatches }
+      ]
+    });
+
+    for (const notif of unreadNotifications) {
+      await notif.markAsRead(req.user._id);
+    }
+
+    res.json({
+      success: true,
+      message: `Marked ${unreadNotifications.length} notifications as read`,
+      count: unreadNotifications.length
+    });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Get users for notification targeting (admin only)
+// @route   GET /api/notifications/target-users
+// @access  Private/Admin
+router.get('/target-users', protect, authorize('admin'), async (req, res) => {
+  try {
+    const { role, courseId, search } = req.query;
+    const query = {};
+
+    if (role) {
+      query.role = role;
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const users = await User.find(query)
+      .select('name email role')
+      .limit(50)
+      .sort({ name: 1 });
+
+    let courses = [];
+    if (courseId) {
+      courses = await Course.findById(courseId).select('title');
+    } else {
+      courses = await Course.find({ isPublished: true })
+        .select('title')
+        .limit(20)
+        .sort({ title: 1 });
+    }
+
+    res.json({
+      success: true,
+      users,
+      courses
+    });
+  } catch (error) {
+    console.error('Error fetching target users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 // @desc    Get notification by ID
 // @route   GET /api/notifications/:id
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
   try {
     const notification = await Notification.findById(req.params.id)
-      .populate('createdBy', 'name email')
+      .populate('createdBy', 'name email role')
       .populate('targetUsers', 'name email')
       .populate('targetCourses', 'title');
 
@@ -109,7 +247,7 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Create new notification (admin only)
+// @desc    Create new notification and dispatch via WebSocket (admin only)
 // @route   POST /api/notifications
 // @access  Private/Admin
 router.post('/', protect, authorize('admin'), async (req, res) => {
@@ -133,47 +271,68 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       koreanTitle,
       koreanMessage,
       parentNotification,
-      deliveryMethods
     } = req.body;
 
     // Validate required fields
-    if (!title || !message || !expiresAt) {
+    if (!title || !message) {
       return res.status(400).json({
         success: false,
-        message: 'Title, message, and expiration date are required'
+        message: 'Title and message are required'
       });
     }
 
-    // Validate expiration date
-    const expDate = new Date(expiresAt);
-    if (expDate <= new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Expiration date must be in the future'
-      });
+    // Process expiration date (default to 30 days in future if omitted or invalid)
+    let expDate = expiresAt ? new Date(expiresAt) : null;
+    if (!expDate || isNaN(expDate.getTime()) || expDate <= new Date()) {
+      expDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Sanitize parentNotification to avoid ObjectId cast errors from empty strings
-    const sanitizedParentNotification = {};
+    // Normalize type to match enum ['course_update', 'payment_due', 'system', 'message', 'other']
+    let normalizedType = (type || 'system').toLowerCase().replace(/\s+/g, '_');
+    if (['general', 'special_event', 'event', 'event_reminder'].includes(normalizedType)) normalizedType = 'other';
+    if (['course_alert', 'course'].includes(normalizedType)) normalizedType = 'course_update';
+    if (['system_update'].includes(normalizedType)) normalizedType = 'system';
+    if (!['course_update', 'payment_due', 'system', 'message', 'other'].includes(normalizedType)) {
+      normalizedType = 'system';
+    }
+
+    // Normalize priority to match enum ['low', 'medium', 'high', 'urgent']
+    let normalizedPriority = (priority || 'medium').toLowerCase();
+    if (normalizedPriority === 'normal') normalizedPriority = 'medium';
+    if (!['low', 'medium', 'high', 'urgent'].includes(normalizedPriority)) {
+      normalizedPriority = 'medium';
+    }
+
+    // Normalize audience to match enum ['all', 'students', 'instructors', 'admins', 'specific_users', 'specific_courses']
+    let normalizedAudience = (targetAudience || 'all').toLowerCase().replace(/\s+/g, '_');
+    if (['all_users', 'all_scholars', 'everyone'].includes(normalizedAudience)) normalizedAudience = 'all';
+    if (['scholars', 'student'].includes(normalizedAudience)) normalizedAudience = 'students';
+    if (['editors', 'instructor', 'instructors_only', 'teachers'].includes(normalizedAudience)) normalizedAudience = 'instructors';
+    if (['admin', 'admins_only'].includes(normalizedAudience)) normalizedAudience = 'admins';
+    if (['students_only'].includes(normalizedAudience)) normalizedAudience = 'students';
+    if (!['all', 'students', 'instructors', 'admins', 'specific_users', 'specific_courses'].includes(normalizedAudience)) {
+      normalizedAudience = 'all';
+    }
+
+    // Sanitize parentNotification to avoid ObjectId cast errors
+    let sanitizedParentNotification = { isParentNotification: false };
     if (parentNotification && parentNotification.isParentNotification) {
-      const maybeStudentId = parentNotification.studentId;
-      const maybeParentId = parentNotification.parentId;
       sanitizedParentNotification.isParentNotification = true;
-      if (typeof maybeStudentId === 'string' && maybeStudentId.length === 24) {
-        sanitizedParentNotification.studentId = maybeStudentId;
+      if (typeof parentNotification.studentId === 'string' && parentNotification.studentId.length === 24) {
+        sanitizedParentNotification.studentId = parentNotification.studentId;
       }
-      if (typeof maybeParentId === 'string' && maybeParentId.length === 24) {
-        sanitizedParentNotification.parentId = maybeParentId;
+      if (typeof parentNotification.parentId === 'string' && parentNotification.parentId.length === 24) {
+        sanitizedParentNotification.parentId = parentNotification.parentId;
       }
     }
 
-    // Create notification
-    const notification = new Notification({
+    // Use NotificationEngine to save in MongoDB and dispatch via Socket.IO
+    const notification = await NotificationEngine.dispatch({
       title,
       message,
-      type: type || 'general',
-      priority: priority || 'medium',
-      targetAudience: targetAudience || 'all',
+      type: normalizedType,
+      priority: normalizedPriority,
+      targetAudience: normalizedAudience,
       targetUsers: targetUsers || [],
       targetRoles: targetRoles || [],
       targetCourses: targetCourses || [],
@@ -181,34 +340,17 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       isPinned: isPinned || false,
       scheduledFor: scheduledFor ? new Date(scheduledFor) : new Date(),
       expiresAt: expDate,
-      createdBy: req.user._id,
       actionUrl,
       actionText,
       tags: tags || [],
       koreanTitle,
       koreanMessage,
       parentNotification: sanitizedParentNotification,
-      deliveryMethods: deliveryMethods || {
-        inApp: true,
-        email: false,
-        sms: false
-      }
-    });
-
-    await notification.save();
-
-    // Populate the notification with creator info
-    await notification.populate('createdBy', 'name email');
-
-    // If targetUsers is specified, send to specific users
-    if (targetUsers && targetUsers.length > 0) {
-      notification.deliveryStats.totalSent = targetUsers.length;
-      await notification.save();
-    }
+    }, req.user._id);
 
     res.status(201).json({
       success: true,
-      message: 'Notification created successfully',
+      message: 'Notification created and dispatched in real-time',
       notification
     });
   } catch (error) {
@@ -253,7 +395,6 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
       koreanTitle,
       koreanMessage,
       parentNotification,
-      deliveryMethods
     } = req.body;
 
     // Update fields
@@ -269,13 +410,12 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     if (isPinned !== undefined) notification.isPinned = isPinned;
     if (scheduledFor) notification.scheduledFor = new Date(scheduledFor);
     if (expiresAt) notification.expiresAt = new Date(expiresAt);
-    if (actionUrl) notification.actionUrl = actionUrl;
-    if (actionText) notification.actionText = actionText;
+    if (actionUrl !== undefined) notification.actionUrl = actionUrl;
+    if (actionText !== undefined) notification.actionText = actionText;
     if (tags) notification.tags = tags;
-    if (koreanTitle) notification.koreanTitle = koreanTitle;
-    if (koreanMessage) notification.koreanMessage = koreanMessage;
+    if (koreanTitle !== undefined) notification.koreanTitle = koreanTitle;
+    if (koreanMessage !== undefined) notification.koreanMessage = koreanMessage;
     if (parentNotification) notification.parentNotification = parentNotification;
-    if (deliveryMethods) notification.deliveryMethods = deliveryMethods;
 
     await notification.save();
 
@@ -456,12 +596,15 @@ router.post('/send-to-users', protect, authorize('admin'), async (req, res) => {
       });
     }
 
-    const notifications = await Notification.sendToUsers(notificationData, userIds);
+    const notification = await Notification.sendToUsers(
+      { ...notificationData, createdBy: req.user._id },
+      userIds
+    );
 
     res.status(201).json({
       success: true,
-      message: `Notification sent to ${notifications.length} users`,
-      notifications
+      message: `Notification sent to ${userIds.length} users`,
+      notification
     });
   } catch (error) {
     console.error('Error sending notification to users:', error);
@@ -486,63 +629,18 @@ router.post('/send-to-parents', protect, authorize('admin'), async (req, res) =>
       });
     }
 
-    const notifications = await Notification.sendToParents(notificationData, studentIds);
+    const notification = await Notification.sendToParents(
+      { ...notificationData, createdBy: req.user._id },
+      studentIds
+    );
 
     res.status(201).json({
       success: true,
-      message: `Notification sent to ${notifications.length} parents`,
-      notifications
+      message: `Notification sent to ${studentIds.length} parents`,
+      notification
     });
   } catch (error) {
     console.error('Error sending notification to parents:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-// @desc    Get users for notification targeting (admin only)
-// @route   GET /api/notifications/target-users
-// @access  Private/Admin
-router.get('/target-users', protect, authorize('admin'), async (req, res) => {
-  try {
-    const { role, courseId, search } = req.query;
-    const query = {};
-
-    if (role) {
-      query.role = role;
-    }
-
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    const users = await User.find(query)
-      .select('name email role')
-      .limit(50)
-      .sort({ name: 1 });
-
-    let courses = [];
-    if (courseId) {
-      courses = await Course.findById(courseId).select('title');
-    } else {
-      courses = await Course.find({ isPublished: true })
-        .select('title')
-        .limit(20)
-        .sort({ title: 1 });
-    }
-
-    res.json({
-      success: true,
-      users,
-      courses
-    });
-  } catch (error) {
-    console.error('Error fetching target users:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'

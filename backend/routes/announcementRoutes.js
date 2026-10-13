@@ -285,6 +285,14 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     const savedAnnouncement = await newAnnouncement.save();
     await savedAnnouncement.populate('createdBy', 'name email role avatar');
 
+    // Dispatch real-time in-app notification to users
+    try {
+      const NotificationEngine = require('../services/NotificationEngine');
+      await NotificationEngine.onAnnouncementCreated(savedAnnouncement, req.user._id);
+    } catch (notifErr) {
+      console.warn('NotificationEngine warning on announcement creation:', notifErr.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Announcement created successfully',
