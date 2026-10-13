@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Menu, X, LayoutDashboard, BookOpen, User, Settings, Folder, LogOut } from 'lucide-react';
+import { Search, Menu, X, LayoutDashboard, BookOpen, User, Settings, Folder, LogOut, Bell } from 'lucide-react';
 import useAuth from '../context/useAuth';
 import UserDropdown from './UserDropdown';
+import NotificationBell from './NotificationBell';
+import { useNotifications } from '../context/NotificationContext';
 import toast from 'react-hot-toast';
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -82,8 +85,12 @@ export default function Header() {
 
           {/* Auth area */}
           {isAuthenticated ? (
-            /* User Profile Dropdown Component */
-            <UserDropdown />
+            <div className="flex items-center space-x-2">
+              {/* Notification Bell Icon */}
+              <NotificationBell />
+              {/* User Profile Dropdown Component */}
+              <UserDropdown />
+            </div>
           ) : (
             /* Sign In + Join Us Today — shown when logged out */
             <div className="hidden md:flex items-center space-x-3">
@@ -161,6 +168,23 @@ export default function Header() {
                     <p className="text-xs text-gray-500">Level: Intermediate</p>
                   </div>
                 </div>
+
+                <Link
+                  to="/notifications"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between py-2.5 px-4 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <Bell size={16} />
+                    <span>Notifications</span>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded-full">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Link>
+
                 <Link
                   to="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
