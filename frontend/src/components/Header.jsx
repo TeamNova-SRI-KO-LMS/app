@@ -12,7 +12,9 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) =>
+    location.pathname === path ||
+    (path === '/join' && (location.pathname === '/join-us' || location.pathname === '/contact'));
 
   const handleMobileLogout = () => {
     setMobileMenuOpen(false);
@@ -27,6 +29,7 @@ export default function Header() {
     { to: '/courses',       label: 'Courses' },
     { to: '/announcements', label: 'Announcements', requiresAuth: true },
     { to: '/events',        label: 'Events' },
+    { to: '/join',          label: 'Join Us' },
     { to: '/about',         label: 'About Us' },
   ];
 
