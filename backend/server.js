@@ -22,6 +22,7 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const discussionForumRoutes = require('./routes/discussionForumRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -34,7 +35,8 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files (avatars)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -92,3 +94,4 @@ app.use('/api/announcements', checkDatabase, announcementRoutes);
 app.use('/api/forums', checkDatabase, discussionForumRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);
 app.use('/api/attendance', checkDatabase, attendanceRoutes);
+app.use('/api/admin/analytics', checkDatabase, analyticsRoutes);

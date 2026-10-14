@@ -157,6 +157,7 @@ export default function UserDropdown() {
                 <Link
                   key={item.id}
                   to={item.path}
+                  state={item.id === 'courses' ? { source: 'profile-sidebar' } : undefined}
                   onClick={() => setIsOpen(false)}
                   className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition-colors ${
                     isActive

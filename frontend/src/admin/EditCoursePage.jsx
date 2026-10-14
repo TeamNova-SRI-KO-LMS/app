@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import AdminHeader from '../admin/AdminHeader';
-import EditCourseView from '../admin/components/EditCourseView';
+import AdminHeader from './AdminHeader';
+import EditCourseView from './components/EditCourseView';
 import courseService from '../services/courseService';
 
 export default function EditCoursePage() {

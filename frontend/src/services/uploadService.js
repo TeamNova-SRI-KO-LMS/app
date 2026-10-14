@@ -16,26 +16,60 @@ import { supabase } from '../config/supabase';
  * // Course thumbnail upload
  * const url = await uploadToSupabase(file, 'images', 'courses');
  */
-export async function uploadToSupabase(file, bucket = 'images', folder = '') {
-  // Build a unique file path: [folder/]timestamp-random.ext
-  const ext      = file.name.split('.').pop().toLowerCase();
-  const unique   = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+export async function uploadToSupabase(file, bucket = (import.meta.env.VITE_SUPABASE_BUCKET || 'courses'), folder = '') {
+  // Validate file
+  if (!file) {
+    throw new Error('No file provided for upload.');
+  }
+
+  // Sanitize filename and create unique path
+  const sanitizedName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image';
+  const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const filePath = folder ? `${folder}/${unique}.${ext}` : `${unique}.${ext}`;
 
-  // Upload the file (upsert:true overwrites if path already exists)
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, file, { upsert: true, contentType: file.type });
+  // Helper to attempt upload on a specific bucket
+  const attemptUpload = async (targetBucket) => {
+    const { error: uploadError } = await supabase.storage
+      .from(targetBucket)
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: file.type || 'image/jpeg'
+      });
+    return { uploadError };
+  };
+
+  let activeBucket = bucket;
+  let { uploadError } = await attemptUpload(activeBucket);
+
+  // If initial bucket fails (not found or policy violation), try alternate known buckets
+  if (uploadError) {
+    const candidateBuckets = ['courses', 'images', 'announcements'].filter(b => b !== activeBucket);
+    for (const altBucket of candidateBuckets) {
+      const retry = await attemptUpload(altBucket);
+      if (!retry.uploadError) {
+        activeBucket = altBucket;
+        uploadError = null;
+        break;
+      }
+    }
+  }
 
   if (uploadError) {
-    throw new Error(`Supabase upload failed: ${uploadError.message}`);
+    if (uploadError.message?.toLowerCase().includes('bucket not found') || uploadError.statusCode === '404' || uploadError.code === 'NoSuchBucket') {
+      throw new Error(`Supabase bucket "${activeBucket}" was not found. Please create a public bucket named "${activeBucket}" in your Supabase Dashboard.`);
+    }
+    if (uploadError.statusCode === '403' || uploadError.code === 'AccessDenied' || uploadError.message?.toLowerCase().includes('policy')) {
+      throw new Error(`Supabase storage access denied for bucket "${activeBucket}". Please ensure the bucket has public insert/upload policies enabled in Supabase.`);
+    }
+    throw new Error(`Supabase upload failed: ${uploadError.message || 'Unknown error'}`);
   }
 
   // Get the permanent public URL
-  const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+  const { data } = supabase.storage.from(activeBucket).getPublicUrl(filePath);
 
   if (!data?.publicUrl) {
-    throw new Error('Could not retrieve public URL from Supabase.');
+    throw new Error('Could not retrieve public URL from Supabase Storage.');
   }
 
   return data.publicUrl;
@@ -45,20 +79,20 @@ export async function uploadToSupabase(file, bucket = 'images', folder = '') {
  * Deletes a file from Supabase Storage by its full public URL.
  *
  * @param {string} publicUrl - The public URL previously returned by uploadToSupabase().
- * @param {string} bucket    - The Supabase bucket name the file is in.
+ * @param {string} [fallbackBucket='courses'] - The Supabase bucket name if not identifiable from URL.
  */
-export async function deleteFromSupabase(publicUrl, bucket = 'images') {
-  // Extract the file path from the URL:
-  // https://<project>.supabase.co/storage/v1/object/public/<bucket>/<filePath>
-  const marker = `/object/public/${bucket}/`;
-  const idx    = publicUrl.indexOf(marker);
+export async function deleteFromSupabase(publicUrl, fallbackBucket = 'courses') {
+  if (!publicUrl || typeof publicUrl !== 'string') return;
 
-  if (idx === -1) return; // not a Supabase URL, skip
+  // Extract bucket and path from https://<project>.supabase.co/storage/v1/object/public/<bucket>/<filePath>
+  const match = publicUrl.match(/\/object\/public\/([^/]+)\/(.+)$/);
+  const targetBucket = match ? match[1] : fallbackBucket;
+  const filePath = match ? match[2] : null;
 
-  const filePath = publicUrl.slice(idx + marker.length);
+  if (!filePath) return;
 
-  const { error } = await supabase.storage.from(bucket).remove([filePath]);
+  const { error } = await supabase.storage.from(targetBucket).remove([filePath]);
   if (error) {
-    console.warn(`[uploadService] Could not delete file "${filePath}":`, error.message);
+    console.warn(`[uploadService] Could not delete file "${filePath}" from "${targetBucket}":`, error.message);
   }
 }

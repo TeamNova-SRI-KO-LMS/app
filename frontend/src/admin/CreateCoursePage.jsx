@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminHeader from '../admin/AdminHeader';
-import CreateCourseView from '../admin/components/CreateCourseView';
+import AdminHeader from './AdminHeader';
+import CreateCourseView from './components/CreateCourseView';
 import courseService from '../services/courseService';
 
 export default function CreateCoursePage() {

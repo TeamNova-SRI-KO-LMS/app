@@ -70,6 +70,14 @@ const announcementSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  thumbnail: {
+    type: String,
+    default: null
+  },
+  photo: {
+    type: String,
+    default: null
+  },
   tags: [{
     type: String,
     trim: true
