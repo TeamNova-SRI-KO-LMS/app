@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
@@ -24,17 +24,31 @@ const SettingsContent = ({ user, updateUser }) => {
   const [previewPhoto, setPreviewPhoto] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Profile Form state with default values matching the scholar profile mockup
+  // Profile Form state with real user data from DB
   const [formData, setFormData] = useState({
-    name: user?.name || 'Ji-Hoon Kim',
-    email: user?.email || 'jihoon.scholar@sriko.edu',
-    phone: user?.phone || '+94 768967567',
-    location: user?.location || 'Sri Lanka',
-    bio:
-      user?.bio ||
-      'Dedicated scholar specializing in Joseon-era linguistics and modern educational frameworks. Passionate about bridging traditional Korean values with global technological progress through the SRI-KO ecosystem.',
-    website: user?.website || 'https://kim-jihoon.scholar',
-    linkedin: user?.socialLinks?.linkedin || 'linkedin.com/in/jihoon-sriko',
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    location: user?.location || '',
+    bio: user?.bio || '',
+    website: user?.website || '',
+    linkedin: user?.socialLinks?.linkedin || '',
+  });
+
+  // Keep formData in sync when user data updates
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.name || prev.name,
+        email: user.email || prev.email,
+        phone: user.phone || prev.phone,
+        location: user.location || prev.location,
+        bio: user.bio || prev.bio,
+        website: user.website || prev.website,
+        linkedin: user.socialLinks?.linkedin || prev.linkedin,
+      }));
+    }
   });
 
   // Data Privacy Toggle in Account tab
@@ -328,13 +342,13 @@ const SettingsContent = ({ user, updateUser }) => {
     'https://api.dicebear.com/7.x/avataaars/svg?seed=JiHoonKim&accessories=prescription02&clothing=blazerAndTie&clothingColor=3c4f5e&hairColor=4a312c';
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+    <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 items-start">
         {/* Left Sidebar Menu */}
         <StudentSidebar activeTab="settings" />
 
         {/* Main Content Area */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 space-y-6">
           {/* Header Row */}
           <div className="mb-8">
             <div className="mb-2">

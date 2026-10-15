@@ -52,6 +52,12 @@ exports.validateProfileUpdate = [
     .isLength({ min: 2, max: 50 })
     .withMessage('Name must be between 2 and 50 characters'),
 
+  body('email')
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage('Please provide a valid email address'),
+
   body('bio')
     .optional()
     .trim()
@@ -97,8 +103,8 @@ exports.validateProfileUpdate = [
   body('avatar')
     .optional()
     .trim()
-    .isLength({ max: 500 })
-    .withMessage('Avatar URL cannot be more than 500 characters'),
+    .isLength({ max: 10 * 1024 * 1024 })
+    .withMessage('Avatar cannot exceed 10MB'),
 ];
 
 // Review validation rules

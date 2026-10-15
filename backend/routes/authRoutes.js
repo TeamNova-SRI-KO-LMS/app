@@ -150,6 +150,14 @@ router.post(
           email: user.email,
           role: user.role,
           avatar: user.avatar,
+          bio: user.bio,
+          phone: user.phone,
+          location: user.location,
+          website: user.website,
+          socialLinks: user.socialLinks,
+          enrolledCourses: user.enrolledCourses,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
         },
       });
     } catch (error) {
@@ -430,7 +438,13 @@ router.get('/me', protect, async (req, res) => {
         bio: user.bio,
         phone: user.phone,
         location: user.location,
+        website: user.website,
+        socialLinks: user.socialLinks,
         enrolledCourses: user.enrolledCourses,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
+        privacy: user.privacy,
+        notifications: user.notifications,
       },
     });
   } catch (error) {
