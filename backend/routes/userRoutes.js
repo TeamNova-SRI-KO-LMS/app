@@ -2,6 +2,10 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const User = require('../models/User');
+const Course = require('../models/Course');
+const Progress = require('../models/Progress');
+const Certificate = require('../models/Certificate');
+const Attendance = require('../models/Attendance');
 const { protect, authorize } = require('../middleware/auth');
 const {
   validateProfileUpdate,
@@ -11,12 +15,347 @@ const { uploadSingle, handleUploadError } = require('../middleware/upload');
 
 const router = express.Router();
 
+// @desc    Get comprehensive user dashboard data (profile, stats, enrolled courses, progress, attendance)
+// @route   GET /api/users/dashboard
+// @access  Private
+router.get('/dashboard', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId).populate({
+      path: 'enrolledCourses',
+      select: 'title description thumbnail category level duration price curriculum isPublished'
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Also include any courses where enrolledStudents explicitly contains this user
+    const directEnrolledCourses = await Course.find({
+      enrolledStudents: userId,
+      _id: { $nin: (user.enrolledCourses || []).map(c => c._id) }
+    }).select('title description thumbnail category level duration price curriculum isPublished');
+
+    // Combined unique enrolled courses
+    const allEnrolledCourses = [...(user.enrolledCourses || []), ...directEnrolledCourses];
+
+    // Fetch user progress for enrolled courses
+    const progressRecords = await Progress.find({ student: userId });
+    const progressMap = {};
+    progressRecords.forEach(p => {
+      if (p.course) {
+        progressMap[p.course.toString()] = p;
+      }
+    });
+
+    // Fetch certificates for this student
+    const certificates = await Certificate.find({ student: userId }).sort({ createdAt: -1 });
+
+    // Fetch attendance for this student
+    const attendanceRecords = await Attendance.find({ student: userId })
+      .populate('course', 'title')
+      .sort({ date: -1 });
+
+    // Calculate aggregated metrics
+    let totalLessonsAcrossCourses = 0;
+    let totalCompletedLessonsAcrossCourses = 0;
+    let totalTimeSpentMinutes = 0;
+    let totalProgressSum = 0;
+
+    const themes = ['blue', 'purple', 'emerald', 'indigo', 'amber'];
+
+    const formattedEnrolledCourses = allEnrolledCourses.map((course, idx) => {
+      const p = progressMap[course._id.toString()];
+
+      let courseTotalLessons = 0;
+      if (Array.isArray(course.curriculum)) {
+        course.curriculum.forEach(week => {
+          if (Array.isArray(week.lessons)) {
+            courseTotalLessons += week.lessons.length;
+          }
+        });
+      }
+      if (courseTotalLessons === 0) courseTotalLessons = 12; // Standard default
+
+      const completedLessonsCount = p?.completedLessons?.length || 0;
+      const overallProgress = p?.overallProgress !== undefined && p?.overallProgress !== null
+        ? p.overallProgress
+        : (courseTotalLessons > 0 ? Math.min(100, Math.round((completedLessonsCount / courseTotalLessons) * 100)) : 0);
+
+      totalLessonsAcrossCourses += courseTotalLessons;
+      totalCompletedLessonsAcrossCourses += completedLessonsCount;
+      totalTimeSpentMinutes += (p?.timeSpent || 0);
+      totalProgressSum += overallProgress;
+
+      return {
+        _id: course._id,
+        id: course._id,
+        title: course.title,
+        subtitle: course.description
+          ? (course.description.length > 70 ? course.description.substring(0, 70) + '...' : course.description)
+          : 'Master Korean language concepts',
+        category: course.category || 'Language',
+        level: course.level || 'beginner',
+        duration: course.duration || 6,
+        thumbnail: course.thumbnail || '',
+        progress: overallProgress,
+        completedLessons: completedLessonsCount,
+        totalLessons: courseTotalLessons,
+        lessonsText: `${completedLessonsCount}/${courseTotalLessons} lessons`,
+        theme: themes[idx % themes.length],
+        isCompleted: p?.isCompleted || overallProgress === 100,
+        lastAccessed: p?.lastAccessed || p?.updatedAt || course.updatedAt,
+      };
+    });
+
+    const totalEnrolled = formattedEnrolledCourses.length;
+    const averageProgress = totalEnrolled > 0 ? Math.round(totalProgressSum / totalEnrolled) : 0;
+    const timeSpentHours = Math.round(totalTimeSpentMinutes / 60);
+
+    // Attendance stats
+    const totalAttendanceSessions = attendanceRecords.length;
+    const presentCount = attendanceRecords.filter(a => a.status === 'present').length;
+    const absentCount = attendanceRecords.filter(a => a.status === 'absent').length;
+    const lateCount = attendanceRecords.filter(a => a.status === 'late').length;
+    const excusedCount = attendanceRecords.filter(a => a.status === 'excused').length;
+    const attendanceRate = totalAttendanceSessions > 0
+      ? Math.round((presentCount / totalAttendanceSessions) * 100)
+      : 100;
+
+    // Build Recent Activity
+    const recentActivity = [];
+    progressRecords.forEach(p => {
+      if (Array.isArray(p.completedLessons)) {
+        p.completedLessons.forEach(l => {
+          const course = allEnrolledCourses.find(c => c._id.toString() === p.course?.toString());
+          recentActivity.push({
+            id: `lesson-${l._id || l.completedAt || Math.random()}`,
+            title: `Completed lesson: ${l.title || 'Course Lesson'}`,
+            subtitle: course ? `Part of '${course.title}'` : 'Course Lesson',
+            timestamp: l.completedAt || p.updatedAt,
+            icon: 'CheckCircle2',
+            iconColor: 'text-green-600 bg-green-50'
+          });
+        });
+      }
+    });
+
+    certificates.forEach(c => {
+      recentActivity.push({
+        id: `cert-${c._id}`,
+        title: `Earned Certificate: ${c.courseName}`,
+        subtitle: `Issued on ${new Date(c.issuedDate || c.createdAt).toLocaleDateString()}`,
+        timestamp: c.issuedDate || c.createdAt,
+        icon: 'Award',
+        iconColor: 'text-purple-600 bg-purple-50'
+      });
+    });
+
+    allEnrolledCourses.forEach(c => {
+      recentActivity.push({
+        id: `enroll-${c._id}`,
+        title: `Enrolled in: ${c.title}`,
+        subtitle: `${(c.level || 'BEGINNER').toUpperCase()} • ${c.category || 'Language'}`,
+        timestamp: c.updatedAt || c.createdAt,
+        icon: 'BookOpen',
+        iconColor: 'text-blue-600 bg-blue-50'
+      });
+    });
+
+    recentActivity.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const topRecentActivity = recentActivity.slice(0, 5);
+
+    // Streak calculation (consecutive or activity-based)
+    const streakDays = Math.max(1, Math.min(30, totalCompletedLessonsAcrossCourses + 1));
+
+    // Dynamic Level
+    const userLevel = formattedEnrolledCourses.some(c => c.level === 'advanced')
+      ? 'Advanced'
+      : formattedEnrolledCourses.some(c => c.level === 'intermediate')
+      ? 'Intermediate'
+      : 'Beginner';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          bio: user.bio || '',
+          phone: user.phone || '',
+          location: user.location || '',
+          website: user.website || '',
+          socialLinks: user.socialLinks || {},
+          level: userLevel,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
+        },
+        statistics: {
+          totalEnrolledCourses: totalEnrolled,
+          totalCompletedLessons: totalCompletedLessonsAcrossCourses,
+          totalLessons: totalLessonsAcrossCourses,
+          totalCertificates: certificates.length,
+          timeSpent: totalTimeSpentMinutes,
+          timeSpentFormatted: `${timeSpentHours}h`,
+          overallProgress: averageProgress,
+          streakDays,
+          attendanceRate,
+          attendanceSummary: {
+            totalSessions: totalAttendanceSessions,
+            presentCount,
+            absentCount,
+            lateCount,
+            excusedCount,
+          }
+        },
+        enrolledCourses: formattedEnrolledCourses,
+        recentActivity: topRecentActivity,
+        attendance: {
+          rate: attendanceRate,
+          summary: {
+            totalSessions: totalAttendanceSessions,
+            presentCount,
+            absentCount,
+            lateCount,
+            excusedCount,
+          },
+          records: attendanceRecords.map(a => ({
+            id: a._id,
+            dayNumber: new Date(a.date).getDate(),
+            date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+            rawDate: a.date,
+            course: a.course?.title || 'General Korean Course',
+            courseId: a.course?._id || a.course,
+            status: a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Present',
+            statusType: a.status || 'present',
+            notes: a.notes || '',
+            time: new Date(a.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            type: 'Lecture'
+          }))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error in /api/users/dashboard:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error retrieving dashboard data',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get user attendance records
+// @route   GET /api/users/attendance
+// @access  Private
+router.get('/attendance', protect, async (req, res) => {
+  try {
+    const records = await Attendance.find({ student: req.user.id })
+      .populate('course', 'title')
+      .sort({ date: -1 });
+
+    const totalSessions = records.length;
+    const presentCount = records.filter(a => a.status === 'present').length;
+    const absentCount = records.filter(a => a.status === 'absent').length;
+    const lateCount = records.filter(a => a.status === 'late').length;
+    const excusedCount = records.filter(a => a.status === 'excused').length;
+    const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        rate,
+        summary: { totalSessions, presentCount, absentCount, lateCount, excusedCount },
+        records: records.map(a => ({
+          id: a._id,
+          dayNumber: new Date(a.date).getDate(),
+          date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+          rawDate: a.date,
+          course: a.course?.title || 'General Korean',
+          courseId: a.course?._id,
+          status: a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Present',
+          statusType: a.status || 'present',
+          notes: a.notes || '',
+          time: new Date(a.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'Lecture'
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error in /api/users/attendance:', error);
+    res.status(500).json({ success: false, message: 'Server error retrieving attendance' });
+  }
+});
+
+// @desc    Record or update user attendance
+// @route   POST /api/users/attendance
+// @access  Private
+router.post('/attendance', protect, async (req, res) => {
+  try {
+    const { date, status, courseId, notes, dayNumber } = req.body;
+    let recordDate = date ? new Date(date) : new Date();
+
+    if (dayNumber && !date) {
+      // Set to dayNumber of current month
+      const now = new Date();
+      recordDate = new Date(now.getFullYear(), now.getMonth(), parseInt(dayNumber, 10));
+    }
+
+    const startOfDay = new Date(recordDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(recordDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    let course = courseId;
+    if (!course) {
+      const user = await User.findById(req.user.id);
+      course = user?.enrolledCourses?.[0] || (await Course.findOne().select('_id'))?._id;
+    }
+
+    if (!course) {
+      return res.status(400).json({ success: false, message: 'No course found to associate with attendance' });
+    }
+
+    const filter = {
+      student: req.user.id,
+      date: { $gte: startOfDay, $lte: endOfDay }
+    };
+
+    const update = {
+      student: req.user.id,
+      course,
+      date: recordDate,
+      status: (status || 'present').toLowerCase(),
+      notes: notes || '',
+    };
+
+    const attendance = await Attendance.findOneAndUpdate(
+      filter,
+      update,
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).populate('course', 'title');
+
+    res.status(200).json({
+      success: true,
+      message: 'Attendance saved successfully',
+      data: attendance
+    });
+  } catch (error) {
+    console.error('Error saving attendance:', error);
+    res.status(500).json({ success: false, message: 'Server error saving attendance', error: error.message });
+  }
+});
+
 // @desc    Get user profile
 // @route   GET /api/users/profile
 // @access  Private
 router.get('/profile', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).populate('enrolledCourses', 'title thumbnail category level duration price');
 
     res.status(200).json({
       success: true,
@@ -93,6 +432,9 @@ router.put(
           location: user.location,
           website: user.website,
           socialLinks: user.socialLinks,
+          enrolledCourses: user.enrolledCourses,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
         },
       });
     } catch (error) {

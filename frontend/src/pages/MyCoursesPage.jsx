@@ -11,7 +11,6 @@ import {
   Trash2,
   PlusCircle,
   AlertTriangle,
-  Bot,
 } from 'lucide-react';
 import DiscussionForumSection from '../components/DiscussionForumSection';
 
@@ -110,54 +109,35 @@ export default function MyCoursesPage() {
   const totalCount = courses.length;
   const completedCount = courses.filter(course => (course.progress ?? 0) >= 100).length;
   const inProgressCount = courses.filter(course => (course.progress ?? 0) < 100).length;
-  const certificateCount = completedCount;
-  const showSidebar = location.state?.source !== 'top-nav';
-
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-gray-800 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 flex flex-col lg:flex-row gap-8">
-        {showSidebar && <StudentSidebar activeTab="courses" />}
-        <main className="flex-1 min-w-0">
+    <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 items-start">
+        <StudentSidebar activeTab="courses" />
+        <main className="flex-1 min-w-0 space-y-6">
 
-        {/* Top Controls Bar */}
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="bg-[#2563eb] hover:bg-blue-700 active:scale-95 text-white font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-sm inline-flex items-center gap-1.5"
-          >
-            Back
-          </button>
-
-          <button
-            onClick={() => {
-              const aiTrigger = document.querySelector('[data-ai-trigger="true"]');
-              if (aiTrigger) {
-                aiTrigger.click();
-              } else {
-                toast('AI Support Assistant is ready to help!', { icon: '✨' });
-              }
-            }}
-            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 active:scale-95 text-white px-4 sm:px-5 py-2 rounded-2xl text-xs sm:text-sm font-semibold shadow-md transition flex items-center gap-2"
-          >
-            <span>Need help? Chat with AI.</span>
-            <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-              <Bot className="w-3.5 h-3.5 text-white" />
+          {/* Page Title & Subtitle Header */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white lg:bg-transparent p-6 lg:p-0 rounded-2xl lg:rounded-none shadow-sm lg:shadow-none border lg:border-none border-gray-100">
+            <div>
+              <span className="text-[11px] font-bold text-blue-600 tracking-wider uppercase">
+                STUDENT COURSES
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5">
+                My Courses
+              </h1>
+              <p className="text-sm text-gray-500 mt-1 max-w-xl leading-relaxed">
+                Continue your learning journey with your enrolled language tracks and curriculums.
+              </p>
             </div>
-          </button>
-        </div>
+            <Link
+              to="/courses"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium px-4 py-2.5 rounded-lg shadow-sm transition active:scale-[0.98] self-start sm:self-auto"
+            >
+              + Browse More Courses
+            </Link>
+          </div>
 
-        {/* Page Title & Subtitle */}
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
-            My Courses
-          </h1>
-          <p className="text-sm sm:text-base text-gray-500 font-normal mt-1.5">
-            Continue your journey to mastery with our editorial curriculum.
-          </p>
-        </div>
-
-        {/* 4 Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-12">
+        {/* 3 Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-12">
           {/* TOTAL */}
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100/80 border-l-[6px] border-l-[#2563eb] flex flex-col justify-between">
             <span className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-1">
@@ -185,16 +165,6 @@ export default function MyCoursesPage() {
             </span>
             <span className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
               {inProgressCount}
-            </span>
-          </div>
-
-          {/* CERTIFICATES */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100/80 border-l-[6px] border-l-[#38bdf8] flex flex-col justify-between">
-            <span className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-1">
-              CERTIFICATES
-            </span>
-            <span className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
-              {certificateCount}
             </span>
           </div>
         </div>

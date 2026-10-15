@@ -13,17 +13,43 @@ const joinUsSubmissionSchema = new mongoose.Schema({
     type: String,
     enum: ['Complete Beginner', 'Beginner', 'Intermediate', 'Advanced', 'Native Level']
   },
+  // Values match the form's timeOptions (full label strings)
   preferredTime: {
     type: String,
-    enum: ['Morning', 'Afternoon', 'Evening', 'Weekends']
+    enum: [
+      'Morning (9:00 AM - 12:00 PM)',
+      'Afternoon (1:00 PM - 4:00 PM)',
+      'Evening (6:00 PM - 9:00 PM)',
+      'Weekend Classes',
+      'Flexible Schedule',
+      // Short forms kept for backwards-compat
+      'Morning', 'Afternoon', 'Evening', 'Weekends'
+    ]
   },
+  // Values match the form's interestOptions array
   interests: [{
     type: String,
-    enum: ['Speaking', 'Writing', 'Reading', 'Listening', 'TOPIK Prep', 'Culture']
+    enum: [
+      'Korean Language Basics',
+      'Business Korean',
+      'Korean Culture',
+      'K-Pop & K-Drama',
+      'Korean Cuisine',
+      'Travel Korean',
+      'Academic Korean',
+      'Korean Literature',
+      // Old values kept for backwards-compat
+      'Speaking', 'Writing', 'Reading', 'Listening', 'TOPIK Prep', 'Culture'
+    ]
   }],
+  // Values match the form's hearAboutUs select options
   hearAboutUs: {
     type: String,
-    enum: ['Social Media', 'Friend/Family', 'Search Engine', 'Advertisement', 'Other']
+    enum: [
+      'social-media', 'website', 'referral', 'advertisement', 'search-engine', 'other',
+      // Capitalised forms for backwards-compat
+      'Social Media', 'Friend/Family', 'Search Engine', 'Advertisement', 'Other'
+    ]
   },
   message: String,
   notes: String,

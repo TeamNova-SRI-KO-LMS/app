@@ -179,6 +179,23 @@ const AuthProvider = ({ children }) => {
           token: session.token,
         },
       });
+
+      // Silently synchronize full, fresh user data from the database
+      apiService.getCurrentUser()
+        .then((responseData) => {
+          const freshUser = responseData?.user ?? responseData?.data?.user ?? responseData?.data ?? null;
+          if (freshUser) {
+            persistSession({ token: session.token, user: freshUser });
+            dispatch({
+              type: 'LOGIN_SUCCESS',
+              payload: {
+                user: freshUser,
+                token: session.token,
+              },
+            });
+          }
+        })
+        .catch(() => {});
       return;
     }
 

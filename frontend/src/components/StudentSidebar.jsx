@@ -45,7 +45,7 @@ export default function StudentSidebar({ activeTab: propActiveTab }) {
     `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'Scholar'}`;
 
   return (
-    <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col justify-between bg-white lg:bg-transparent p-4 lg:p-0 rounded-2xl shadow-sm lg:shadow-none border lg:border-none border-gray-100">
+    <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col bg-white lg:bg-transparent p-4 lg:p-0 rounded-2xl shadow-sm lg:shadow-none border lg:border-none border-gray-100 lg:sticky lg:top-8 h-fit">
       <div>
         {/* User Profile Card */}
         <div className="flex flex-col items-center text-center pb-6 border-b border-gray-200/70 mb-6">
@@ -62,7 +62,7 @@ export default function StudentSidebar({ activeTab: propActiveTab }) {
             {user?.name || 'Student Name'}
           </h3>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
-            Level: Intermediate
+            Level: {user?.level || (user?.role === 'student' ? 'Scholar' : user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Intermediate')}
           </p>
         </div>
 
