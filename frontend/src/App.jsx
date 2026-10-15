@@ -34,6 +34,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import ScrollToTop from "./components/ScrollToTop";
 import SettingsPage from "./pages/SettingsPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
+import NotificationsPage from "./pages/NotificationsPage";
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -105,6 +106,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <MyCoursesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute>
+                <NotificationsPage />
               </ProtectedRoute>
             }
           />

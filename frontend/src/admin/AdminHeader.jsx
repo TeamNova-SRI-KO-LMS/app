@@ -2,11 +2,11 @@ import React from 'react';
 import { 
   Menu, 
   Search, 
-  Bell, 
   HelpCircle, 
   Settings 
 } from 'lucide-react';
 import useAuth from '../context/useAuth';
+import NotificationBell from '../components/NotificationBell';
 
 const AdminHeader = ({ 
   onToggleSidebar, 
@@ -47,14 +47,8 @@ const AdminHeader = ({
 
       {/* Right section: Icons & User Profile */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Notification Bell */}
-        <button 
-          className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-          title="Notifications"
-        >
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-        </button>
+        {/* Real-Time WebSocket Notification Bell */}
+        <NotificationBell />
 
         {/* Help Circle */}
         <button 
