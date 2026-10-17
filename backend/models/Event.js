@@ -29,7 +29,7 @@ const eventSchema = new mongoose.Schema(
     organizer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
     },
     relatedCourse: {
       type: mongoose.Schema.Types.ObjectId,
@@ -41,6 +41,44 @@ const eventSchema = new mongoose.Schema(
         ref: 'User',
       }
     ],
+    photos: [
+      {
+        type: String,
+        trim: true,
+      }
+    ],
+    coverImage: {
+      type: String,
+      trim: true,
+    },
+    category: {
+      type: String,
+      enum: ['seminar', 'ceremony', 'workshop', 'cultural', 'exam', 'webinar', 'general'],
+      default: 'seminar',
+      lowercase: true,
+      trim: true,
+    },
+    capacity: {
+      type: Number,
+      default: 0, // 0 = unlimited
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      }
+    ],
+    endDate: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: ['upcoming', 'ongoing', 'completed', 'cancelled'],
