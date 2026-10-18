@@ -1,24 +1,31 @@
 const isBrowser = typeof window !== "undefined";
 
-// Read from window.configs if it exists (Choreo deployment).
-// Otherwise, fall back to local backend URL.
-const baseUrl = isBrowser && window?.configs?.apiUrl
-  ? window.configs.apiUrl
-  : "http://localhost:5000"; // local backend without /api prefix
+// Local backend, used when VITE_API_URL is not set in frontend/.env.
+const DEFAULT_BASE_URL = "http://localhost:5000";
+const DEFAULT_API_URL = `${DEFAULT_BASE_URL}/api`;
 
-// Handle API URL structure with multiple fallback options.
+const isChoreoUrl = (url) =>
+  url.includes("choreoapis.dev") ||
+  url.includes("choreoapps.dev") ||
+  url.includes("choreo.dev");
+
+let baseUrl;
 let apiUrl;
-if (
-  baseUrl.includes("choreoapis.dev") ||
-  baseUrl.includes("choreoapps.dev") ||
-  baseUrl.includes("choreo.dev")
-) {
-  // Choreo API URL - use the full path as configured (already includes /api).
-  apiUrl = baseUrl;
-  console.log("[apiConfig] Using Choreo API URL:", apiUrl);
+if (isBrowser && window?.configs?.apiUrl) {
+  // Read from window.configs if it exists (Choreo deployment).
+  baseUrl = window.configs.apiUrl;
+  if (isChoreoUrl(baseUrl)) {
+    // Choreo API URL - use the full path as configured (already includes /api).
+    apiUrl = baseUrl;
+    console.log("[apiConfig] Using Choreo API URL:", apiUrl);
+  } else {
+    apiUrl = `${baseUrl}/api`;
+    console.log("[apiConfig] Using window.configs API URL:", apiUrl);
+  }
 } else {
-  // Local development URL - add /api prefix.
-  apiUrl = `${baseUrl}/api`;
+  // Otherwise, use VITE_API_URL from frontend/.env (full URL including /api).
+  apiUrl = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
+  baseUrl = apiUrl.replace(/\/api$/, ""); // local backend without /api prefix
   console.log("[apiConfig] Using Local API URL:", apiUrl);
 }
 
@@ -26,12 +33,7 @@ if (
 console.log("[apiConfig] API Configuration Debug:");
 console.log("  - Base URL:", baseUrl);
 console.log("  - Final API URL:", apiUrl);
-console.log(
-  "  - Is Choreo:",
-  baseUrl.includes("choreoapis.dev") ||
-    baseUrl.includes("choreoapps.dev") ||
-    baseUrl.includes("choreo.dev")
-);
+console.log("  - Is Choreo:", isChoreoUrl(baseUrl));
 
 // Function to test API connectivity and return true when reachable.
 export const testApiConnectivity = async (testUrl) => {
@@ -58,8 +60,8 @@ export const getWorkingApiUrl = async () => {
     apiUrl,
     `${baseUrl}/api`,
     baseUrl,
-    "http://localhost:5000/api",
-    "http://localhost:5000",
+    DEFAULT_API_URL,
+    DEFAULT_BASE_URL,
   ];
 
   console.log("[apiConfig] Testing possible API URLs:", possibleUrls);
