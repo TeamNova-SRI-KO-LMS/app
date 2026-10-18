@@ -24,7 +24,7 @@ export const SocketProvider = ({ children }) => {
     }
 
     // Determine the socket server URL (strip /api if present)
-    const socketUrl = baseUrl || 'http://localhost:5000';
+    const socketUrl = baseUrl;
 
     const socketInstance = io(socketUrl, {
       auth: { token },
