@@ -306,7 +306,7 @@ const AdminDashboardPage = () => {
             Debug: Admin Token exists: {localStorage.getItem('adminToken') ? 'Yes' : 'No'}
           </p>
           <p className="text-sm text-gray-500">
-            Debug: API URL: {window?.configs?.apiUrl || 'http://localhost:5001'}
+            Debug: API URL: {apiUrl}
           </p>
         </div>
       </div>
@@ -348,7 +348,7 @@ const AdminDashboardPage = () => {
             <p>Token exists: {localStorage.getItem('token') ? 'Yes' : 'No'}</p>
             <p>Admin Token exists: {localStorage.getItem('adminToken') ? 'Yes' : 'No'}</p>
             <p>Token value: {localStorage.getItem('token') ? localStorage.getItem('token').substring(0, 20) + '...' : 'None'}</p>
-            <p>API URL: {window?.configs?.apiUrl || 'http://localhost:5001'}</p>
+            <p>API URL: {apiUrl}</p>
             <p>Current URL: {window.location.href}</p>
             <p>Port: {window.location.port}</p>
             <p>Stats loaded: {JSON.stringify(stats)}</p>
