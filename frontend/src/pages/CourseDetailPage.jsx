@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { courseService } from '../services/courseService';
 import { useAuth } from '../context/AuthContext';
+import apiUrl from '../config/apiConfig';
 import toast from 'react-hot-toast';
 import {
   ArrowLeftIcon,
@@ -48,7 +49,7 @@ const CourseDetailPage = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${window?.configs?.apiUrl || 'http://localhost:5001'}/api/users/dashboard`, {
+      const response = await fetch(`${apiUrl}/users/dashboard`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
