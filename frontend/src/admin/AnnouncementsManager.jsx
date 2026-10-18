@@ -29,8 +29,7 @@ import {
 } from 'lucide-react';
 import announcementService from '../services/announcementService';
 import { uploadToSupabase } from '../services/uploadService';
-
-const BACKEND_URL = 'http://localhost:5000';
+import { baseUrl } from '../config/apiConfig';
 
 const AUDIENCE_OPTIONS = [
   'All Scholars',
@@ -452,7 +451,7 @@ const AnnouncementsManager = () => {
   const getPhotoDisplayUrl = (item) => {
     const src = item?.photo || item?.thumbnail;
     if (!src) return null;
-    return src.startsWith('http') ? src : `${BACKEND_URL}${src}`;
+    return src.startsWith('http') ? src : `${baseUrl}${src}`;
   };
 
   return (
