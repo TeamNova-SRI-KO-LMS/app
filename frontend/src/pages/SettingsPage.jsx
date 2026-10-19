@@ -3,6 +3,7 @@ import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import StudentSidebar from '../components/StudentSidebar';
+import UserAvatar from '../components/UserAvatar';
 import {
   User,
   Shield,
@@ -139,7 +140,8 @@ const SettingsContent = ({ user, updateUser }) => {
 
     const toastId = toast.loading('Uploading profile photo...');
     try {
-      const response = await apiService.post('/users/avatar', uploadFormData);
+      // Use a longer timeout for file uploads (base64 payloads can be large)
+      const response = await apiService.post('/users/avatar', uploadFormData, { timeout: 60000 });
       if (response.data.success) {
         toast.success('Profile photo updated successfully!', { id: toastId });
         const newAvatar = response.data.avatar || response.data.user?.avatar;
@@ -151,9 +153,12 @@ const SettingsContent = ({ user, updateUser }) => {
         setPreviewPhoto(null);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to upload photo', {
-        id: toastId,
-      });
+      toast.error(
+        error.code === 'ECONNABORTED'
+          ? 'Upload timed out. Please try a smaller image or check your connection.'
+          : (error.response?.data?.message || 'Failed to upload photo'),
+        { id: toastId },
+      );
     }
   };
 
@@ -335,11 +340,7 @@ const SettingsContent = ({ user, updateUser }) => {
     { id: 'privacy', label: 'Privacy', icon: Globe },
   ];
 
-  // User avatar - uses instant preview, user avatar from DB, or scholar seed
-  const userAvatar =
-    previewPhoto ||
-    user?.avatar ||
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=JiHoonKim&accessories=prescription02&clothing=blazerAndTie&clothingColor=3c4f5e&hairColor=4a312c';
+
 
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
@@ -421,13 +422,13 @@ const SettingsContent = ({ user, updateUser }) => {
                       onClick={() => fileInputRef.current?.click()}
                       title="Click to change profile photo"
                     >
-                      <div className="w-20 h-20 rounded-full bg-pink-100 p-1 border-2 border-pink-200 shadow-xs overflow-hidden flex items-center justify-center transition-transform group-hover:scale-105">
-                        <img
-                          src={userAvatar}
-                          alt="Scholar Avatar"
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      </div>
+                      <UserAvatar
+                        user={user}
+                        src={previewPhoto}
+                        size="w-20 h-20"
+                        iconSize={28}
+                        className="border-2 border-blue-200 shadow-xs transition-transform group-hover:scale-105"
+                      />
                       <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera size={20} className="text-white drop-shadow-sm" />
                       </div>

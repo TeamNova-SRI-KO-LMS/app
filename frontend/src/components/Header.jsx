@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, Menu, X, LayoutDashboard, BookOpen, User, Settings, Folder, LogOut, Bell } from 'lucide-react';
 import useAuth from '../context/useAuth';
+import UserAvatar from './UserAvatar';
 import UserDropdown from './UserDropdown';
 import NotificationBell from './NotificationBell';
 import { useNotifications } from '../context/NotificationContext';
@@ -158,14 +159,7 @@ export default function Header() {
             {isAuthenticated ? (
               <div className="pt-4 mt-3 border-t border-gray-100 space-y-1">
                 <div className="px-4 py-2 mb-2 bg-blue-50/60 rounded-xl flex items-center gap-3">
-                  <img
-                    src={
-                      user?.avatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`
-                    }
-                    alt="User Avatar"
-                    className="w-9 h-9 rounded-full object-cover bg-pink-100 border border-white"
-                  />
+                  <UserAvatar user={user} size="w-9 h-9" iconSize={18} className="border border-white" />
                   <div>
                     <p className="text-sm font-bold text-gray-900">{user?.name || 'Student'}</p>
                     <p className="text-xs text-gray-500">Level: Intermediate</p>
