@@ -26,7 +26,7 @@ const announcementRoutes = require('./routes/announcementRoutes');
 const discussionForumRoutes = require('./routes/discussionForumRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
-const joinUsRoutes = require('./routes/joinUsRoutes');
+const eventRoutes = require('./routes/eventRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -97,7 +97,7 @@ app.use('/api/forums', checkDatabase, discussionForumRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);
 app.use('/api/attendance', checkDatabase, attendanceRoutes);
 app.use('/api/admin/analytics', checkDatabase, analyticsRoutes);
-app.use('/api/join-us', checkDatabase, joinUsRoutes);
+app.use('/api/events', checkDatabase, eventRoutes);
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
