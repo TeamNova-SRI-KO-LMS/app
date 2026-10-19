@@ -1,9 +1,9 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 const User = require('../models/User');
 const { OAuth2Client } = require('google-auth-library');
+const { sendPasswordResetOtp } = require('../services/emailService');
 const {
   validateUserRegistration,
   validateUserLogin,
@@ -12,24 +12,6 @@ const {
 
 const router = express.Router();
 const OTP_EXPIRY_MINUTES = 10;
-
-const mailTransporter = () => {
-  const requiredSettings = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'];
-  const missingSetting = requiredSettings.find(setting => !process.env[setting]);
-  if (missingSetting) {
-    throw new Error(`Email service is not configured: missing ${missingSetting}`);
-  }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-};
 
 const hashOtp = otp =>
   crypto.createHash('sha256').update(otp).digest('hex');
@@ -199,13 +181,7 @@ router.post('/forgot-password', async (req, res) => {
     await user.save();
 
     try {
-      await mailTransporter().sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to: user.email,
-        subject: 'SRI-KO password reset verification code',
-        text: `Your SRI-KO password reset code is ${otp}. It expires in ${OTP_EXPIRY_MINUTES} minutes.`,
-        html: `<p>Your SRI-KO password reset code is <strong>${otp}</strong>.</p><p>This code expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`,
-      });
+      await sendPasswordResetOtp(user, otp);
     } catch (mailError) {
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
