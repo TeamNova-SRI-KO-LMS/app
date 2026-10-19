@@ -41,8 +41,8 @@ export default function Header() {
   );
 
   return (
-    <header className="app-header">
-      <nav className="bg-white px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
+    <header className="app-header fixed top-0 left-0 right-0 z-50 w-full">
+      <nav className="bg-white px-6 py-4 flex justify-between items-center shadow-sm">
 
         {/* Logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
