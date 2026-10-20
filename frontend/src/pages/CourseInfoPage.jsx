@@ -8,6 +8,7 @@ import {
   Sparkles, MessageSquare, ChevronRight, Check,
   Send, Plus, Trash2
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function CourseInfoPage() {
   const navigate = useNavigate();
@@ -167,7 +168,7 @@ export default function CourseInfoPage() {
             {/* Bottom Assignment CTA Button */}
             <div className="pt-6 mt-6 border-t border-gray-100">
               <button 
-                onClick={() => alert('Assignment submission modal or workflow opened.')}
+                onClick={() => toast('Assignment submission is not available yet.')}
                 className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
               >
                 Submit Assignment

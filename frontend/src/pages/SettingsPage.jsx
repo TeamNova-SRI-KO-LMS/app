@@ -4,6 +4,7 @@ import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import StudentSidebar from '../components/StudentSidebar';
 import UserAvatar from '../components/UserAvatar';
+import ConfirmDialog from '../components/ConfirmDialog';
 import {
   User,
   Shield,
@@ -23,6 +24,7 @@ const SettingsContent = ({ user, updateUser }) => {
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [showRemovePhotoConfirmation, setShowRemovePhotoConfirmation] = useState(false);
   const fileInputRef = useRef(null);
 
   // Profile Form state with real user data from DB
@@ -164,10 +166,7 @@ const SettingsContent = ({ user, updateUser }) => {
 
   // Remove Photo Handler
   const handleRemovePhoto = async () => {
-    if (!window.confirm('Are you sure you want to remove your profile photo?')) {
-      return;
-    }
-
+    setShowRemovePhotoConfirmation(false);
     const toastId = toast.loading('Removing profile photo...');
     try {
       const response = await apiService.delete('/users/avatar');
@@ -324,13 +323,7 @@ const SettingsContent = ({ user, updateUser }) => {
   };
 
   const handleDeleteAccount = () => {
-    if (
-      window.confirm(
-        'Are you sure you want to delete your account? This action cannot be undone.',
-      )
-    ) {
-      toast.error('Account deletion not implemented yet');
-    }
+    toast.error('Account deletion is not available yet. Please contact support.');
   };
 
   const navTabs = [
@@ -453,7 +446,7 @@ const SettingsContent = ({ user, updateUser }) => {
                       {Boolean(user?.avatar || previewPhoto) && (
                         <button
                           type="button"
-                          onClick={handleRemovePhoto}
+                          onClick={() => setShowRemovePhotoConfirmation(true)}
                           className="px-3.5 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition shadow-2xs cursor-pointer flex items-center gap-1.5"
                           title="Remove custom profile photo"
                         >
@@ -462,6 +455,15 @@ const SettingsContent = ({ user, updateUser }) => {
                         </button>
                       )}
                     </div>
+                    {showRemovePhotoConfirmation && (
+                      <ConfirmDialog
+                        title="Remove profile photo?"
+                        message="Are you sure you want to remove your profile photo?"
+                        confirmLabel="Remove photo"
+                        onConfirm={handleRemovePhoto}
+                        onCancel={() => setShowRemovePhotoConfirmation(false)}
+                      />
+                    )}
                   </div>
 
                   {/* Personal Information */}
