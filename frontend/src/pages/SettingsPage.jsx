@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import StudentSidebar from '../components/StudentSidebar';
 import UserAvatar from '../components/UserAvatar';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { resizeImageFile } from '../utils/resizeImage';
 import {
   User,
   Shield,
@@ -140,8 +141,8 @@ const SettingsContent = ({ user, updateUser }) => {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image size must be less than 10MB');
       return;
     }
 
@@ -149,8 +150,16 @@ const SettingsContent = ({ user, updateUser }) => {
     const previewUrl = URL.createObjectURL(file);
     setPreviewPhoto(previewUrl);
 
+    // Downscale before uploading so photos stay small and under the API request limit
+    const uploadFile = await resizeImageFile(file);
+    if (uploadFile.size > 4 * 1024 * 1024) {
+      toast.error('This image is too large to upload. Please choose one under 4MB.');
+      setPreviewPhoto(null);
+      return;
+    }
+
     const uploadFormData = new FormData();
-    uploadFormData.append('avatar', file);
+    uploadFormData.append('avatar', uploadFile);
 
     const toastId = toast.loading('Uploading profile photo...');
     try {
