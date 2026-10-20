@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   BookOpen,
   Users,
-  DollarSign,
   FileEdit,
   Plus,
   Award,
@@ -36,7 +35,7 @@ const getLevelStyle = (level = '') => LEVEL_STYLES[level.toLowerCase()] ?? 'bg-g
 
 const formatPrice = (price) => {
   if (price === 0 || price === '0') return 'Free';
-  return `$${Number(price).toFixed(2)}`;
+  return `LKR ${Number(price).toLocaleString('en-LK')}`;
 };
 
 const EMPTY_FORM = {
@@ -235,7 +234,7 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">
-                Price (USD) <span className="text-red-500">*</span>
+                Price (LKR) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -243,7 +242,7 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
                 required
                 min="0"
                 step="0.01"
-                placeholder="149.00"
+                placeholder="15000"
                 value={form.price}
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
@@ -616,7 +615,7 @@ const CourseManagement = () => {
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between">
           <div>
             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-              <DollarSign size={20} />
+              <CheckCircle size={20} />
             </div>
             <span className="text-xs font-semibold text-gray-500 block">Published</span>
             <span className="text-2xl font-extrabold text-gray-900 mt-1 block">

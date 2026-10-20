@@ -29,10 +29,12 @@ exports.validateUserRegistration = [
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long'),
 
+  // Public sign-up cannot create administrators; admins are created by an
+  // existing admin through User Management (POST /api/users).
   body('role')
     .optional()
-    .isIn(['student', 'instructor', 'admin'])
-    .withMessage('Role must be student, instructor, or admin'),
+    .isIn(['student', 'instructor'])
+    .withMessage('Role must be student or instructor'),
 ];
 
 // Login rules

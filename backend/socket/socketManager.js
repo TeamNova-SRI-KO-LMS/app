@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { parseAllowedOrigins } = require('../config/cors');
 
 let io = null;
 
@@ -15,7 +16,7 @@ const userSockets = new Map();
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      origin: parseAllowedOrigins(),
       credentials: true,
       methods: ['GET', 'POST']
     },

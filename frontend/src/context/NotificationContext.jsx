@@ -6,6 +6,9 @@ import useAuth from './useAuth';
 
 const NotificationContext = createContext(null);
 
+// How often to re-fetch notifications when there is no live socket connection
+const POLL_INTERVAL_MS = 60000;
+
 export const NotificationProvider = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
   const { socket, isConnected } = useSocket();
@@ -54,6 +57,23 @@ export const NotificationProvider = ({ children }) => {
       setUnreadCount(0);
     }
   }, [isAuthenticated, fetchNotifications]);
+
+  // Without a live socket (sockets disabled, e.g. API on Vercel, or connection lost),
+  // keep notifications fresh by polling and whenever the tab regains focus.
+  useEffect(() => {
+    if (!isAuthenticated || isConnected) return undefined;
+
+    const refresh = () => {
+      if (document.visibilityState === 'visible') fetchNotifications();
+    };
+    const timer = setInterval(refresh, POLL_INTERVAL_MS);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [isAuthenticated, isConnected, fetchNotifications]);
 
   // Listen for real-time socket events
   useEffect(() => {

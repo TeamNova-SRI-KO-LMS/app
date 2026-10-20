@@ -24,6 +24,7 @@ import {
   fetchEnrolledCourses,
   saveAttendance,
   updateAttendance,
+  deleteAttendance,
 } from '../services/attendanceService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,10 +40,11 @@ const toLocalDateStr = (d) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-/** Format date for display */
+/** Format date for display. Attendance days are stored at UTC midnight, so format in UTC
+ *  to show the day the student picked in any browser timezone. */
 const formatDisplayDate = (isoStr) => {
   const d = new Date(isoStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 };
 
 /** Number of days in a month */
@@ -192,7 +194,10 @@ export default function ProfilePage() {
   // ── Open edit modal for a calendar day ───────────────────────────────────────
   const handleDayClick = (day) => {
     const existing = calendarDayMap[day];
-    const defaultCourseId = enrolledCourses.length > 0 ? enrolledCourses[0]._id : '';
+    // Prefer the course the calendar is filtered to, so the new record shows up on it
+    const defaultCourseId = selectedCourseId !== 'all'
+      ? selectedCourseId
+      : (enrolledCourses.length > 0 ? enrolledCourses[0]._id : '');
     setEditingDay({ day, existingRecord: existing?.record || null });
     setEditForm({
       status: existing?.status || 'present',
@@ -220,7 +225,6 @@ export default function ProfilePage() {
       if (editForm.status === 'normal') {
         // "Clear" — if there's an existing record, delete it
         if (editingDay.existingRecord?._id) {
-          const { deleteAttendance } = await import('../services/attendanceService');
           await deleteAttendance(editingDay.existingRecord._id);
           toast.success(`Cleared attendance for ${MONTHS[calMonth - 1]} ${editingDay.day}`);
         } else {

@@ -8,6 +8,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useAuth } from '../context/AuthContext';
+import apiUrl from '../config/apiConfig';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft,
@@ -91,7 +92,7 @@ function CheckoutForm({ course, onSuccess }) {
       // 2. If payment succeeded, confirm enrollment on the backend
       if (paymentIntent && paymentIntent.status === 'succeeded') {
         const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-        const confirmRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/confirm-course-payment`, {
+        const confirmRes = await fetch(`${apiUrl}/payments/confirm-course-payment`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -305,7 +306,7 @@ export default function PaymentInfoPage() {
       setLoading(true);
       setError('');
       const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-course-payment-intent`, {
+      const response = await fetch(`${apiUrl}/payments/create-course-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -4,6 +4,20 @@ const DiscussionForum = require('../models/DiscussionForum');
 const DiscussionPost = require('../models/DiscussionPost');
 const { protect, authorize } = require('../middleware/auth');
 
+const isSameUser = (id, user) => Boolean(id) && id.toString() === user._id.toString();
+
+// Editing or deleting a forum: administrators, or the user who created it.
+const canManageForum = (forum, user) => user.role === 'admin' || isSameUser(forum.createdBy, user);
+
+// Pinning, locking and hiding a forum: administrators or the forum's moderators.
+const canModerateForum = (forum, user) =>
+  user.role === 'admin' || (forum.moderators || []).some((moderatorId) => isSameUser(moderatorId, user));
+
+const forbidden = (res, action) => res.status(403).json({
+  success: false,
+  message: `You are not allowed to ${action} this forum`,
+});
+
 const seedDefaultForumsIfEmpty = async () => {
   try {
     const count = await DiscussionForum.countDocuments();
@@ -122,7 +136,11 @@ router.get('/', async (req, res) => {
     }
 
     if (req.query.level && req.query.level !== 'All Levels') {
-      query.level = req.query.level.toLowerCase();
+      const level = req.query.level.toLowerCase();
+      // includeAllLevels=true also returns forums targeted at all levels (student view)
+      query.level = req.query.includeAllLevels === 'true' && level !== 'all'
+        ? { $in: [level, 'all'] }
+        : level;
     }
 
     if (req.query.isActive !== undefined && req.query.isActive !== '') {
@@ -138,7 +156,9 @@ router.get('/', async (req, res) => {
     }
 
     if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
+      // Escape regex characters so searches like "C++" don't throw
+      const escapedSearch = req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
       query.$or = [
         { title: searchRegex },
         { description: searchRegex },
@@ -204,14 +224,17 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Title and description are required' });
     }
 
+    // Only administrators can create forums that start pinned, locked or hidden
+    const isAdmin = req.user.role === 'admin';
+
     const forum = new DiscussionForum({
       title,
       description,
       category: category ? category.toLowerCase().replace(/\s+/g, '-') : 'general',
       level: level ? level.toLowerCase() : 'all',
-      isActive: isActive !== undefined ? isActive : true,
-      isPinned: isPinned || false,
-      isLocked: isLocked || false,
+      isActive: isAdmin && isActive !== undefined ? isActive : true,
+      isPinned: isAdmin ? Boolean(isPinned) : false,
+      isLocked: isAdmin ? Boolean(isLocked) : false,
       createdBy: req.user._id,
       tags: tags || [],
       rules: rules || [],
@@ -242,7 +265,16 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Forum not found' });
     }
 
+    if (!canManageForum(forum, req.user)) {
+      return forbidden(res, 'edit');
+    }
+
     const { title, description, category, level, isActive, isPinned, isLocked, tags, rules } = req.body;
+
+    // Moderation flags stay with administrators and moderators
+    if ((isActive !== undefined || isPinned !== undefined || isLocked !== undefined) && !canModerateForum(forum, req.user)) {
+      return forbidden(res, 'moderate');
+    }
 
     if (title) forum.title = title;
     if (description) forum.description = description;
@@ -279,6 +311,10 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Forum not found' });
     }
 
+    if (!canManageForum(forum, req.user)) {
+      return forbidden(res, 'delete');
+    }
+
     // Delete all posts for this forum
     await DiscussionPost.deleteMany({ forum: forum._id });
     await DiscussionForum.findByIdAndDelete(req.params.id);
@@ -302,6 +338,10 @@ router.patch('/:id/pin', protect, async (req, res) => {
 
     if (!forum) {
       return res.status(404).json({ success: false, message: 'Forum not found' });
+    }
+
+    if (!canModerateForum(forum, req.user)) {
+      return forbidden(res, 'pin or unpin');
     }
 
     forum.isPinned = !forum.isPinned;
@@ -329,6 +369,10 @@ router.patch('/:id/active', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Forum not found' });
     }
 
+    if (!canModerateForum(forum, req.user)) {
+      return forbidden(res, 'activate or deactivate');
+    }
+
     forum.isActive = !forum.isActive;
     await forum.save();
 
@@ -352,6 +396,10 @@ router.patch('/:id/lock', protect, async (req, res) => {
 
     if (!forum) {
       return res.status(404).json({ success: false, message: 'Forum not found' });
+    }
+
+    if (!canModerateForum(forum, req.user)) {
+      return forbidden(res, 'lock or unlock');
     }
 
     forum.isLocked = !forum.isLocked;

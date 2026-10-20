@@ -104,6 +104,29 @@ exports.protect = async (req, res, next) => {
   }
 };
 
+// Attach req.user when a valid token is sent, but let visitors without one through.
+// Used by routes that also serve guests (the chatbot); it never responds with 401,
+// so an expired token simply continues as a guest instead of logging the user out.
+exports.optionalAuth = async (req, res, next) => {
+  const header = req.headers.authorization;
+
+  if (!header || !header.startsWith('Bearer') || !process.env.JWT_SECRET) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (user && user.isActive) {
+      req.user = user;
+    }
+  } catch {
+    // Invalid or expired token: continue as a guest
+  }
+
+  next();
+};
+
 // Grant access to specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {

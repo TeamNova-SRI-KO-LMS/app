@@ -10,6 +10,12 @@ const chatMessageSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // In-app navigation shortcuts offered with an assistant reply
+  links: [{
+    _id: false,
+    label: String,
+    to: String,
+  }],
   timestamp: {
     type: Date,
     default: Date.now,

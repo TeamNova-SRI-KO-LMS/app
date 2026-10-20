@@ -327,7 +327,7 @@ class NotificationEngine {
       priority: 'low',
       targetAudience: 'specific_users',
       targetUsers: [postAuthorId],
-      actionUrl: '/forums',
+      actionUrl: '/my-courses',
       actionText: 'View Forum',
       expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     });

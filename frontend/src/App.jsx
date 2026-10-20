@@ -1,20 +1,17 @@
 
 import "./App.css";
 
+import { Suspense, lazy } from "react";
 import { Route, Routes } from "react-router-dom";
 
 import AboutUs from "./pages/AboutusPage";
-import AdminDashboard from "./admin/AdminDashboard";
 import AdminLogin from "./admin/adminLogin";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import CourseDetails from "./pages/CourseDetailsPage";
 import CourseInfoPage from "./pages/CourseInfoPage";
 import CoursesPage from "./pages/CoursesPage";
-import CreateCoursePage from "./admin/CreateCoursePage";
 import DashboardPage from "./pages/DashboardPage";
-import DiscussionForums from "./admin/DiscussionForums";
 import DocumentationPage from "./pages/DocumentationPage";
-import EditCoursePage from "./admin/EditCoursePage";
 import EventsPage from "./pages/EventsPage";
 import FloatingAiSupport from "./components/FloatingAiSupport";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -37,11 +34,24 @@ import TermsOfServicePage from "./pages/TermsOfServicePage";
 import NotificationsPage from "./pages/NotificationsPage";
 import { Toaster } from "react-hot-toast";
 
+// The admin area is loaded on demand so students and visitors don't download it
+const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
+const CreateCoursePage = lazy(() => import("./admin/CreateCoursePage"));
+const EditCoursePage = lazy(() => import("./admin/EditCoursePage"));
+const DiscussionForums = lazy(() => import("./admin/DiscussionForums"));
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 function App() {
   return (
     <>
       <ScrollToTop />
 
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public pages and authenticated user pages */}
         <Route element={<Layout />}>
@@ -219,6 +229,7 @@ function App() {
           }
         />
       </Routes>
+      </Suspense>
 
       {/* Global toast notifications */}
       <Toaster position="top-right" />

@@ -7,7 +7,6 @@ import {
   Pin,
   Lock,
   Search,
-  Plus,
   ThumbsUp,
   MessageCircle,
   Eye,
@@ -38,15 +37,7 @@ export default function DiscussionForumSection() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [replyText, setReplyText] = useState({});
   
-  // Modal states for creating a new post / forum topic (Admin only)
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newTopicData, setNewTopicData] = useState({
-    title: '',
-    description: '',
-    category: 'general',
-    level: 'all',
-  });
-  const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     fetchForums();
@@ -55,9 +46,12 @@ export default function DiscussionForumSection() {
   const fetchForums = async () => {
     try {
       setLoading(true);
+      // Students only see active forums; "All Levels" forums match every level filter
       const filters = {
         category: selectedCategory,
         level: selectedLevel,
+        includeAllLevels: true,
+        isActive: true,
         search: searchQuery
       };
       const res = await discussionForumService.getAllForums(1, 20, filters);
@@ -66,8 +60,11 @@ export default function DiscussionForumSection() {
       } else {
         setForums([]);
       }
+      setLoadError(false);
     } catch (error) {
       console.error('Error loading discussion forums:', error);
+      setForums([]);
+      setLoadError(true);
       toast.error('Failed to load discussion forums');
     } finally {
       setLoading(false);
@@ -89,41 +86,6 @@ export default function DiscussionForumSection() {
       toast.error('Failed to load thread posts');
     } finally {
       setPostsLoading(false);
-    }
-  };
-
-  const handleCreateForumTopic = async (e) => {
-    e.preventDefault();
-    if (user?.role !== 'admin') {
-      toast.error('Only administrators can create new discussion topics.');
-      return;
-    }
-
-    if (!newTopicData.title.trim() || !newTopicData.description.trim()) {
-      toast.error('Please enter both a topic title and description.');
-      return;
-    }
-
-    try {
-      setCreating(true);
-      const res = await discussionForumService.createForum({
-        ...newTopicData,
-        isPinned: true
-      });
-
-      if (res.success) {
-        toast.success('Official Admin Discussion Topic created successfully!');
-        setShowCreateModal(false);
-        setNewTopicData({ title: '', description: '', category: 'general', level: 'all' });
-        fetchForums();
-      } else {
-        toast.error(res.message || 'Failed to post topic');
-      }
-    } catch (error) {
-      console.error('Error creating forum topic:', error);
-      toast.error('Error creating discussion topic');
-    } finally {
-      setCreating(false);
     }
   };
 
@@ -179,7 +141,10 @@ export default function DiscussionForumSection() {
     'Grammar',
     'Vocabulary',
     'Culture',
-    'Study Tips'
+    'Linguistics',
+    'Literature',
+    'Study Tips',
+    'Other'
   ];
 
   const levels = ['All Levels', 'Beginner', 'Intermediate', 'Advanced'];
@@ -219,18 +184,6 @@ export default function DiscussionForumSection() {
             Read official announcements, grammar rules, and discussion threads created by SRI-KO administration and instructors. You can read discussions and join the conversation by posting replies.
           </p>
         </div>
-
-        {/* Only Admin can create new forum topics */}
-        {user?.role === 'admin' && (
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-bold text-xs sm:text-sm px-5 py-3 rounded-xl shadow-md transition self-start md:self-auto"
-          >
-            <Plus size={18} />
-            <span>Create Admin Forum Topic</span>
-          </button>
-        )}
       </div>
 
       {/* Filter and Search Controls */}
@@ -285,6 +238,20 @@ export default function DiscussionForumSection() {
           <div className="w-9 h-9 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-xs font-semibold text-gray-500">Loading discussion forums...</p>
         </div>
+      ) : loadError ? (
+        <div className="p-10 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 space-y-3">
+          <MessageSquare className="w-12 h-12 text-gray-300 mx-auto" />
+          <h4 className="font-bold text-gray-700 text-base">Couldn&apos;t load discussion forums</h4>
+          <p className="text-xs text-gray-400 max-w-sm mx-auto">
+            Something went wrong while loading the forums. Please try again.
+          </p>
+          <button
+            onClick={() => fetchForums()}
+            className="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition"
+          >
+            Try Again
+          </button>
+        </div>
       ) : forums.length === 0 ? (
         <div className="p-10 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 space-y-3">
           <MessageSquare className="w-12 h-12 text-gray-300 mx-auto" />
@@ -292,14 +259,6 @@ export default function DiscussionForumSection() {
           <p className="text-xs text-gray-400 max-w-sm mx-auto">
             No discussion topics match your search or filter criteria.
           </p>
-          {user?.role === 'admin' && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition"
-            >
-              Create Admin Topic
-            </button>
-          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -335,7 +294,7 @@ export default function DiscussionForumSection() {
                     </span>
 
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">
-                      {forum.level ? forum.level.toUpperCase() : 'ALL LEVELS'}
+                      {forum.level && forum.level !== 'all' ? forum.level.toUpperCase() : 'ALL LEVELS'}
                     </span>
                   </div>
 
@@ -593,111 +552,6 @@ export default function DiscussionForumSection() {
               </div>
             )}
 
-          </div>
-        </div>
-      )}
-
-      {/* Admin Only Modal: Create New Forum Topic */}
-      {showCreateModal && user?.role === 'admin' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
-                <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">
-                  Create Admin Discussion Topic
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateForumTopic} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Topic Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Official Announcement: Course Q&A Thread"
-                  value={newTopicData.title}
-                  onChange={(e) => setNewTopicData(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    Category
-                  </label>
-                  <select
-                    value={newTopicData.category}
-                    onChange={(e) => setNewTopicData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs sm:text-sm bg-white outline-none cursor-pointer"
-                  >
-                    <option value="general">General</option>
-                    <option value="korean-basics">Korean Basics</option>
-                    <option value="grammar">Grammar</option>
-                    <option value="vocabulary">Vocabulary</option>
-                    <option value="culture">Culture</option>
-                    <option value="study-tips">Study Tips</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                    Target Level
-                  </label>
-                  <select
-                    value={newTopicData.level}
-                    onChange={(e) => setNewTopicData(prev => ({ ...prev, level: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs sm:text-sm bg-white outline-none cursor-pointer"
-                  >
-                    <option value="all">All Levels</option>
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Detailed Announcement / Message *
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder="Enter official admin discussion topic instructions..."
-                  value={newTopicData.description}
-                  onChange={(e) => setNewTopicData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs sm:text-sm font-semibold text-gray-600 hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md transition disabled:opacity-60 cursor-pointer"
-                >
-                  {creating ? 'Publishing...' : 'Publish Topic'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

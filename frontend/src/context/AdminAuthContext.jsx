@@ -83,7 +83,7 @@ export const AdminAuthProvider = ({ children }) => {
               setTimeout(() => reject(new Error('API timeout')), 5000)
             );
             
-            const apiPromise = fetch(`http://localhost:5001/api/auth/me`, {
+            const apiPromise = fetch(`${apiUrl}/auth/me`, {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',

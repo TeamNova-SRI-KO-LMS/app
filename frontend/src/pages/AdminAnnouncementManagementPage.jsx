@@ -27,8 +27,7 @@ import {
   Sparkles,
   RotateCw
 } from 'lucide-react';
-
-const BACKEND_URL = 'http://localhost:5000';
+import { baseUrl } from '../config/apiConfig';
 
 const AdminAnnouncementManagementPage = () => {
   const [loading, setLoading] = useState(false);
@@ -393,7 +392,7 @@ const AdminAnnouncementManagementPage = () => {
   const getPhotoUrl = (announcement) => {
     const url = announcement.photo || announcement.thumbnail;
     if (!url) return null;
-    return url.startsWith('http') ? url : `${BACKEND_URL}${url}`;
+    return url.startsWith('http') ? url : `${baseUrl}${url}`;
   };
 
   return (

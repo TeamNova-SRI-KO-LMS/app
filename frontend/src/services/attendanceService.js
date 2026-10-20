@@ -60,3 +60,52 @@ export const deleteAttendance = async (id) => {
   const response = await apiClient.delete(`/attendance/${id}`);
   return response.data; // { success, message }
 };
+
+// ─── Admin (read-only reporting) ──────────────────────────────────────────────
+// Shared filters: { from, to } as 'YYYY-MM-DD', courseId, search (student name/email),
+// studentId, status. Empty values are dropped so the API applies no filter.
+
+const toParams = (filters = {}) => Object.fromEntries(
+  Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== 'all'),
+);
+
+/**
+ * Totals, today's numbers, per-course breakdown and the daily trend.
+ * @param {object} filters  shared filters plus `today` (client's local date)
+ */
+export const fetchAdminAttendanceOverview = async (filters) => {
+  const response = await apiClient.get('/attendance/admin/overview', { params: toParams(filters) });
+  return response.data; // { success, totals, previous, today, courseBreakdown, trend, courses, lastActivityAt }
+};
+
+/**
+ * Paginated attendance records with student and course details.
+ * @param {object} filters  shared filters plus page, limit, sort ('date_desc' | 'date_asc' | 'updated_desc')
+ */
+export const fetchAdminAttendanceRecords = async (filters) => {
+  const response = await apiClient.get('/attendance/admin/records', { params: toParams(filters) });
+  return response.data; // { success, records, pagination }
+};
+
+/**
+ * Per-student attendance summary.
+ * @param {object} filters  shared filters plus page, limit, sort ('rate_asc' | 'rate_desc' | 'sessions_desc' | 'name_asc' | 'recent')
+ */
+export const fetchAdminAttendanceStudents = async (filters) => {
+  const response = await apiClient.get('/attendance/admin/students', { params: toParams(filters) });
+  return response.data; // { success, students, pagination }
+};
+
+/**
+ * Download the filtered records as a CSV file (newest 10,000).
+ * @param {object} filters  shared filters
+ * @returns {Promise<Blob>}
+ */
+export const exportAdminAttendanceCsv = async (filters) => {
+  const response = await apiClient.get('/attendance/admin/export', {
+    params: toParams(filters),
+    responseType: 'blob',
+    timeout: 60000,
+  });
+  return response.data;
+};

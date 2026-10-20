@@ -18,6 +18,7 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
+  Award,
 } from 'lucide-react';
 import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
