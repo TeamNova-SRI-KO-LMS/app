@@ -51,7 +51,7 @@ router.post(
         name,
         email,
         password,
-        role: role || 'student',
+        role: role === 'instructor' ? 'instructor' : 'student',
       });
 
       const token = generateToken(user._id);
