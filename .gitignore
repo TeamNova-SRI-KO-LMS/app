@@ -23,3 +23,6 @@ build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Vercel CLI project links and pulled environment files (vercel link / vercel pull)
+.vercel
