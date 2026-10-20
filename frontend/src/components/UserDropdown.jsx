@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import useAuth from '../context/useAuth';
+import UserAvatar from './UserAvatar';
 import toast from 'react-hot-toast';
 
 export default function UserDropdown() {
@@ -92,9 +93,7 @@ export default function UserDropdown() {
     },
   ];
 
-  const userAvatar =
-    user?.avatar ||
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`;
+
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -105,13 +104,9 @@ export default function UserDropdown() {
         aria-expanded={isOpen}
         aria-haspopup="true"
         aria-label="User account menu"
-        className="w-10 h-10 rounded-full bg-pink-100 border-2 border-white shadow-sm overflow-hidden cursor-pointer flex items-center justify-center transition-all hover:scale-105 hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-10 h-10 rounded-full border-2 border-white shadow-sm overflow-hidden cursor-pointer flex items-center justify-center transition-all hover:scale-105 hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
-        <img
-          src={userAvatar}
-          alt={user?.name || 'User Avatar'}
-          className="w-full h-full object-cover"
-        />
+        <UserAvatar user={user} size="w-10 h-10" iconSize={20} />
       </button>
 
       {/* Dropdown Panel */}
@@ -123,13 +118,7 @@ export default function UserDropdown() {
           {/* User Info Header */}
           <div className="px-3.5 py-2.5 border-b border-gray-100 bg-gray-50/60 rounded-t-xl">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-pink-100 border border-white shadow-xs overflow-hidden flex-shrink-0">
-                <img
-                  src={userAvatar}
-                  alt={user?.name || 'User'}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <UserAvatar user={user} size="w-9 h-9" iconSize={16} className="border border-white shadow-xs" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
                   <p className="text-xs font-bold text-gray-900 truncate">

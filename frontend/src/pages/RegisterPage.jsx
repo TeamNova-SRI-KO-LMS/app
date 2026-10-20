@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import useAuth from '../context/useAuth';
 import { useState } from 'react';
@@ -13,7 +13,7 @@ const RegisterPage = () => {
   });
 
   const [validationError, setValidationError] = useState('');
-  const { register, googleLogin, loading, error } = useAuth();
+  const { register, googleLogin, loading, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const handleGoogleCredentialResponse = async credentialResponse => {
@@ -62,6 +62,20 @@ const RegisterPage = () => {
   };
 
   const formError = validationError || error;
+
+  // While auth is initializing, show a spinner so the form doesn't flash
+  if (loading && !formError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // If already logged in, redirect to home
+  if (isAuthenticated) {
+    return <Navigate to="/home" replace />;
+  }
 
   return (
     <div className="min-h-screen py-10 overflow-y-auto flex flex-col items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
