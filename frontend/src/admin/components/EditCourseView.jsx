@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { 
   ArrowLeft, Edit2, PlusCircle, CheckCircle2, 
-  AlertCircle, ChevronDown, Check, Image as ImageIcon
+  AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload
 } from 'lucide-react';
 import CourseResourceModal from './CourseResourceModal';
+import lectureService from '../../services/lectureService';
 
 export default function EditCourseView({ course, onBack, onSave, loading }) {
   const [title, setTitle] = useState(course?.title || 'Intermediate Korean: Business Etiquette');
@@ -14,6 +15,9 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
     course?.description || 
     'Master the nuances of polite speech (Jondaemal) and professional correspondence in a Korean corporate environment. This course covers meeting etiquette, honorifics in emails, and networking protocols.'
   );
+
+  const [thumbnail, setThumbnail] = useState(course?.thumbnail || '');
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   // Quick settings toggles
   const [openEnrollment, setOpenEnrollment] = useState(true);
@@ -49,6 +53,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
       category: category === 'Business Korean' ? 'Business' : category,
       level,
       description,
+      thumbnail: thumbnail || course?.thumbnail,
       openEnrollment,
       certificatesEnabled,
       featuredOnHome,
@@ -251,24 +256,71 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
           
           {/* Card 1: Course Thumbnail */}
           <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs">
-            <h4 className="font-bold text-gray-700 text-xs uppercase tracking-wider mb-3">
-              Course Thumbnail
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-gray-700 text-xs uppercase tracking-wider">
+                Course Thumbnail
+              </h4>
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                Google Drive
+              </span>
+            </div>
             
-            <div className="aspect-video w-full rounded-2xl overflow-hidden bg-gray-900 relative shadow-inner mb-3">
-              <img 
-                src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=800" 
-                alt="Course Safe Work Thumbnail" 
-                className="w-full h-full object-cover opacity-85"
+            <div className="border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-[#f8fafc] hover:bg-blue-50/10 transition cursor-pointer relative overflow-hidden group">
+              {thumbnail ? (
+                <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black/10">
+                  <img 
+                    src={thumbnail} 
+                    alt="Course Thumbnail" 
+                    className="w-full h-full object-cover" 
+                  />
+                  {uploadingThumbnail && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-2 text-white text-xs font-bold">
+                      <Loader2 size={16} className="animate-spin text-blue-400" />
+                      <span>Uploading to Google Drive...</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-6 flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-blue-50 text-gray-400 group-hover:text-blue-600 flex items-center justify-center mb-2 transition">
+                    <ImageIcon size={22} />
+                  </div>
+                  <p className="text-xs font-bold text-gray-600">
+                    Click to upload thumbnail
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    1280×720px • Stored on Google Drive
+                  </p>
+                </div>
+              )}
+
+              <input 
+                type="file" 
+                accept="image/*"
+                disabled={uploadingThumbnail}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setUploadingThumbnail(true);
+                    try {
+                      const res = await lectureService.uploadThumbnail(file);
+                      if (res?.url) {
+                        setThumbnail(res.url);
+                      }
+                    } catch (err) {
+                      console.error('Thumbnail upload error:', err);
+                      alert('Failed to upload thumbnail to Google Drive.');
+                    } finally {
+                      setUploadingThumbnail(false);
+                    }
+                  }
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
               />
-              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-center p-4">
-                <span className="text-[11px] font-mono tracking-widest uppercase text-amber-300 font-bold">COURSE</span>
-                <span className="text-base font-black tracking-wider uppercase mt-0.5">SAFE WORK</span>
-              </div>
             </div>
 
-            <p className="text-[11px] text-gray-400 text-center leading-relaxed">
-              Recommended size: 1280×720px. JPG, PNG, or WebP.
+            <p className="text-[10px] text-gray-400 text-center mt-2.5">
+              Click thumbnail area to replace image. Saved directly to your Google Drive.
             </p>
           </div>
 
@@ -391,6 +443,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
       <CourseResourceModal 
         isOpen={showResourceModal}
         onClose={() => setShowResourceModal(false)}
+        courseId={course?._id}
         courseTitle={title}
         targetModule={activeModuleTarget}
       />
