@@ -1,14 +1,8 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 
-// Create uploads directory if it doesn't exist
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Configure multer for in-memory file uploads (stores directly in DB, no disk files)
+// Configure multer for in-memory file uploads (stores directly in DB, no disk files).
+// Nothing is written to disk, which also keeps uploads working on read-only
+// serverless filesystems such as Vercel.
 const storage = multer.memoryStorage();
 
 // File filter to only allow images
