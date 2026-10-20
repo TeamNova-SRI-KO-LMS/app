@@ -66,6 +66,16 @@ router.post(
           email: user.email,
           role: user.role,
           avatar: user.avatar,
+          bio: user.bio,
+          phone: user.phone,
+          location: user.location,
+          website: user.website,
+          socialLinks: user.socialLinks,
+          enrolledCourses: user.enrolledCourses,
+          notifications: user.notifications,
+          privacy: user.privacy,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
         },
       });
     } catch (error) {
@@ -381,6 +391,16 @@ router.post('/google', async (req, res) => {
         email: user.email,
         role: user.role,
         avatar: user.avatar,
+        bio: user.bio,
+        phone: user.phone,
+        location: user.location,
+        website: user.website,
+        socialLinks: user.socialLinks,
+        enrolledCourses: user.enrolledCourses,
+        notifications: user.notifications,
+        privacy: user.privacy,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
       },
     });
   } catch (err) {

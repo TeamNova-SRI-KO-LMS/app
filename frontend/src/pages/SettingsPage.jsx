@@ -20,6 +20,18 @@ import {
   Trash2,
 } from 'lucide-react';
 
+const PHONE_PATTERN = /^(?:\d{10}|\+94\d{9})$/;
+const LINKEDIN_PATTERN = /^https?:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9][A-Za-z0-9-_%]*\/?$/i;
+
+const isHttpUrl = value => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 const SettingsContent = ({ user, updateUser }) => {
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(false);
@@ -206,16 +218,33 @@ const SettingsContent = ({ user, updateUser }) => {
 
   // Save Account Profile
   const handleSaveProfile = async () => {
+    const phone = formData.phone.trim();
+    const website = formData.website.trim();
+    const linkedin = formData.linkedin.trim();
+
+    if (phone && !PHONE_PATTERN.test(phone)) {
+      toast.error('Phone number must be 10 digits or use the +94 format followed by 9 digits.');
+      return;
+    }
+    if (website && !isHttpUrl(website)) {
+      toast.error('Portfolio website must be a valid http:// or https:// URL.');
+      return;
+    }
+    if (linkedin && !LINKEDIN_PATTERN.test(linkedin)) {
+      toast.error('LinkedIn profile must use a valid https://linkedin.com/in/... URL.');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         name: formData.name,
         bio: formData.bio,
-        phone: formData.phone,
+        phone,
         location: formData.location,
-        website: formData.website,
+        website,
         socialLinks: {
-          linkedin: formData.linkedin,
+          linkedin,
         },
         privacy: {
           ...privacy,
@@ -496,9 +525,13 @@ const SettingsContent = ({ user, updateUser }) => {
                           type="email"
                           name="email"
                           value={formData.email}
-                          onChange={handleInputChange}
-                          className="w-full bg-[#EAECEF] hover:bg-[#E2E6EA] focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 border-0 outline-none transition"
+                          readOnly
+                          aria-describedby="email-help"
+                          className="w-full cursor-not-allowed rounded-xl border-0 bg-gray-100 px-4 py-3 text-sm font-medium text-gray-500 outline-none"
                         />
+                        <p id="email-help" className="mt-1.5 text-xs text-gray-500">
+                          Your account email address cannot be changed here.
+                        </p>
                       </div>
 
                       {/* Phone Number */}
@@ -511,6 +544,9 @@ const SettingsContent = ({ user, updateUser }) => {
                           name="phone"
                           value={formData.phone}
                           onChange={handleInputChange}
+                          inputMode="numeric"
+                          maxLength={12}
+                          placeholder="10 digits or +94XXXXXXXXX"
                           className="w-full bg-[#EAECEF] hover:bg-[#E2E6EA] focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 border-0 outline-none transition"
                         />
                       </div>
@@ -560,7 +596,7 @@ const SettingsContent = ({ user, updateUser }) => {
                         <div className="flex items-center gap-3 bg-[#EAECEF] hover:bg-[#E2E6EA] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-xl px-4 py-3 transition">
                           <Globe size={18} className="text-gray-500 shrink-0" />
                           <input
-                            type="text"
+                            type="url"
                             name="website"
                             value={formData.website}
                             onChange={handleInputChange}
@@ -578,11 +614,11 @@ const SettingsContent = ({ user, updateUser }) => {
                         <div className="flex items-center gap-3 bg-[#EAECEF] hover:bg-[#E2E6EA] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-xl px-4 py-3 transition">
                           <Link2 size={18} className="text-gray-500 shrink-0" />
                           <input
-                            type="text"
+                            type="url"
                             name="linkedin"
                             value={formData.linkedin}
                             onChange={handleInputChange}
-                            placeholder="linkedin.com/in/..."
+                            placeholder="https://linkedin.com/in/..."
                             className="w-full bg-transparent border-0 p-0 text-sm font-medium text-gray-800 outline-none"
                           />
                         </div>
