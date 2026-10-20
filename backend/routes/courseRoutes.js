@@ -8,6 +8,7 @@ const {
   validateReview,
   handleValidationErrors,
 } = require('../middleware/validation');
+const escapeRegex = require('../utils/escapeRegex');
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ router.get('/', async (req, res) => {
     if (req.query.category) filter.category = req.query.category;
     if (req.query.level)    filter.level    = req.query.level;
     if (req.query.published) filter.isPublished = req.query.published === 'true';
-    if (req.query.search)  filter.title = { $regex: req.query.search, $options: 'i' };
+    if (req.query.search)  filter.title = { $regex: escapeRegex(req.query.search), $options: 'i' };
 
     const courses = await Course.find(filter)
       .populate('instructor', 'name avatar')
@@ -96,7 +97,7 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
     if (req.query.category && req.query.category !== 'All Categories') filter.category   = req.query.category;
     if (req.query.level    && req.query.level    !== 'All Levels')     filter.level      = req.query.level.toLowerCase();
     if (req.query.status   && req.query.status   !== 'Status')         filter.isPublished = req.query.status === 'PUBLISHED';
-    if (req.query.search)  filter.title = { $regex: req.query.search, $options: 'i' };
+    if (req.query.search)  filter.title = { $regex: escapeRegex(req.query.search), $options: 'i' };
 
     const courses = await Course.find(filter)
       .populate('instructor', 'name avatar')
