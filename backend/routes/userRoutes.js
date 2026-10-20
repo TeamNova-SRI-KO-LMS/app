@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const path = require('path');
 const fs = require('fs');
 const User = require('../models/User');
@@ -12,8 +13,39 @@ const {
   handleValidationErrors,
 } = require('../middleware/validation');
 const { uploadSingle, handleUploadError } = require('../middleware/upload');
+const escapeRegex = require('../utils/escapeRegex');
+const {
+  ATTENDANCE_STATUSES,
+  toAttendanceDay,
+  todayAttendanceDay,
+  upsertAttendanceRecord,
+} = require('../utils/attendance');
 
 const router = express.Router();
+
+// Attendance row used by the dashboard/attendance endpoints. Days are formatted in
+// UTC so they match the calendar day the student picked, whatever the server timezone.
+const formatAttendanceRow = (record, fallbackCourseTitle) => {
+  const day = toAttendanceDay(record.date);
+  return {
+    id: record._id,
+    dayNumber: day ? day.getUTCDate() : null,
+    date: day
+      ? day.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', timeZone: 'UTC' })
+      : '',
+    rawDate: day,
+    course: record.course?.title || fallbackCourseTitle,
+    courseId: record.course?._id || record.course,
+    status: record.status ? record.status.charAt(0).toUpperCase() + record.status.slice(1) : 'Present',
+    statusType: record.status || 'present',
+    notes: record.notes || '',
+    // When the student marked it (the stored date itself is always midnight)
+    time: record.createdAt
+      ? new Date(record.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
+      : '',
+    type: 'Lecture'
+  };
+};
 
 // @desc    Get comprehensive user dashboard data (profile, stats, enrolled courses, progress, attendance)
 // @route   GET /api/users/dashboard
@@ -223,19 +255,7 @@ router.get('/dashboard', protect, async (req, res) => {
             lateCount,
             excusedCount,
           },
-          records: attendanceRecords.map(a => ({
-            id: a._id,
-            dayNumber: new Date(a.date).getDate(),
-            date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-            rawDate: a.date,
-            course: a.course?.title || 'General Korean Course',
-            courseId: a.course?._id || a.course,
-            status: a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Present',
-            statusType: a.status || 'present',
-            notes: a.notes || '',
-            time: new Date(a.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            type: 'Lecture'
-          }))
+          records: attendanceRecords.map(a => formatAttendanceRow(a, 'General Korean Course'))
         }
       }
     });
@@ -270,19 +290,7 @@ router.get('/attendance', protect, async (req, res) => {
       data: {
         rate,
         summary: { totalSessions, presentCount, absentCount, lateCount, excusedCount },
-        records: records.map(a => ({
-          id: a._id,
-          dayNumber: new Date(a.date).getDate(),
-          date: new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-          rawDate: a.date,
-          course: a.course?.title || 'General Korean',
-          courseId: a.course?._id,
-          status: a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Present',
-          statusType: a.status || 'present',
-          notes: a.notes || '',
-          time: new Date(a.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          type: 'Lecture'
-        }))
+        records: records.map(a => formatAttendanceRow(a, 'General Korean'))
       }
     });
   } catch (error) {
@@ -296,48 +304,42 @@ router.get('/attendance', protect, async (req, res) => {
 // @access  Private
 router.post('/attendance', protect, async (req, res) => {
   try {
-    const { date, status, courseId, notes, dayNumber } = req.body;
-    let recordDate = date ? new Date(date) : new Date();
+    const { date, courseId, notes, dayNumber } = req.body;
 
+    const status = String(req.body.status || 'present').trim().toLowerCase();
+    if (!ATTENDANCE_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${ATTENDANCE_STATUSES.join(', ')}`,
+      });
+    }
+
+    let day = date ? toAttendanceDay(date) : todayAttendanceDay();
     if (dayNumber && !date) {
-      // Set to dayNumber of current month
-      const now = new Date();
-      recordDate = new Date(now.getFullYear(), now.getMonth(), parseInt(dayNumber, 10));
+      // dayNumber of the current month
+      const today = todayAttendanceDay();
+      day = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), parseInt(dayNumber, 10)));
     }
 
-    const startOfDay = new Date(recordDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(recordDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    let course = courseId;
-    if (!course) {
-      const user = await User.findById(req.user.id);
-      course = user?.enrolledCourses?.[0] || (await Course.findOne().select('_id'))?._id;
+    if (!day || Number.isNaN(day.getTime())) {
+      return res.status(400).json({ success: false, message: 'Invalid attendance date. Use the YYYY-MM-DD format.' });
     }
 
-    if (!course) {
+    // Default to the student's first enrolled course
+    const course = courseId || req.user.enrolledCourses?.[0];
+    if (!course || !mongoose.isObjectIdOrHexString(course) || !(await Course.exists({ _id: course }))) {
       return res.status(400).json({ success: false, message: 'No course found to associate with attendance' });
     }
 
-    const filter = {
-      student: req.user.id,
-      date: { $gte: startOfDay, $lte: endOfDay }
-    };
-
-    const update = {
-      student: req.user.id,
-      course,
-      date: recordDate,
-      status: (status || 'present').toLowerCase(),
-      notes: notes || '',
-    };
-
-    const attendance = await Attendance.findOneAndUpdate(
-      filter,
-      update,
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    ).populate('course', 'title');
+    const attendance = await upsertAttendanceRecord({
+      studentId: req.user._id,
+      courseId: course,
+      day,
+      status,
+      notes: typeof notes === 'string' ? notes.trim().slice(0, 250) : '',
+      recordedBy: req.user._id,
+    });
+    await attendance.populate('course', 'title');
 
     res.status(200).json({
       success: true,
@@ -346,7 +348,7 @@ router.post('/attendance', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Error saving attendance:', error);
-    res.status(500).json({ success: false, message: 'Server error saving attendance', error: error.message });
+    res.status(500).json({ success: false, message: 'Server error saving attendance' });
   }
 });
 
@@ -672,9 +674,10 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
     }
 
     if (search) {
+      const pattern = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: pattern, $options: 'i' } },
+        { email: { $regex: pattern, $options: 'i' } }
       ];
     }
 
