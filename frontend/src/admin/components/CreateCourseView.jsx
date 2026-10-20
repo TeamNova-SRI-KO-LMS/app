@@ -5,6 +5,7 @@ import {
   Globe, HelpCircle, X, Image as ImageIcon, Loader2
 } from 'lucide-react';
 import { uploadToSupabase } from '../../services/uploadService';
+import toast from 'react-hot-toast';
 import lectureService from '../../services/lectureService';
 
 export default function CreateCourseView({ onBack, onSave, loading }) {
@@ -82,7 +83,7 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
 
   const handleSubmit = (isPublished = true) => {
     if (!title.trim()) {
-      alert('Please enter a course title.');
+      toast.error('Please enter a course title.');
       return;
     }
     const payload = {

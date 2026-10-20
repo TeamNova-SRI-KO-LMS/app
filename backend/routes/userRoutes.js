@@ -433,6 +433,8 @@ router.put(
           website: user.website,
           socialLinks: user.socialLinks,
           enrolledCourses: user.enrolledCourses,
+          notifications: user.notifications,
+          privacy: user.privacy,
           createdAt: user.createdAt,
           lastLogin: user.lastLogin,
         },

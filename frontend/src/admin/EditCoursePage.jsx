@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
 import EditCourseView from './components/EditCourseView';
 import courseService from '../services/courseService';
+import toast from 'react-hot-toast';
 
 export default function EditCoursePage() {
   const navigate = useNavigate();
@@ -32,10 +33,10 @@ export default function EditCoursePage() {
       if (course?._id) {
         await courseService.updateCourse(course._id, payload);
       }
-      alert('Course updated successfully!');
+      toast.success('Course updated successfully!');
       navigate('/admin');
     } catch (err) {
-      alert(err?.response?.data?.message || 'Failed to update course.');
+      toast.error(err?.response?.data?.message || 'Failed to update course.');
     } finally {
       setLoading(false);
     }

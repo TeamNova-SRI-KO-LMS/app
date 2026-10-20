@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import apiService from '../services/apiService';
 import useAuth from '../context/useAuth';
+import toast from 'react-hot-toast';
 import lectureService from '../services/lectureService';
 import assignmentService from '../services/assignmentService';
 
@@ -70,8 +71,8 @@ export default function CourseDetails() {
   /* ── Submit review ─────────────────────────────────────────────────────── */
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    if (selectedRating === 0) { alert('Please select a star rating first.'); return; }
-    if (!feedbackText.trim())  { alert('Please write your feedback before submitting.'); return; }
+    if (selectedRating === 0) { toast.error('Please select a star rating first.'); return; }
+    if (!feedbackText.trim())  { toast.error('Please write your feedback before submitting.'); return; }
 
     try {
       const res = await apiService.post(`/courses/${id}/reviews`, {
@@ -82,7 +83,7 @@ export default function CourseDetails() {
       setFeedbackText('');
       setSelectedRating(0);
     } catch (err) {
-      alert(err?.response?.data?.message ?? 'Failed to submit review. Please try again.');
+      toast.error(err?.response?.data?.message ?? 'Failed to submit review. Please try again.');
     }
   };
 

@@ -10,6 +10,7 @@ import {
   Image as ImageIcon, ClipboardList, ExternalLink,
   UploadCloud, AlertCircle, X, ChevronDown, ChevronUp
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import apiService from '../services/apiService';
 import lectureService from '../services/lectureService';
 import assignmentService from '../services/assignmentService';
@@ -474,6 +475,8 @@ export default function CourseInfoPage() {
             {/* Bottom Assignment Quick Launcher */}
             <div className="pt-4 mt-4 border-t border-gray-100">
               <button 
+                onClick={() => toast('Assignment submission is not available yet.')}
+                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
                 onClick={() => {
                   if (assignments.length > 0) {
                     handleOpenAssignmentModal(assignments[0]);
