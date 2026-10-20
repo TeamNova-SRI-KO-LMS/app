@@ -122,8 +122,11 @@ const getReport = async ({ year, period }) => {
     allUsers,
     allCourses,
   ] = await Promise.all([
-    User.countDocuments(dateMatch('createdAt', bounds)),
-    Course.countDocuments(dateMatch('createdAt', bounds)),
+    // KPI cards are totals for the whole database. The period-specific
+    // counts below are used only to calculate growth against the previous
+    // period.
+    User.countDocuments(),
+    Course.countDocuments(),
     User.countDocuments(dateMatch('createdAt', bounds)),
     User.countDocuments(dateMatch('createdAt', previous)),
     Course.countDocuments(dateMatch('createdAt', bounds)),
