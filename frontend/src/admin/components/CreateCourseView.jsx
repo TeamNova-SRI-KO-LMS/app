@@ -5,6 +5,8 @@ import {
   Globe, HelpCircle, X, Image as ImageIcon, Loader2
 } from 'lucide-react';
 import { uploadToSupabase } from '../../services/uploadService';
+import toast from 'react-hot-toast';
+import lectureService from '../../services/lectureService';
 
 export default function CreateCourseView({ onBack, onSave, loading }) {
   const [title, setTitle] = useState('');
@@ -81,7 +83,7 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
 
   const handleSubmit = (isPublished = true) => {
     if (!title.trim()) {
-      alert('Please enter a course title.');
+      toast.error('Please enter a course title.');
       return;
     }
     const payload = {
@@ -316,10 +318,19 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
                     setThumbnailPreview(URL.createObjectURL(file));
                     setUploadingThumbnail(true);
                     try {
-                      const url = await uploadToSupabase(file, 'courses', 'thumbnails');
-                      setThumbnailPreview(url);
+                      // Upload to Google Drive
+                      const res = await lectureService.uploadThumbnail(file);
+                      if (res?.url) {
+                        setThumbnailPreview(res.url);
+                      }
                     } catch (err) {
-                      console.error('Course thumbnail Supabase upload error:', err);
+                      console.error('Course thumbnail Google Drive upload error, falling back:', err);
+                      try {
+                        const url = await uploadToSupabase(file, 'courses', 'thumbnails');
+                        setThumbnailPreview(url);
+                      } catch (subErr) {
+                        console.error('Supabase fallback error:', subErr);
+                      }
                     } finally {
                       setUploadingThumbnail(false);
                     }

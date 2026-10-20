@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, Trash2, Edit2, Shield, Mail, Check, X, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, UserPlus, Trash2, Edit2, Shield, Mail, X, ChevronDown, Loader2 } from 'lucide-react';
 import apiService from '../services/apiService';
+import toast from 'react-hot-toast';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -11,8 +13,8 @@ const UserManagement = () => {
 
   const [loading, setLoading] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -58,15 +60,13 @@ const UserManagement = () => {
     // Optimistically update the UI
     setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
     setUpdatingUserId(userId);
-    setSuccessMessage('');
     setError(null);
 
     try {
       await apiService.put(`/users/${userId}`, {
         role: newRole.toLowerCase()
       });
-      setSuccessMessage(`Role for ${userName} changed to ${newRole} successfully`);
-      setTimeout(() => setSuccessMessage(''), 4000);
+      toast.success(`Role for ${userName} changed to ${newRole} successfully`);
     } catch (err) {
       console.error('Error updating user role:', err);
       // Revert optimistic update on failure
@@ -100,27 +100,26 @@ const UserManagement = () => {
           coursesEnrolled: 0
         };
         setUsers([createdUser, ...users]);
-        setSuccessMessage(`User ${createdUser.name} created successfully`);
-        setTimeout(() => setSuccessMessage(''), 4000);
+        toast.success(`User ${createdUser.name} created successfully`);
       } else {
         fetchUsers();
       }
       setNewUser({ name: '', email: '', role: 'Student' });
       setShowAddModal(false);
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create user on backend');
+      toast.error(err.response?.data?.message || 'Failed to create user on backend');
     }
   };
 
   const handleDeleteUser = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
       await apiService.delete(`/users/${id}`);
       setUsers(users.filter(u => u.id !== id));
-      setSuccessMessage('User deleted successfully');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      toast.success('User deleted successfully');
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete user');
+      toast.error(err.response?.data?.message || 'Failed to delete user');
+    } finally {
+      setUserToDelete(null);
     }
   };
 
@@ -168,24 +167,6 @@ const UserManagement = () => {
           </select>
         </div>
       </div>
-
-      {/* Success Alert */}
-      {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-between shadow-xs animate-fadeIn">
-          <div className="flex items-center gap-2.5">
-            <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-              <Check size={14} className="stroke-[2.5]" />
-            </div>
-            <span className="font-semibold">{successMessage}</span>
-          </div>
-          <button 
-            onClick={() => setSuccessMessage('')} 
-            className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
 
       {/* Error Alert */}
       {error && (
@@ -284,7 +265,7 @@ const UserManagement = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={() => handleDeleteUser(user.id)}
+                          onClick={() => setUserToDelete(user.id)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                           title="Delete User"
                         >
@@ -366,6 +347,15 @@ const UserManagement = () => {
             </form>
           </div>
         </div>
+      )}
+      {userToDelete && (
+        <ConfirmDialog
+          title="Delete user?"
+          message="Are you sure you want to delete this user? This action cannot be undone."
+          confirmLabel="Delete user"
+          onConfirm={() => handleDeleteUser(userToDelete)}
+          onCancel={() => setUserToDelete(null)}
+        />
       )}
     </div>
   );

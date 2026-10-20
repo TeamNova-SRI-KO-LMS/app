@@ -1,45 +1,154 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { 
   BookOpen, CheckCircle2, PlayCircle, Circle, Lock, 
   Bookmark, Share2, Play, Pause, Volume2, VolumeX,
   Maximize, Minimize, Settings, Subtitles, Clock, 
   HelpCircle, Languages, FileText, Download, 
   Sparkles, MessageSquare, ChevronRight, Check,
-  Send, Plus, Trash2
+  Send, Plus, Trash2, ArrowLeft, Loader2, Video,
+  Image as ImageIcon, ClipboardList, ExternalLink,
+  UploadCloud, AlertCircle, X, ChevronDown, ChevronUp
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import apiService from '../services/apiService';
+import lectureService from '../services/lectureService';
+import assignmentService from '../services/assignmentService';
+import useAuth from '../context/useAuth';
 
 export default function CourseInfoPage() {
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const { user } = useAuth();
+
+  // Course, materials & assignments state
+  const [course, setCourse] = useState(null);
+  const [materials, setMaterials] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Active item state (either a lecture material or a mock/curriculum lesson)
+  const [selectedMaterial, setSelectedMaterial] = useState(null);
+  const [completedItemIds, setCompletedItemIds] = useState([]);
+
+  // Tabs: 'Overview' | 'Resources' | 'Notes' | 'Assignments'
   const [activeTab, setActiveTab] = useState('Overview');
-  const [currentProgress] = useState(64);
+  
+  // Student Notes
   const [noteInput, setNoteInput] = useState('');
   const [notes, setNotes] = useState([
     {
       id: 1,
-      time: '08:22',
-      text: "Key difference between 'Seonsaengnim' and 'Sajangnim' in corporate hierarchies...",
+      time: '04:15',
+      text: "Remember: 'Jondaemal' uses honorific suffixes like -si- when referring to actions of superiors.",
     },
     {
       id: 2,
-      time: '11:05',
-      text: 'Hand position during business card exchange (use both hands always).',
+      time: '09:30',
+      text: 'Business card exchange: Always receive with both hands, slightly bow, and never put it in back pocket.',
     }
   ]);
   const [copied, setCopied] = useState(false);
 
-  // Active module & lesson state
-  const [activeLessonId, setActiveLessonId] = useState('m4-l2');
+  // Assignment submission modal state
+  const [activeAssignmentForSubmit, setActiveAssignmentForSubmit] = useState(null);
+  const [submissionFiles, setSubmissionFiles] = useState([]);
+  const [submissionNote, setSubmissionNote] = useState('');
+  const [submittingAssignment, setSubmittingAssignment] = useState(false);
+  const [submissionProgress, setSubmissionProgress] = useState(0);
+  const [currentSubmission, setCurrentSubmission] = useState(null);
+  const [submissionStatusMsg, setSubmissionStatusMsg] = useState(null);
+
+  // Fetch Course, Google Drive Materials, and Assignments
+  useEffect(() => {
+    let courseId = id;
+    if (!courseId) {
+      // If no ID in route, try to find an enrolled course or redirect
+      (async () => {
+        try {
+          const res = await apiService.get('/courses');
+          if (res.data?.courses?.length > 0) {
+            navigate(`/course-info/${res.data.courses[0]._id}`, { replace: true });
+          } else {
+            setError('No courses available yet.');
+            setLoading(false);
+          }
+        } catch {
+          setError('Failed to load courses.');
+          setLoading(false);
+        }
+      })();
+      return;
+    }
+
+    const loadClassroomData = async () => {
+      try {
+        setLoading(true);
+        const [courseRes, matsRes, assignRes] = await Promise.allSettled([
+          apiService.get(`/courses/${courseId}`),
+          lectureService.getCourseMaterials(courseId),
+          assignmentService.getCourseAssignments(courseId),
+        ]);
+
+        let courseData = null;
+        if (courseRes.status === 'fulfilled') {
+          courseData = courseRes.value.data?.course ?? null;
+          setCourse(courseData);
+        }
+
+        let matsData = [];
+        if (matsRes.status === 'fulfilled') {
+          matsData = matsRes.value?.materials || [];
+          setMaterials(matsData);
+        }
+
+        let assignData = [];
+        if (assignRes.status === 'fulfilled') {
+          assignData = assignRes.value?.assignments || [];
+          setAssignments(assignData);
+        }
+
+        // Auto-select first available material or lesson
+        if (matsData.length > 0) {
+          setSelectedMaterial(matsData[0]);
+        } else if (courseData?.curriculum?.[0]?.lessons?.[0]) {
+          const firstLesson = courseData.curriculum[0].lessons[0];
+          setSelectedMaterial({
+            _id: 'lesson-0',
+            title: firstLesson.title,
+            type: firstLesson.type || 'video',
+            description: courseData.description,
+            lessonTitle: courseData.curriculum[0].title,
+            weekNumber: 1,
+            embedUrl: courseData.thumbnail,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load classroom data:', err);
+        setError('Failed to load classroom content.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadClassroomData();
+  }, [id, navigate]);
+
+  // Handle lesson / material toggle completion
+  const toggleComplete = (itemId) => {
+    setCompletedItemIds(prev => 
+      prev.includes(itemId) ? prev.filter(i => i !== itemId) : [...prev, itemId]
+    );
+  };
 
   const handleAddNote = (e) => {
     e?.preventDefault();
     if (!noteInput.trim()) return;
     const newNote = {
       id: Date.now(),
-      time: '12:45',
+      time: 'Just now',
       text: noteInput.trim(),
     };
     setNotes([newNote, ...notes]);
@@ -54,476 +163,675 @@ export default function CourseInfoPage() {
     }
   };
 
+  // Open submission modal for an assignment
+  const handleOpenAssignmentModal = async (assignment) => {
+    setActiveAssignmentForSubmit(assignment);
+    setSubmissionFiles([]);
+    setSubmissionNote('');
+    setSubmissionStatusMsg(null);
+    setCurrentSubmission(null);
+
+    // Fetch existing submission if any
+    try {
+      const res = await assignmentService.getMySubmission(assignment._id);
+      if (res?.submission) {
+        setCurrentSubmission(res.submission);
+        setSubmissionNote(res.submission.submissionNote || '');
+      }
+    } catch (err) {
+      console.warn('Could not load submission:', err);
+    }
+  };
+
+  // Submit files to Google Drive for an assignment
+  const handleAssignmentSubmit = async (e) => {
+    e.preventDefault();
+    if (!activeAssignmentForSubmit) return;
+    if (submissionFiles.length === 0 && !currentSubmission) {
+      alert('Please select at least one file to submit.');
+      return;
+    }
+
+    setSubmittingAssignment(true);
+    setSubmissionProgress(0);
+    setSubmissionStatusMsg(null);
+
+    try {
+      const formData = new FormData();
+      submissionFiles.forEach((f) => formData.append('files', f));
+      formData.append('submissionNote', submissionNote.trim());
+
+      const res = await assignmentService.submitAssignment(
+        activeAssignmentForSubmit._id,
+        formData,
+        (progress) => setSubmissionProgress(progress)
+      );
+
+      setCurrentSubmission(res.submission);
+      setSubmissionStatusMsg({
+        type: 'success',
+        text: 'Assignment submitted to Google Drive successfully! 🎉',
+      });
+      setSubmissionFiles([]);
+    } catch (err) {
+      console.error('Assignment submission error:', err);
+      setSubmissionStatusMsg({
+        type: 'error',
+        text: err?.response?.data?.message || 'Failed to submit assignment. Please try again.',
+      });
+    } finally {
+      setSubmittingAssignment(false);
+      setSubmissionProgress(0);
+    }
+  };
+
+  // Calculate dynamic course progress percentage
+  const totalCount = (materials.length || 0) + (assignments.length || 0) || 1;
+  const progressPercent = Math.min(100, Math.round((completedItemIds.length / totalCount) * 100));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          <p className="text-gray-500 font-semibold text-sm">Entering SRI-KO Classroom...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="bg-white p-8 rounded-3xl border border-gray-200 text-center max-w-md shadow-sm">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Classroom Unavailable</h2>
+          <p className="text-xs text-gray-500 mb-6">{error || 'Course not found.'}</p>
+          <Link 
+            to="/courses" 
+            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition"
+          >
+            ← Back to Courses
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-800 font-sans">
-      <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-6">
+      <div className="max-w-[1680px] mx-auto px-3 sm:px-6 py-5">
         
-        {/* Top Grid: Left Sidebar + Center Player/Content + Right Notes */}
+        {/* Top Breadcrumb Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-gray-200/80">
+          <div className="flex items-center gap-3">
+            <Link 
+              to={`/courses/${id || course._id}`} 
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-blue-600 transition"
+            >
+              <ArrowLeft size={14} /> Back to Course Overview
+            </Link>
+            <span className="text-gray-300">/</span>
+            <span className="text-xs font-bold text-gray-900 truncate max-w-sm">
+              {course.title}
+            </span>
+            <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              {course.level || 'Intermediate'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+            >
+              <Share2 size={13} />
+              <span>{copied ? 'Link Copied!' : 'Share'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Classroom Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* ================= LEFT SIDEBAR (Syllabus & Modules) ================= */}
-          <aside className="lg:col-span-3 bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5 flex flex-col justify-between min-h-[780px]">
+          {/* ================= LEFT SIDEBAR (Syllabus & Materials) ================= */}
+          <aside className="lg:col-span-3 bg-white rounded-3xl border border-gray-200/80 shadow-xs p-5 flex flex-col justify-between min-h-[780px]">
             <div>
               {/* Course Title Card */}
-              <div className="flex items-center gap-3.5 mb-6 pb-5 border-b border-gray-100">
-                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+              <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-gray-100">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
                   <BookOpen className="w-6 h-6" />
                 </div>
-                <div>
-                  <h2 className="font-bold text-gray-900 text-base leading-snug">Advanced Korean</h2>
-                  <p className="text-xs text-gray-400 font-medium">Editorial Scholar Path</p>
+                <div className="min-w-0">
+                  <h2 className="font-bold text-gray-900 text-sm sm:text-base leading-snug truncate">
+                    {course.title}
+                  </h2>
+                  <p className="text-[11px] text-gray-400 font-medium">
+                    SRI-KO Korean Institute
+                  </p>
                 </div>
               </div>
 
               {/* Progress Bar Section */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between text-xs font-semibold text-gray-600 mb-2">
-                  <span>Course Progress</span>
-                  <span className="text-gray-900 font-bold">{currentProgress}%</span>
+              <div className="mb-6 p-4 rounded-2xl bg-[#f8fafc] border border-gray-100">
+                <div className="flex items-center justify-between text-xs font-bold text-gray-700 mb-1.5">
+                  <span>Learning Progress</span>
+                  <span className="text-blue-600 font-black">{progressPercent}%</span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
-                    style={{ width: `${currentProgress}%` }}
-                  ></div>
+                    className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-500" 
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="text-[10px] text-gray-400 mt-1.5 flex justify-between">
+                  <span>{completedItemIds.length} of {totalCount} completed</span>
+                  <span>Keep going! 🔥</span>
                 </div>
               </div>
 
-              {/* Modules Accordion List */}
-              <div className="space-y-6">
+              {/* Materials & Lessons List */}
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
                 
-                {/* Module 4 */}
-                <div>
-                  <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-3">
-                    Module 4: Business Professionalism
-                  </div>
-                  <div className="space-y-1.5">
-                    {/* Lesson 1 (Completed) */}
-                    <button 
-                      onClick={() => setActiveLessonId('m4-l1')}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-medium transition-all ${
-                        activeLessonId === 'm4-l1' 
-                          ? 'bg-blue-50/80 text-blue-700 font-semibold shadow-xs' 
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span className="truncate">Honorifics in Boardrooms</span>
-                    </button>
-
-                    {/* Lesson 2 (Active) */}
-                    <button 
-                      onClick={() => setActiveLessonId('m4-l2')}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-xs transition-all relative ${
-                        activeLessonId === 'm4-l2' 
-                          ? 'bg-blue-50 text-blue-700 font-bold shadow-xs border-r-4 border-blue-600' 
-                          : 'text-gray-600 hover:bg-gray-50 font-medium'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 truncate">
-                        <PlayCircle className="w-4 h-4 text-blue-600 shrink-0" />
-                        <span className="truncate">Business Etiquette</span>
-                      </div>
-                    </button>
-
-                    {/* Lesson 3 (Upcoming) */}
-                    <button 
-                      onClick={() => setActiveLessonId('m4-l3')}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-medium transition-all ${
-                        activeLessonId === 'm4-l3' 
-                          ? 'bg-blue-50 text-blue-700 font-semibold' 
-                          : 'text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Circle className="w-4 h-4 text-gray-300 shrink-0" />
-                      <span className="truncate">Networking Protocols</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Module 5 */}
-                <div>
-                  <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-3">
-                    Module 5: Literature Analysis
-                  </div>
-                  <div className="space-y-1.5">
-                    {/* Lesson 4 (Locked) */}
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-gray-400 cursor-not-allowed">
-                      <Lock className="w-4 h-4 text-gray-300 shrink-0" />
-                      <span className="truncate">Modernist Poetry</span>
+                {/* 1. Google Drive Lecture Materials */}
+                {materials.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-black text-gray-400 tracking-wider uppercase mb-2">
+                      Lecture Materials ({materials.length})
                     </div>
+                    <div className="space-y-1.5">
+                      {materials.map((mat) => {
+                        const isSelected = selectedMaterial?._id === mat._id;
+                        const isDone = completedItemIds.includes(mat._id);
 
-                    {/* Lesson 5 (Locked) */}
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-gray-400 cursor-not-allowed">
-                      <Lock className="w-4 h-4 text-gray-300 shrink-0" />
-                      <span className="truncate">Post-War Narratives</span>
+                        return (
+                          <div 
+                            key={mat._id}
+                            onClick={() => setSelectedMaterial(mat)}
+                            className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs transition-all cursor-pointer group ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-l-blue-600 shadow-2xs' 
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(mat._id); }}
+                                className="shrink-0 text-gray-400 hover:text-emerald-600 transition"
+                                title={isDone ? 'Mark Incomplete' : 'Mark Completed'}
+                              >
+                                {isDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Circle className="w-4 h-4" />
+                                )}
+                              </button>
+
+                              <div className="shrink-0">
+                                {mat.type === 'video' && <Video className={`w-3.5 h-3.5 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'pdf' && <FileText className={`w-3.5 h-3.5 ${isSelected ? 'text-red-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'image' && <ImageIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'link' && <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
+                              </div>
+
+                              <span className="truncate">{mat.title}</span>
+                            </div>
+
+                            <span className="text-[10px] font-mono text-gray-400 shrink-0 uppercase">
+                              {mat.type}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* 2. Assignments Section */}
+                {assignments.length > 0 && (
+                  <div className="pt-2">
+                    <div className="text-[10px] font-black text-amber-600 tracking-wider uppercase mb-2">
+                      Assignments ({assignments.length})
+                    </div>
+                    <div className="space-y-1.5">
+                      {assignments.map((assign) => (
+                        <div 
+                          key={assign._id}
+                          onClick={() => handleOpenAssignmentModal(assign)}
+                          className="w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs bg-amber-50/40 hover:bg-amber-50 border border-amber-200/50 text-amber-900 transition-all cursor-pointer font-medium"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <ClipboardList className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="truncate">{assign.title}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md shrink-0">
+                            Submit 📤
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Default Curriculum Fallback if no Drive materials uploaded yet */}
+                {materials.length === 0 && (course.curriculum || []).map((week, widx) => (
+                  <div key={widx}>
+                    <div className="text-[10px] font-black text-gray-400 tracking-wider uppercase mb-2">
+                      {week.title || `Week ${widx + 1}`}
+                    </div>
+                    <div className="space-y-1.5">
+                      {(week.lessons || []).map((lesson, lidx) => {
+                        const lessonKey = `curriculum-${widx}-${lidx}`;
+                        const isSelected = selectedMaterial?._id === lessonKey;
+                        const isDone = completedItemIds.includes(lessonKey);
+
+                        return (
+                          <div 
+                            key={lessonKey}
+                            onClick={() => setSelectedMaterial({
+                              _id: lessonKey,
+                              title: lesson.title,
+                              type: lesson.type || 'video',
+                              lessonTitle: week.title,
+                              weekNumber: widx + 1,
+                              description: lesson.content || course.description,
+                              embedUrl: course.thumbnail,
+                            })}
+                            className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-l-blue-600'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(lessonKey); }}
+                                className="shrink-0 text-gray-400 hover:text-emerald-600"
+                              >
+                                {isDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Circle className="w-4 h-4" />
+                                )}
+                              </button>
+                              <PlayCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span className="truncate">{lesson.title}</span>
+                            </div>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              {lesson.duration ? `${lesson.duration}m` : '15m'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
 
               </div>
             </div>
 
-            {/* Bottom Assignment CTA Button */}
-            <div className="pt-6 mt-6 border-t border-gray-100">
+            {/* Bottom Assignment Quick Launcher */}
+            <div className="pt-4 mt-4 border-t border-gray-100">
               <button 
-                onClick={() => alert('Assignment submission modal or workflow opened.')}
+                onClick={() => toast('Assignment submission is not available yet.')}
                 className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                onClick={() => {
+                  if (assignments.length > 0) {
+                    handleOpenAssignmentModal(assignments[0]);
+                  } else {
+                    alert('No assignments have been assigned for this course yet.');
+                  }
+                }}
+                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
               >
-                Submit Assignment
+                <ClipboardList size={14} />
+                <span>Submit Course Assignment</span>
               </button>
             </div>
           </aside>
 
-          {/* ================= CENTER MAIN PLAYER & LESSON INFO ================= */}
+          {/* ================= CENTER MAIN CONTENT / PLAYER ================= */}
           <main className="lg:col-span-6 space-y-6">
             
-            {/* Video Player Container */}
-            <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-gradient-to-br from-gray-950 via-[#0d1117] to-gray-900 shadow-xl border border-gray-900 group">
-              {/* Video Backdrop Mockup */}
-              <div 
-                className="absolute inset-0 bg-cover bg-center opacity-70 transition-transform duration-700 group-hover:scale-105"
-                style={{
-                  backgroundImage: 'url("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=1200")',
-                  filter: isPlaying ? 'brightness(0.9)' : 'brightness(0.55) contrast(1.1)'
-                }}
-              ></div>
-
-              {/* Big Center Play Button Overlay (when paused or hovered) */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  aria-label={isPlaying ? "Pause video" : "Play video"}
-                  className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:bg-white/30 active:scale-95"
-                >
-                  {isPlaying ? (
-                    <Pause className="w-8 h-8 fill-white" />
+            {/* Main Media Player / Viewer */}
+            <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
+              
+              {/* If Video: Google Drive Video Embed or YouTube */}
+              {selectedMaterial?.type === 'video' || selectedMaterial?.type === 'link' ? (
+                <div className="relative aspect-video w-full bg-black">
+                  {selectedMaterial?.embedUrl ? (
+                    <iframe
+                      src={selectedMaterial.embedUrl}
+                      title={selectedMaterial.title}
+                      className="w-full h-full border-0"
+                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                      allowFullScreen
+                    />
                   ) : (
-                    <Play className="w-8 h-8 fill-white translate-x-0.5" />
+                    <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
+                      <PlayCircle className="w-16 h-16 text-blue-400 mb-3" />
+                      <p className="text-sm font-bold">Video Lesson Preview</p>
+                      <p className="text-xs text-gray-400 mt-1 max-w-sm">
+                        {selectedMaterial?.title}
+                      </p>
+                    </div>
                   )}
-                </button>
-              </div>
-
-              {/* Video Bottom Control Bar */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col gap-2">
-                {/* Progress Bar / Scrubber */}
-                <div className="relative w-full h-1.5 bg-white/30 rounded-full cursor-pointer group/scrub">
-                  <div className="absolute top-0 left-0 h-full bg-blue-500 rounded-full" style={{ width: '28.3%' }}></div>
-                  <div 
-                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md transition-transform group-hover/scrub:scale-125"
-                    style={{ left: '28.3%', transform: 'translate(-50%, -50%)' }}
-                  ></div>
                 </div>
-
-                {/* Control Action Buttons & Timestamp */}
-                <div className="flex items-center justify-between text-white text-xs font-medium pt-1">
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="hover:text-blue-400 transition"
-                      aria-label="Play/Pause"
-                    >
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </button>
-                    
-                    <button 
-                      onClick={() => setIsMuted(!isMuted)}
-                      className="hover:text-blue-400 transition"
-                      aria-label="Volume"
-                    >
-                      {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                    </button>
-
-                    <span className="text-gray-300 text-xs font-mono ml-1">
-                      12:45 / 45:00
+              ) : selectedMaterial?.type === 'pdf' ? (
+                /* If PDF: Google Drive Embedded PDF Viewer */
+                <div className="w-full flex flex-col bg-gray-900 rounded-t-3xl">
+                  <div className="p-3 bg-gray-950 text-white flex items-center justify-between px-5 text-xs font-semibold">
+                    <span className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-red-400" />
+                      {selectedMaterial.title}
                     </span>
+                    {selectedMaterial.downloadUrl && (
+                      <a 
+                        href={selectedMaterial.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-xs font-bold transition"
+                      >
+                        <Download size={13} /> Download PDF
+                      </a>
+                    )}
+                  </div>
+                  <iframe
+                    src={selectedMaterial.embedUrl}
+                    title={selectedMaterial.title}
+                    className="w-full h-[600px] border-0 bg-white"
+                  />
+                </div>
+              ) : selectedMaterial?.type === 'image' ? (
+                /* If Image: Google Drive Direct Image */
+                <div className="w-full p-4 bg-gray-950 flex flex-col items-center justify-center rounded-t-3xl min-h-[450px]">
+                  <img 
+                    src={selectedMaterial.embedUrl || selectedMaterial.viewUrl} 
+                    alt={selectedMaterial.title}
+                    className="max-h-[550px] w-auto object-contain rounded-xl shadow-lg"
+                  />
+                  {selectedMaterial.downloadUrl && (
+                    <div className="mt-3">
+                      <a 
+                        href={selectedMaterial.downloadUrl}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-blue-700 transition"
+                      >
+                        <Download size={13} /> Save Image
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Default Course Thumbnail preview */
+                <div className="relative aspect-video w-full bg-gray-950 flex items-center justify-center">
+                  {course.thumbnail ? (
+                    <img 
+                      src={course.thumbnail} 
+                      alt={course.title}
+                      className="w-full h-full object-cover opacity-80" 
+                    />
+                  ) : (
+                    <div className="text-center text-white p-6">
+                      <BookOpen className="w-16 h-16 text-blue-500 mx-auto mb-2" />
+                      <p className="text-sm font-bold">{course.title}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Lesson Title & Controls Bar */}
+              <div className="p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full inline-block mb-1.5">
+                      {selectedMaterial?.type ? `Material: ${selectedMaterial.type.toUpperCase()}` : 'Lesson Material'}
+                    </span>
+                    <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 leading-snug">
+                      {selectedMaterial?.title || course.title}
+                    </h1>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <button className="text-gray-300 hover:text-white transition" title="Subtitles">
-                      <Subtitles className="w-4 h-4" />
+                  {selectedMaterial?._id && (
+                    <button
+                      onClick={() => toggleComplete(selectedMaterial._id)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                        completedItemIds.includes(selectedMaterial._id)
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20'
+                      }`}
+                    >
+                      <CheckCircle2 size={15} />
+                      <span>{completedItemIds.includes(selectedMaterial._id) ? 'Completed' : 'Mark as Complete'}</span>
                     </button>
-                    <button className="text-gray-300 hover:text-white transition" title="Settings">
-                      <Settings className="w-4 h-4" />
-                    </button>
-                    <button className="text-gray-300 hover:text-white transition" title="Fullscreen">
-                      <Maximize className="w-4 h-4" />
-                    </button>
-                  </div>
+                  )}
                 </div>
+
+                {selectedMaterial?.description && (
+                  <p className="text-xs sm:text-sm text-gray-600 leading-relaxed pt-2 border-t border-gray-100">
+                    {selectedMaterial.description}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Lesson Title & Header Details */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="bg-purple-100 text-purple-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full tracking-wider uppercase">
-                    ADVANCED
-                  </span>
-                  <span className="text-xs text-gray-500 font-semibold">
-                    Module 4 • Lesson 2
-                  </span>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setIsSaved(!isSaved)}
-                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border text-xs font-semibold transition ${
-                      isSaved 
-                        ? 'bg-blue-50 border-blue-200 text-blue-600' 
-                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-blue-600' : ''}`} />
-                    {isSaved ? 'Saved' : 'Save'}
-                  </button>
-
-                  <button 
-                    onClick={handleShare}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 transition"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
-                    {copied ? 'Copied' : 'Share'}
-                  </button>
-                </div>
-              </div>
-
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 tracking-tight">
-                Advanced Korean Business Etiquette
-              </h1>
-
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Master the subtle nuances of professional interaction in high-stakes Korean corporate environments, focusing on the refined use of honorifics and non-verbal cues.
-              </p>
-
-              {/* Tabs Navigation */}
-              <div className="flex space-x-6 border-b border-gray-200 mt-6 overflow-x-auto">
-                {['Overview', 'Resources', 'Notes', 'Transcript'].map((tab) => (
+            {/* Navigation Tabs (Overview, Resources, Notes, Assignments) */}
+            <div className="bg-white rounded-3xl border border-gray-200/80 p-6 shadow-sm">
+              <div className="flex space-x-6 border-b border-gray-100 pb-3 mb-5 overflow-x-auto">
+                {['Overview', 'Resources', 'Notes', 'Assignments'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`pb-3 text-xs sm:text-sm font-bold transition-all relative ${
+                    className={`text-xs sm:text-sm font-bold pb-2 transition-all cursor-pointer whitespace-nowrap relative ${
                       activeTab === tab
-                        ? 'text-blue-600'
-                        : 'text-gray-500 hover:text-gray-800'
+                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        : 'text-gray-400 hover:text-gray-700'
                     }`}
                   >
                     {tab}
-                    {activeTab === tab && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"></span>
+                    {tab === 'Assignments' && assignments.length > 0 && (
+                      <span className="ml-1.5 bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                        {assignments.length}
+                      </span>
                     )}
                   </button>
                 ))}
               </div>
 
-              {/* Tab Content */}
-              <div className="pt-6">
-                {activeTab === 'Overview' && (
-                  <div className="space-y-6">
-                    {/* About this lesson */}
-                    <div className="bg-[#f8fafc] border border-gray-100 rounded-xl p-5">
-                      <h3 className="font-bold text-gray-900 text-sm mb-2.5">About this lesson</h3>
-                      <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
-                        In this session, Professor Min-jun Kim explores the concept of 'Nunchi' in a business context—the art of sensing others' moods and responding appropriately. You'll learn how to navigate seating arrangements, business card exchanges, and the complex hierarchical structures of a 'Chaebol' boardroom.
-                      </p>
-
-                      {/* Stat 3-Card Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
-                        <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-xs flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                            <Clock className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">DURATION</div>
-                            <div className="text-xs font-bold text-gray-900">45 Minutes</div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-xs flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                            <HelpCircle className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ASSESSMENT</div>
-                            <div className="text-xs font-bold text-gray-900">12 Questions</div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-xs flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                            <Languages className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">DIFFICULTY</div>
-                            <div className="text-xs font-bold text-gray-900">C1 Academic</div>
-                          </div>
-                        </div>
-                      </div>
+              {/* Tab: Overview */}
+              {activeTab === 'Overview' && (
+                <div className="space-y-4 text-xs sm:text-sm text-gray-600">
+                  <h3 className="font-bold text-gray-900 text-sm">About this Course & Material</h3>
+                  <p className="leading-relaxed">{course.description}</p>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                    <div className="bg-[#f8fafc] p-3 rounded-2xl border border-gray-100">
+                      <div className="text-[10px] text-gray-400 uppercase font-bold">Category</div>
+                      <div className="text-xs font-bold text-gray-900">{course.category}</div>
                     </div>
-
-                    {/* Learning Resources */}
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-sm mb-3">Learning Resources</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        
-                        {/* Resource 1 */}
-                        <div className="flex items-center justify-between p-3.5 bg-white border border-gray-200/80 rounded-xl hover:shadow-sm transition">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0">
-                              PDF
-                            </div>
-                            <div className="truncate">
-                              <h4 className="text-xs font-bold text-gray-900 truncate">Business Honorifics Guide</h4>
-                              <p className="text-[11px] text-gray-400">PDF • 4.2 MB</p>
-                            </div>
-                          </div>
-                          <button 
-                            className="w-8 h-8 rounded-lg bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 flex items-center justify-center transition shrink-0 ml-2"
-                            title="Download PDF"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {/* Resource 2 */}
-                        <div className="flex items-center justify-between p-3.5 bg-white border border-gray-200/80 rounded-xl hover:shadow-sm transition">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
-                              <FileText className="w-5 h-5" />
-                            </div>
-                            <div className="truncate">
-                              <h4 className="text-xs font-bold text-gray-900 truncate">Etiquette Worksheet</h4>
-                              <p className="text-[11px] text-gray-400">DOCX • 1.8 MB</p>
-                            </div>
-                          </div>
-                          <button 
-                            className="w-8 h-8 rounded-lg bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 flex items-center justify-center transition shrink-0 ml-2"
-                            title="Download DOCX"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                      </div>
+                    <div className="bg-[#f8fafc] p-3 rounded-2xl border border-gray-100">
+                      <div className="text-[10px] text-gray-400 uppercase font-bold">Level</div>
+                      <div className="text-xs font-bold text-gray-900 capitalize">{course.level}</div>
                     </div>
-                  </div>
-                )}
-
-                {activeTab === 'Resources' && (
-                  <div className="space-y-4 text-xs text-gray-600">
-                    <p>All downloadable lesson assets, supplementary reading, and practice files are listed below.</p>
-                    <div className="space-y-2">
-                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex justify-between items-center">
-                        <span>Lesson 2 Lecture Slides (SlideDeck.pptx)</span>
-                        <button className="text-blue-600 font-semibold flex items-center gap-1 hover:underline"><Download className="w-3.5 h-3.5" /> Download</button>
-                      </div>
-                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex justify-between items-center">
-                        <span>Audio Pronunciation Pack (Honorifics_MP3.zip)</span>
-                        <button className="text-blue-600 font-semibold flex items-center gap-1 hover:underline"><Download className="w-3.5 h-3.5" /> Download</button>
-                      </div>
+                    <div className="bg-[#f8fafc] p-3 rounded-2xl border border-gray-100">
+                      <div className="text-[10px] text-gray-400 uppercase font-bold">Duration</div>
+                      <div className="text-xs font-bold text-gray-900">{course.duration} weeks</div>
                     </div>
-                  </div>
-                )}
-
-                {activeTab === 'Notes' && (
-                  <div className="text-xs text-gray-600 space-y-3">
-                    <p>Refer to your sync panel on the right sidebar for live interactive timestamped notes.</p>
-                  </div>
-                )}
-
-                {activeTab === 'Transcript' && (
-                  <div className="text-xs text-gray-700 space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200 max-h-60 overflow-y-auto font-mono leading-relaxed">
-                    <p><span className="text-blue-600 font-bold">[00:15]</span> Annyeonghaseyo everyone. Welcome to Module 4, Lesson 2.</p>
-                    <p><span className="text-blue-600 font-bold">[08:22]</span> When addressing senior leadership, always prioritize 'Sajangnim' or the exact departmental designation over general titles.</p>
-                    <p><span className="text-blue-600 font-bold">[11:05]</span> Notice how two hands are used during the exchange of the myeongham (business card).</p>
-                    <p><span className="text-blue-600 font-bold">[20:40]</span> Seating arrangements inside meeting rooms and elevators always follow seniority clockwise from the host.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </main>
-
-          {/* ================= RIGHT SIDEBAR (Notes & Community Help) ================= */}
-          <aside className="lg:col-span-3 space-y-6">
-            
-            {/* Lesson Notes Box */}
-            <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-gray-900 text-sm">Lesson Notes</h3>
-                <span className="bg-blue-50 text-blue-600 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">
-                  AUTO-SYNC
-                </span>
-              </div>
-
-              {/* Note Input Box */}
-              <form onSubmit={handleAddNote} className="mb-4">
-                <div className="bg-[#f8fafc] border border-gray-200 rounded-xl p-3 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition">
-                  <textarea 
-                    rows={4}
-                    value={noteInput}
-                    onChange={(e) => setNoteInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        handleAddNote(e);
-                      }
-                    }}
-                    placeholder="Type a note... (Press Alt+T to timestamp)"
-                    className="w-full bg-transparent border-0 text-xs text-gray-800 placeholder-gray-400 focus:outline-none resize-none leading-relaxed"
-                  ></textarea>
-
-                  <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-200/60 text-[10px] text-gray-400">
-                    <span>Synced at 12:45</span>
-                    <button 
-                      type="submit" 
-                      className="bg-blue-600 text-white font-bold px-2.5 py-1 rounded-md text-[10px] hover:bg-blue-700 transition flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> Add Note
-                    </button>
+                    <div className="bg-[#f8fafc] p-3 rounded-2xl border border-gray-100">
+                      <div className="text-[10px] text-gray-400 uppercase font-bold">Materials</div>
+                      <div className="text-xs font-bold text-gray-900">{materials.length} uploaded</div>
+                    </div>
                   </div>
                 </div>
-              </form>
+              )}
 
-              {/* Saved Notes List */}
-              <div className="space-y-3">
-                {notes.map((note) => (
-                  <div key={note.id} className="p-3 bg-[#f8fafc] rounded-xl border border-gray-100 flex items-start gap-2.5 group">
-                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded shrink-0 font-mono mt-0.5">
-                      {note.time}
-                    </span>
-                    <p className="text-xs text-gray-700 leading-relaxed flex-1">
-                      {note.text}
-                    </p>
+              {/* Tab: Resources */}
+              {activeTab === 'Resources' && (
+                <div className="space-y-3">
+                  <h3 className="font-bold text-gray-900 text-sm mb-2">Downloadable Materials & Files</h3>
+                  {materials.length === 0 ? (
+                    <p className="text-xs text-gray-400">No resources available for download yet.</p>
+                  ) : (
+                    materials.map((mat) => (
+                      <div 
+                        key={mat._id}
+                        className="p-3.5 bg-[#f8fafc] rounded-2xl border border-gray-100 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                            {mat.type.toUpperCase()}
+                          </div>
+                          <div className="truncate">
+                            <h4 className="text-xs font-bold text-gray-900 truncate">{mat.title}</h4>
+                            <p className="text-[10px] text-gray-400">Week {mat.weekNumber} • {mat.lessonTitle}</p>
+                          </div>
+                        </div>
+
+                        {mat.downloadUrl ? (
+                          <a 
+                            href={mat.downloadUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 transition"
+                          >
+                            <Download size={13} /> Download
+                          </a>
+                        ) : (
+                          <a 
+                            href={mat.viewUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
+                          >
+                            <ExternalLink size={13} /> Open
+                          </a>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Notes */}
+              {activeTab === 'Notes' && (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      placeholder="Add a timestamped learning note..."
+                      className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-2 text-xs focus:bg-white focus:outline-none"
+                    />
                     <button 
-                      onClick={() => setNotes(notes.filter(n => n.id !== note.id))}
-                      className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition p-1"
-                      title="Delete note"
+                      onClick={handleAddNote}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      Save Note
                     </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {notes.map((n) => (
+                      <div key={n.id} className="p-3 bg-[#f8fafc] rounded-xl border border-gray-100 flex items-start justify-between gap-3 text-xs">
+                        <div>
+                          <span className="font-mono text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-2">
+                            {n.time}
+                          </span>
+                          <span className="text-gray-800">{n.text}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab: Assignments */}
+              {activeTab === 'Assignments' && (
+                <div className="space-y-3">
+                  <h3 className="font-bold text-gray-900 text-sm mb-2">Course Assignments & Tasks</h3>
+                  {assignments.length === 0 ? (
+                    <p className="text-xs text-gray-400">No assignments posted for this course yet.</p>
+                  ) : (
+                    assignments.map((assign) => (
+                      <div 
+                        key={assign._id}
+                        className="p-4 bg-[#f8fafc] rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div>
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mb-1">
+                            {assign.maxScore} Max Points
+                          </span>
+                          <h4 className="text-xs sm:text-sm font-bold text-gray-900">{assign.title}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5">{assign.description}</p>
+                          {assign.dueDate && (
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              Due Date: {new Date(assign.dueDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => handleOpenAssignmentModal(assign)}
+                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
+                        >
+                          Submit Assignment 📤
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+            </div>
+          </main>
+
+          {/* ================= RIGHT SIDEBAR (Quick Notes & Study Tips) ================= */}
+          <aside className="lg:col-span-3 space-y-6">
+            
+            {/* Quick Notes Widget */}
+            <div className="bg-white rounded-3xl border border-gray-200/80 p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-gray-900 text-sm">Study Notepad</h4>
+                <span className="text-[10px] text-gray-400 font-mono">Syncs live</span>
+              </div>
+
+              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                {notes.slice(0, 3).map((n) => (
+                  <div key={n.id} className="p-3 bg-[#f8fafc] rounded-2xl border border-gray-100 text-xs">
+                    <span className="text-[10px] font-bold text-blue-600 block mb-1">{n.time}</span>
+                    <p className="text-gray-700">{n.text}</p>
                   </div>
                 ))}
               </div>
+
+              <form onSubmit={handleAddNote} className="mt-4 pt-3 border-t border-gray-100 flex gap-2">
+                <input 
+                  type="text"
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="Quick note..."
+                  className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:bg-white focus:outline-none"
+                />
+                <button 
+                  type="submit" 
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition cursor-pointer"
+                >
+                  Add
+                </button>
+              </form>
             </div>
 
-            {/* Need Help? Community Promo Card */}
-            <div className="rounded-2xl bg-gradient-to-br from-[#2563eb] via-[#4338ca] to-[#7c3aed] text-white p-6 shadow-md relative overflow-hidden">
-              {/* Background light glow */}
-              <div className="absolute -top-12 -right-12 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-              
-              <h4 className="font-bold text-base mb-1.5">Need help?</h4>
-              <p className="text-xs text-blue-100 leading-relaxed mb-6">
-                The SRI-KO community is here to support your learning journey.
+            {/* Korean Scholar Study Tip */}
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-6 text-white shadow-md shadow-blue-500/20">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center mb-4">
+                <Sparkles className="w-5 h-5 text-yellow-300" />
+              </div>
+              <h4 className="text-sm font-bold mb-1">Scholar Study Tip</h4>
+              <p className="text-xs text-white/90 leading-relaxed font-normal">
+                Watch lecture videos with Korean subtitles on your second playthrough to accelerate vocabulary retention and natural cadence.
               </p>
-
-              <button 
-                onClick={() => navigate('/events')}
-                className="w-full py-2.5 px-4 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-xs font-bold text-white transition-all text-center"
-              >
-                Join Community
-              </button>
             </div>
 
           </aside>
@@ -531,6 +839,202 @@ export default function CourseInfoPage() {
         </div>
 
       </div>
+
+      {/* ================= ASSIGNMENT SUBMISSION MODAL ================= */}
+      {activeAssignmentForSubmit && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+          <div className="bg-[#f8fafc] w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-100 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full inline-block mb-1">
+                  Assignment Submission
+                </span>
+                <h3 className="text-lg font-bold text-gray-900">{activeAssignmentForSubmit.title}</h3>
+              </div>
+              <button 
+                onClick={() => setActiveAssignmentForSubmit(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              
+              {/* Instructions Banner */}
+              <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-2xs">
+                <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Instructions</h4>
+                <p className="text-xs text-gray-600 leading-relaxed">{activeAssignmentForSubmit.description}</p>
+                <div className="flex items-center gap-4 text-[11px] text-gray-400 mt-3 pt-2 border-t border-gray-100 font-mono">
+                  <span>Max Score: {activeAssignmentForSubmit.maxScore} pts</span>
+                  {activeAssignmentForSubmit.dueDate && (
+                    <span>Due: {new Date(activeAssignmentForSubmit.dueDate).toLocaleDateString()}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              {submissionStatusMsg && (
+                <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+                  submissionStatusMsg.type === 'success' 
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  {submissionStatusMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{submissionStatusMsg.text}</span>
+                </div>
+              )}
+
+              {/* Current Past Submission Info (if exists) */}
+              {currentSubmission && (
+                <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                      <CheckCircle2 size={14} className="text-emerald-600" />
+                      Status: {currentSubmission.status.toUpperCase()}
+                    </span>
+                    <span className="text-[10px] text-gray-400">
+                      Submitted: {new Date(currentSubmission.submittedAt).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {currentSubmission.grade !== undefined && currentSubmission.grade !== null && (
+                    <div className="mb-2 p-3 bg-emerald-100/60 rounded-xl text-xs">
+                      <span className="font-bold text-emerald-900">
+                        Score: {currentSubmission.grade} / {activeAssignmentForSubmit.maxScore}
+                      </span>
+                      {currentSubmission.feedback && (
+                        <p className="text-emerald-800 mt-1 italic">
+                          Feedback: "{currentSubmission.feedback}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 mt-2">
+                    <p className="text-[11px] font-bold text-gray-600">Submitted Files on Google Drive:</p>
+                    {currentSubmission.files?.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100 text-xs">
+                        <span className="truncate text-gray-800 font-medium">{f.fileName}</span>
+                        {f.fileUrl && (
+                          <a 
+                            href={f.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline text-[11px] font-bold ml-2 shrink-0 flex items-center gap-1"
+                          >
+                            <ExternalLink size={12} /> View File
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Form */}
+              <form onSubmit={handleAssignmentSubmit} className="space-y-4">
+                
+                {/* File Dropzone */}
+                <div className="border-2 border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-6 text-center bg-white transition relative">
+                  <input 
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.zip,.jpg,.png"
+                    onChange={(e) => {
+                      if (e.target.files?.length) {
+                        setSubmissionFiles(Array.from(e.target.files));
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-2">
+                    <UploadCloud size={24} />
+                  </div>
+                  <p className="text-xs font-bold text-gray-800">
+                    {submissionFiles.length > 0 
+                      ? `${submissionFiles.length} file(s) selected` 
+                      : 'Choose files or drag & drop'}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    PDF, DOCX, ZIP, JPG, PNG (Saved directly to Google Drive)
+                  </p>
+                </div>
+
+                {/* Selected File list */}
+                {submissionFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {submissionFiles.map((f, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs p-2 bg-white rounded-lg border border-gray-100">
+                        <span className="truncate text-gray-700 font-medium">{f.name}</span>
+                        <span className="text-gray-400 font-mono text-[10px]">
+                          {(f.size / (1024 * 1024)).toFixed(2)} MB
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Optional Note */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Note for Instructor (Optional)
+                  </label>
+                  <textarea 
+                    rows={2}
+                    value={submissionNote}
+                    onChange={(e) => setSubmissionNote(e.target.value)}
+                    placeholder="Add comments or notes regarding your submission..."
+                    className="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 transition resize-none"
+                  />
+                </div>
+
+                {/* Progress bar */}
+                {submittingAssignment && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-bold text-blue-600">
+                      <span>Uploading to Google Drive...</span>
+                      <span>{submissionProgress}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                        style={{ width: `${submissionProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Buttons */}
+                <div className="flex justify-end gap-2.5 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setActiveAssignmentForSubmit(null)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={submittingAssignment || (submissionFiles.length === 0 && !currentSubmission)}
+                    className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 cursor-pointer flex items-center gap-2"
+                  >
+                    {submittingAssignment && <Loader2 size={13} className="animate-spin" />}
+                    <span>{submittingAssignment ? `Uploading (${submissionProgress}%)` : currentSubmission ? 'Resubmit Files 🚀' : 'Submit Assignment 🚀'}</span>
+                  </button>
+                </div>
+
+              </form>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

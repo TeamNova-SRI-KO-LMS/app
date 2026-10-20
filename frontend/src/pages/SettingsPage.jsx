@@ -3,6 +3,8 @@ import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import StudentSidebar from '../components/StudentSidebar';
+import UserAvatar from '../components/UserAvatar';
+import ConfirmDialog from '../components/ConfirmDialog';
 import {
   User,
   Shield,
@@ -18,10 +20,23 @@ import {
   Trash2,
 } from 'lucide-react';
 
+const PHONE_PATTERN = /^(?:\d{10}|\+94\d{9})$/;
+const LINKEDIN_PATTERN = /^https?:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9][A-Za-z0-9-_%]*\/?$/i;
+
+const isHttpUrl = value => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 const SettingsContent = ({ user, updateUser }) => {
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [showRemovePhotoConfirmation, setShowRemovePhotoConfirmation] = useState(false);
   const fileInputRef = useRef(null);
 
   // Profile Form state with real user data from DB
@@ -49,7 +64,7 @@ const SettingsContent = ({ user, updateUser }) => {
         linkedin: user.socialLinks?.linkedin || prev.linkedin,
       }));
     }
-  });
+  }, [user]);
 
   // Data Privacy Toggle in Account tab
   const [dataPrivacy, setDataPrivacy] = useState(
@@ -139,7 +154,8 @@ const SettingsContent = ({ user, updateUser }) => {
 
     const toastId = toast.loading('Uploading profile photo...');
     try {
-      const response = await apiService.post('/users/avatar', uploadFormData);
+      // Use a longer timeout for file uploads (base64 payloads can be large)
+      const response = await apiService.post('/users/avatar', uploadFormData, { timeout: 60000 });
       if (response.data.success) {
         toast.success('Profile photo updated successfully!', { id: toastId });
         const newAvatar = response.data.avatar || response.data.user?.avatar;
@@ -151,18 +167,18 @@ const SettingsContent = ({ user, updateUser }) => {
         setPreviewPhoto(null);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to upload photo', {
-        id: toastId,
-      });
+      toast.error(
+        error.code === 'ECONNABORTED'
+          ? 'Upload timed out. Please try a smaller image or check your connection.'
+          : (error.response?.data?.message || 'Failed to upload photo'),
+        { id: toastId },
+      );
     }
   };
 
   // Remove Photo Handler
   const handleRemovePhoto = async () => {
-    if (!window.confirm('Are you sure you want to remove your profile photo?')) {
-      return;
-    }
-
+    setShowRemovePhotoConfirmation(false);
     const toastId = toast.loading('Removing profile photo...');
     try {
       const response = await apiService.delete('/users/avatar');
@@ -202,16 +218,33 @@ const SettingsContent = ({ user, updateUser }) => {
 
   // Save Account Profile
   const handleSaveProfile = async () => {
+    const phone = formData.phone.trim();
+    const website = formData.website.trim();
+    const linkedin = formData.linkedin.trim();
+
+    if (phone && !PHONE_PATTERN.test(phone)) {
+      toast.error('Phone number must be 10 digits or use the +94 format followed by 9 digits.');
+      return;
+    }
+    if (website && !isHttpUrl(website)) {
+      toast.error('Portfolio website must be a valid http:// or https:// URL.');
+      return;
+    }
+    if (linkedin && !LINKEDIN_PATTERN.test(linkedin)) {
+      toast.error('LinkedIn profile must use a valid https://linkedin.com/in/... URL.');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         name: formData.name,
         bio: formData.bio,
-        phone: formData.phone,
+        phone,
         location: formData.location,
-        website: formData.website,
+        website,
         socialLinks: {
-          linkedin: formData.linkedin,
+          linkedin,
         },
         privacy: {
           ...privacy,
@@ -319,13 +352,7 @@ const SettingsContent = ({ user, updateUser }) => {
   };
 
   const handleDeleteAccount = () => {
-    if (
-      window.confirm(
-        'Are you sure you want to delete your account? This action cannot be undone.',
-      )
-    ) {
-      toast.error('Account deletion not implemented yet');
-    }
+    toast.error('Account deletion is not available yet. Please contact support.');
   };
 
   const navTabs = [
@@ -335,11 +362,7 @@ const SettingsContent = ({ user, updateUser }) => {
     { id: 'privacy', label: 'Privacy', icon: Globe },
   ];
 
-  // User avatar - uses instant preview, user avatar from DB, or scholar seed
-  const userAvatar =
-    previewPhoto ||
-    user?.avatar ||
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=JiHoonKim&accessories=prescription02&clothing=blazerAndTie&clothingColor=3c4f5e&hairColor=4a312c';
+
 
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8 px-4 sm:px-6 lg:px-8">
@@ -384,7 +407,7 @@ const SettingsContent = ({ user, updateUser }) => {
           {/* Sub Navigation Tabs & Form Card Container */}
           <div className="flex flex-col md:flex-row gap-8 items-start">
             {/* Inner Sub Tabs Navigation */}
-            <div className="w-full md:w-44 lg:w-48 flex-shrink-0 space-y-1">
+            <div className="w-full md:w-44 lg:w-48 shrink-0 space-y-1">
               {navTabs.map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -421,13 +444,13 @@ const SettingsContent = ({ user, updateUser }) => {
                       onClick={() => fileInputRef.current?.click()}
                       title="Click to change profile photo"
                     >
-                      <div className="w-20 h-20 rounded-full bg-pink-100 p-1 border-2 border-pink-200 shadow-xs overflow-hidden flex items-center justify-center transition-transform group-hover:scale-105">
-                        <img
-                          src={userAvatar}
-                          alt="Scholar Avatar"
-                          className="w-full h-full object-cover rounded-full"
-                        />
-                      </div>
+                      <UserAvatar
+                        user={user}
+                        src={previewPhoto}
+                        size="w-20 h-20"
+                        iconSize={28}
+                        className="border-2 border-blue-200 shadow-xs transition-transform group-hover:scale-105"
+                      />
                       <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera size={20} className="text-white drop-shadow-sm" />
                       </div>
@@ -452,7 +475,7 @@ const SettingsContent = ({ user, updateUser }) => {
                       {Boolean(user?.avatar || previewPhoto) && (
                         <button
                           type="button"
-                          onClick={handleRemovePhoto}
+                          onClick={() => setShowRemovePhotoConfirmation(true)}
                           className="px-3.5 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition shadow-2xs cursor-pointer flex items-center gap-1.5"
                           title="Remove custom profile photo"
                         >
@@ -461,6 +484,15 @@ const SettingsContent = ({ user, updateUser }) => {
                         </button>
                       )}
                     </div>
+                    {showRemovePhotoConfirmation && (
+                      <ConfirmDialog
+                        title="Remove profile photo?"
+                        message="Are you sure you want to remove your profile photo?"
+                        confirmLabel="Remove photo"
+                        onConfirm={handleRemovePhoto}
+                        onCancel={() => setShowRemovePhotoConfirmation(false)}
+                      />
+                    )}
                   </div>
 
                   {/* Personal Information */}
@@ -493,9 +525,13 @@ const SettingsContent = ({ user, updateUser }) => {
                           type="email"
                           name="email"
                           value={formData.email}
-                          onChange={handleInputChange}
-                          className="w-full bg-[#EAECEF] hover:bg-[#E2E6EA] focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 border-0 outline-none transition"
+                          readOnly
+                          aria-describedby="email-help"
+                          className="w-full cursor-not-allowed rounded-xl border-0 bg-gray-100 px-4 py-3 text-sm font-medium text-gray-500 outline-none"
                         />
+                        <p id="email-help" className="mt-1.5 text-xs text-gray-500">
+                          Your account email address cannot be changed here.
+                        </p>
                       </div>
 
                       {/* Phone Number */}
@@ -508,6 +544,9 @@ const SettingsContent = ({ user, updateUser }) => {
                           name="phone"
                           value={formData.phone}
                           onChange={handleInputChange}
+                          inputMode="numeric"
+                          maxLength={12}
+                          placeholder="10 digits or +94XXXXXXXXX"
                           className="w-full bg-[#EAECEF] hover:bg-[#E2E6EA] focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 border-0 outline-none transition"
                         />
                       </div>
@@ -555,9 +594,9 @@ const SettingsContent = ({ user, updateUser }) => {
                           PORTFOLIO WEBSITE
                         </label>
                         <div className="flex items-center gap-3 bg-[#EAECEF] hover:bg-[#E2E6EA] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-xl px-4 py-3 transition">
-                          <Globe size={18} className="text-gray-500 flex-shrink-0" />
+                          <Globe size={18} className="text-gray-500 shrink-0" />
                           <input
-                            type="text"
+                            type="url"
                             name="website"
                             value={formData.website}
                             onChange={handleInputChange}
@@ -573,13 +612,13 @@ const SettingsContent = ({ user, updateUser }) => {
                           LINKEDIN PROFILE
                         </label>
                         <div className="flex items-center gap-3 bg-[#EAECEF] hover:bg-[#E2E6EA] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-xl px-4 py-3 transition">
-                          <Link2 size={18} className="text-gray-500 flex-shrink-0" />
+                          <Link2 size={18} className="text-gray-500 shrink-0" />
                           <input
-                            type="text"
+                            type="url"
                             name="linkedin"
                             value={formData.linkedin}
                             onChange={handleInputChange}
-                            placeholder="linkedin.com/in/..."
+                            placeholder="https://linkedin.com/in/..."
                             className="w-full bg-transparent border-0 p-0 text-sm font-medium text-gray-800 outline-none"
                           />
                         </div>
@@ -713,7 +752,7 @@ const SettingsContent = ({ user, updateUser }) => {
                     </h3>
                     <div className="bg-red-50/70 border border-red-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle className="text-red-500 mt-0.5 flex-shrink-0" size={20} />
+                        <AlertTriangle className="text-red-500 mt-0.5 shrink-0" size={20} />
                         <div>
                           <h4 className="text-sm font-bold text-red-900">
                             Delete Account
@@ -788,7 +827,7 @@ const SettingsContent = ({ user, updateUser }) => {
                         <button
                           type="button"
                           onClick={() => handleNotificationToggle(item.key)}
-                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 flex-shrink-0 ${
+                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ${
                             notifications[item.key]
                               ? 'bg-blue-600 justify-end'
                               : 'bg-gray-300 justify-start'
@@ -878,7 +917,7 @@ const SettingsContent = ({ user, updateUser }) => {
                         <button
                           type="button"
                           onClick={() => handlePrivacyToggle(item.key)}
-                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 flex-shrink-0 ${
+                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ${
                             privacy[item.key]
                               ? 'bg-blue-600 justify-end'
                               : 'bg-gray-300 justify-start'

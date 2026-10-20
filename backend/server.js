@@ -26,7 +26,10 @@ const announcementRoutes = require('./routes/announcementRoutes');
 const discussionForumRoutes = require('./routes/discussionForumRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const eventRoutes = require('./routes/eventRoutes');
 const joinUsRoutes = require('./routes/joinUsRoutes');
+const lectureRoutes = require('./routes/lectureRoutes');
+const assignmentRoutes = require('./routes/assignmentRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,8 +47,8 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve uploaded files (avatars)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -97,7 +100,10 @@ app.use('/api/forums', checkDatabase, discussionForumRoutes);
 app.use('/api/admin/settings', checkDatabase, settingsRoutes);
 app.use('/api/attendance', checkDatabase, attendanceRoutes);
 app.use('/api/admin/analytics', checkDatabase, analyticsRoutes);
+app.use('/api/events', checkDatabase, eventRoutes);
 app.use('/api/join-us', checkDatabase, joinUsRoutes);
+app.use('/api/lectures', checkDatabase, lectureRoutes);
+app.use('/api/assignments', checkDatabase, assignmentRoutes);
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

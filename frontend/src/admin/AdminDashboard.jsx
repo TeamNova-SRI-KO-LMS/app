@@ -27,6 +27,7 @@ import AnalyticsReports from './AnalyticsReports';
 import PaymentDetails from './PaymentDetails';
 import NotificationManager from './NotificationManager';
 import AnnouncementsManager from './AnnouncementsManager';
+import EventsManager from './EventsManager';
 import DiscussionForums from './DiscussionForums';
 import SystemSettings from './SystemSettings';
 import KoreanProgramApplications from './KoreanProgramApplications';
@@ -37,13 +38,13 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => {
     const path = window.location.pathname.replace('/admin', '').replace('/', '');
-    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'forums', 'settings', 'applications'];
+    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'events', 'forums', 'settings', 'applications'];
     return validTabs.includes(path) ? path : 'dashboard';
   });
 
   React.useEffect(() => {
     const path = location.pathname.replace('/admin', '').replace('/', '');
-    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'forums', 'settings', 'applications'];
+    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'events', 'forums', 'settings', 'applications'];
     if (validTabs.includes(path)) {
       setActiveTab(path);
     }
@@ -62,9 +63,6 @@ const AdminDashboard = () => {
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [recentUsers, setRecentUsers] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [recentApplications, setRecentApplications] = useState([]);
-  const [totalApplications, setTotalApplications] = useState(0);
-  const [pendingApplications, setPendingApplications] = useState(0);
 
   const fetchDashboardData = async () => {
     try {
@@ -99,18 +97,6 @@ const AdminDashboard = () => {
         }
       } catch (pErr) {
         console.warn('Payments fetch error in dashboard:', pErr);
-      }
-
-      // Fetch Korean Program applications for dashboard
-      try {
-        const appsRes = await apiService.get('/join-us/recent?limit=5');
-        if (appsRes.data?.success) {
-          setRecentApplications(appsRes.data.data || []);
-          setTotalApplications(appsRes.data.total || 0);
-          setPendingApplications(appsRes.data.pending || 0);
-        }
-      } catch (aErr) {
-        console.warn('Applications fetch error in dashboard:', aErr);
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -148,6 +134,8 @@ const AdminDashboard = () => {
         return <NotificationManager />;
       case 'announcements':
         return <AnnouncementsManager />;
+      case 'events':
+        return <EventsManager />;
       case 'forums':
         return <DiscussionForums />;
       case 'settings':
@@ -348,11 +336,7 @@ const AdminDashboard = () => {
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
                     Korean Program Applications
                   </span>
-                  <span className="text-2xl font-bold text-gray-900 mt-1 block">
-                    {loadingStats ? (
-                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded" />
-                    ) : totalApplications.toLocaleString()}
-                  </span>
+                  <span className="text-2xl font-bold text-gray-900 mt-1 block">425</span>
                 </div>
               </div>
 
@@ -368,11 +352,7 @@ const AdminDashboard = () => {
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
                     Pending Applications
                   </span>
-                  <span className="text-2xl font-bold text-gray-900 mt-1 block">
-                    {loadingStats ? (
-                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded" />
-                    ) : pendingApplications.toLocaleString()}
-                  </span>
+                  <span className="text-2xl font-bold text-gray-900 mt-1 block">82</span>
                 </div>
               </div>
 
@@ -532,55 +512,51 @@ const AdminDashboard = () => {
               </div>
 
               <div className="space-y-3">
-                {loadingStats ? (
-                  <div className="space-y-3 py-2">
-                    <div className="h-16 bg-gray-100 animate-pulse rounded-xl" />
-                    <div className="h-16 bg-gray-100 animate-pulse rounded-xl" />
+                {/* Application 1 */}
+                <div className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                      AM
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Aruni Madushani</h4>
+                      <p className="text-[11px] text-gray-500">aruni@example.com</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        Level: Intermediate | Interests: 3
+                      </p>
+                    </div>
                   </div>
-                ) : recentApplications.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-3 text-center">No applications yet.</p>
-                ) : (
-                  recentApplications.map((app) => {
-                    const initials = (app.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-                    const status = (app.status || 'pending').toLowerCase();
-                    const statusClass =
-                      status === 'pending'   ? 'bg-amber-100 text-amber-800' :
-                      status === 'enrolled'  ? 'bg-emerald-100 text-emerald-800' :
-                      status === 'contacted' ? 'bg-blue-100 text-blue-800' :
-                                              'bg-red-100 text-red-800';
-                    return (
-                      <div
-                        key={app._id}
-                        className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                            {initials}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-xs sm:text-sm text-gray-900">{app.name}</h4>
-                            <p className="text-[11px] text-gray-500">{app.email}</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">
-                              {app.currentLevel ? `Level: ${app.currentLevel}` : ''}
-                              {app.interests?.length ? ` | Interests: ${app.interests.length}` : ''}
-                            </p>
-                          </div>
-                        </div>
 
-                        <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase ${statusClass}`}>
-                            {status}
-                          </span>
-                          <span className="text-xs text-gray-400 whitespace-nowrap">
-                            {app.submittedAt
-                              ? new Date(app.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                              : '—'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider bg-amber-100 text-amber-800 uppercase">
+                      PENDING
+                    </span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">Nov 14, 2023</span>
+                  </div>
+                </div>
+
+                {/* Application 2 */}
+                <div className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                      KP
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Kasun Perera</h4>
+                      <p className="text-[11px] text-gray-500">kasun.p@example.com</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        Level: Beginner | Interests: 1
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider bg-emerald-100 text-emerald-800 uppercase">
+                      ENROLLED
+                    </span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">Nov 12, 2023</span>
+                  </div>
+                </div>
               </div>
             </div>
 

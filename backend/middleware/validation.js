@@ -52,12 +52,6 @@ exports.validateProfileUpdate = [
     .isLength({ min: 2, max: 50 })
     .withMessage('Name must be between 2 and 50 characters'),
 
-  body('email')
-    .optional()
-    .trim()
-    .isEmail()
-    .withMessage('Please provide a valid email address'),
-
   body('bio')
     .optional()
     .trim()
@@ -65,10 +59,10 @@ exports.validateProfileUpdate = [
     .withMessage('Bio cannot be more than 500 characters'),
 
   body('phone')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
-    .isLength({ max: 20 })
-    .withMessage('Phone number cannot be more than 20 characters'),
+    .matches(/^(?:\d{10}|\+94\d{9})$/)
+    .withMessage('Phone number must be 10 digits or use the +94 format followed by 9 digits'),
 
   body('location')
     .optional()
@@ -77,16 +71,18 @@ exports.validateProfileUpdate = [
     .withMessage('Location cannot be more than 100 characters'),
 
   body('website')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
+    .isURL({ protocols: ['http', 'https'], require_protocol: true })
     .isLength({ max: 200 })
-    .withMessage('Website URL cannot be more than 200 characters'),
+    .withMessage('Website must be a valid http:// or https:// URL no longer than 200 characters'),
 
   body('socialLinks.linkedin')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
+    .matches(/^https?:\/\/(www\.)?linkedin\.com\/in\/[A-Za-z0-9][A-Za-z0-9-_%]*\/?$/i)
     .isLength({ max: 200 })
-    .withMessage('LinkedIn URL cannot be more than 200 characters'),
+    .withMessage('LinkedIn must be a valid https://linkedin.com/in/... URL no longer than 200 characters'),
 
   body('socialLinks.twitter')
     .optional()
@@ -159,4 +155,3 @@ exports.validateCourseCreation = [
     .isFloat({ min: 0 })
     .withMessage('Price must be a positive number'),
 ];
-

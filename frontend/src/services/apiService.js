@@ -29,11 +29,12 @@ const clearAuthState = () => {
 	localStorage.removeItem('adminToken');
 	localStorage.removeItem('user');
 	localStorage.removeItem('adminUser');
+	localStorage.removeItem('auth-session'); // also clear the persisted session
 };
 
 export const apiClient = axios.create({
 	baseURL: apiUrl,
-	timeout: 10000,
+	timeout: 30000,
 	headers: {
 		'Content-Type': 'application/json',
 	},
@@ -61,11 +62,11 @@ apiClient.interceptors.response.use(
 	(response) => response,
 	(error) => {
 		if (error?.response?.status === 401) {
+			// Clear persisted auth state so the next page load starts fresh.
+			// Do NOT do window.location.href here — that causes a full page reload
+			// and a redirect loop. The AuthProvider's .catch() dispatches LOGOUT
+			// which lets React Router handle the redirect cleanly.
 			clearAuthState();
-
-			if (isBrowser) {
-				window.location.href = '/login';
-			}
 		}
 
 		return Promise.reject(error);

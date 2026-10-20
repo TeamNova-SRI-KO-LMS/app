@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import useAuth from '../context/useAuth';
 
 const LoginPage = () => {
@@ -17,7 +17,7 @@ const LoginPage = () => {
   // Preserve authentication error handling from develop.
   const [localError, setLocalError] = useState('');
 
-  const { login, googleLogin, loading, error } = useAuth();
+  const { login, googleLogin, loading, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/home';
@@ -104,6 +104,20 @@ const LoginPage = () => {
       setLocalError(result.error || 'Google sign-in failed.');
     }
   };
+
+  // While auth is initializing, show a neutral spinner so the form doesn't flash
+  if (loading && !displayError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F4F6FB]">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // If already logged in, redirect away
+  if (isAuthenticated) {
+    return <Navigate to={from} replace />;
+  }
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-[#F4F6FB] px-4 py-8 sm:px-6 text-gray-900">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
 import CreateCourseView from './components/CreateCourseView';
 import courseService from '../services/courseService';
+import toast from 'react-hot-toast';
 
 export default function CreateCoursePage() {
   const navigate = useNavigate();
@@ -12,10 +13,10 @@ export default function CreateCoursePage() {
     setLoading(true);
     try {
       await courseService.createCourse(payload);
-      alert('Course created successfully!');
+      toast.success('Course created successfully!');
       navigate('/admin');
     } catch (err) {
-      alert(err?.response?.data?.message || 'Failed to create course.');
+      toast.error(err?.response?.data?.message || 'Failed to create course.');
     } finally {
       setLoading(false);
     }
