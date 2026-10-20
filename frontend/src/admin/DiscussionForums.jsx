@@ -276,7 +276,7 @@ const DiscussionForums = () => {
       }
     } catch (err) {
       console.error('Error saving forum:', err);
-      toast.error('An error occurred while saving the forum topic.');
+      toast.error(err.response?.data?.message || 'An error occurred while saving the forum topic.');
     } finally {
       setSubmitting(false);
     }

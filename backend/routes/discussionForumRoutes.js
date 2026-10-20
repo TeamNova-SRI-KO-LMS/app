@@ -122,7 +122,11 @@ router.get('/', async (req, res) => {
     }
 
     if (req.query.level && req.query.level !== 'All Levels') {
-      query.level = req.query.level.toLowerCase();
+      const level = req.query.level.toLowerCase();
+      // includeAllLevels=true also returns forums targeted at all levels (student view)
+      query.level = req.query.includeAllLevels === 'true' && level !== 'all'
+        ? { $in: [level, 'all'] }
+        : level;
     }
 
     if (req.query.isActive !== undefined && req.query.isActive !== '') {
@@ -138,7 +142,9 @@ router.get('/', async (req, res) => {
     }
 
     if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
+      // Escape regex characters so searches like "C++" don't throw
+      const escapedSearch = req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
       query.$or = [
         { title: searchRegex },
         { description: searchRegex },
