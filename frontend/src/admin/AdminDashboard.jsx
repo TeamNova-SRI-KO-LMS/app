@@ -12,10 +12,9 @@ import {
   Globe, 
   FileClock, 
   UserCheck, 
-  Bell, 
-  CheckCircle2, 
+  Bell,
   BookOpen,
-  ArrowRight
+  CalendarCheck
 } from 'lucide-react';
 
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -23,6 +22,7 @@ import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
 import UserManagement from './UserManagement';
 import CourseManagement from './CourseManagement';
+import AttendanceManagement from './AttendanceManagement';
 import AnalyticsReports from './AnalyticsReports';
 import PaymentDetails from './PaymentDetails';
 import NotificationManager from './NotificationManager';
@@ -33,19 +33,45 @@ import SystemSettings from './SystemSettings';
 import KoreanProgramApplications from './KoreanProgramApplications';
 import apiService from '../services/apiService';
 
+const ADMIN_TABS = ['dashboard', 'users', 'courses', 'attendance', 'analytics', 'payments', 'notifications', 'announcements', 'events', 'forums', 'settings', 'applications'];
+
+const formatShortDate = (value) => new Date(value).toLocaleDateString('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+// "5 minutes ago" etc. Computed when data loads, not during render.
+const timeAgo = (value, now) => {
+  const seconds = Math.max(0, Math.round((now - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+  return formatShortDate(value);
+};
+
+const ACTIVITY_STYLES = {
+  user: { icon: UserPlus, className: 'bg-blue-50 text-blue-600' },
+  application: { icon: Globe, className: 'bg-indigo-50 text-indigo-600' },
+  payment: { icon: CreditCard, className: 'bg-amber-50 text-amber-600' },
+  attendance: { icon: CalendarCheck, className: 'bg-emerald-50 text-emerald-600' },
+};
+
 const AdminDashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => {
     const path = window.location.pathname.replace('/admin', '').replace('/', '');
-    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'events', 'forums', 'settings', 'applications'];
-    return validTabs.includes(path) ? path : 'dashboard';
+    return ADMIN_TABS.includes(path) ? path : 'dashboard';
   });
 
   React.useEffect(() => {
     const path = location.pathname.replace('/admin', '').replace('/', '');
-    const validTabs = ['dashboard', 'users', 'courses', 'analytics', 'payments', 'notifications', 'announcements', 'events', 'forums', 'settings', 'applications'];
-    if (validTabs.includes(path)) {
+    if (ADMIN_TABS.includes(path)) {
       setActiveTab(path);
     }
   }, [location.pathname]);
@@ -54,7 +80,8 @@ const AdminDashboard = () => {
     setActiveTab(tab);
     navigate(tab === 'dashboard' ? '/admin/dashboard' : `/admin/${tab}`);
   };
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // On desktop the sidebar is always shown; on phones it starts closed so it doesn't cover the page
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -63,11 +90,20 @@ const AdminDashboard = () => {
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [recentUsers, setRecentUsers] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [recentApplications, setRecentApplications] = useState([]);
+  const [totalApplications, setTotalApplications] = useState(0);
+  const [pendingApplications, setPendingApplications] = useState(0);
+  const [completedCourses, setCompletedCourses] = useState(0);
+  const [recentCourses, setRecentCourses] = useState([]);
+  const [recentActivities, setRecentActivities] = useState([]);
 
   const fetchDashboardData = async () => {
+    // Raw items for the "Recent Activities" feed, merged and sorted at the end
+    const activityItems = [];
+
     try {
       setLoadingStats(true);
-      
+
       // Fetch users from database
       const usersRes = await apiService.get('/users');
       if (usersRes.data?.data) {
@@ -77,16 +113,69 @@ const AdminDashboard = () => {
         setRecentUsers(usersList.slice(0, 4));
         const studentsCount = usersList.filter(u => (u.role || '').toLowerCase() === 'student').length;
         setEnrolledStudents(studentsCount);
+        usersList.slice(0, 5).forEach((u) => {
+          if (!u.createdAt) return;
+          activityItems.push({
+            id: `user-${u._id}`,
+            type: 'user',
+            text: `New ${(u.role || 'student').toLowerCase()} registered: ${u.name}`,
+            at: u.createdAt,
+          });
+        });
       }
 
-      // Fetch courses from database
+      // Fetch courses from database (newest first, including drafts)
       try {
-        const coursesRes = await apiService.get('/courses');
+        const coursesRes = await apiService.get('/courses/admin/all', { params: { limit: 4 } });
         if (coursesRes.data) {
           setTotalCourses(coursesRes.data.total ?? coursesRes.data.count ?? (coursesRes.data.courses?.length || 0));
+          setRecentCourses(coursesRes.data.courses || []);
         }
       } catch (cErr) {
         console.warn('Courses fetch error in dashboard:', cErr);
+      }
+
+      // Completed courses (all time) from the analytics report
+      try {
+        const analyticsRes = await apiService.get('/admin/analytics', { params: { period: 3650 } });
+        setCompletedCourses(analyticsRes.data?.analytics?.overview?.completedCourses || 0);
+      } catch (anErr) {
+        console.warn('Analytics fetch error in dashboard:', anErr);
+      }
+
+      // Latest payments and attendance for the activity feed
+      try {
+        const recentPaymentsRes = await apiService.get('/payments/recent', { params: { limit: 5 } });
+        (recentPaymentsRes.data?.payments || []).forEach((p) => {
+          const amount = `LKR ${Number(p.amount || 0).toLocaleString()}`;
+          const who = p.user?.name || 'A student';
+          const what = p.course?.title ? ` for ${p.course.title}` : '';
+          activityItems.push({
+            id: `payment-${p._id}`,
+            type: 'payment',
+            text: p.status === 'completed'
+              ? `Payment received: ${amount} from ${who}${what}`
+              : `Payment ${p.status || 'pending'}: ${amount} from ${who}${what}`,
+            at: p.paidDate || p.paymentDate || p.createdAt,
+          });
+        });
+      } catch (rpErr) {
+        console.warn('Recent payments fetch error in dashboard:', rpErr);
+      }
+
+      try {
+        const attendanceRes = await apiService.get('/attendance/admin/records', { params: { limit: 5, sort: 'updated_desc' } });
+        (attendanceRes.data?.records || []).forEach((r) => {
+          const day = new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+          activityItems.push({
+            id: `attendance-${r._id}`,
+            type: 'attendance',
+            text: `${r.student?.name || 'A student'} marked ${r.status} for ${r.course?.title || 'a course'} (${day})`,
+            at: r.updatedAt || r.createdAt,
+          });
+        });
+      } catch (atErr) {
+        console.warn('Attendance fetch error in dashboard:', atErr);
       }
 
       // Fetch payment statistics from database
@@ -98,9 +187,37 @@ const AdminDashboard = () => {
       } catch (pErr) {
         console.warn('Payments fetch error in dashboard:', pErr);
       }
+
+      // Fetch Korean Program applications for dashboard
+      try {
+        const appsRes = await apiService.get('/join-us/recent?limit=5');
+        if (appsRes.data?.success) {
+          setRecentApplications(appsRes.data.data || []);
+          setTotalApplications(appsRes.data.total || 0);
+          setPendingApplications(appsRes.data.pending || 0);
+          (appsRes.data.data || []).forEach((app) => {
+            activityItems.push({
+              id: `application-${app._id}`,
+              type: 'application',
+              text: `New Korean program application: ${app.name}`,
+              at: app.submittedAt || app.createdAt,
+            });
+          });
+        }
+      } catch (aErr) {
+        console.warn('Applications fetch error in dashboard:', aErr);
+      }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
+      const now = Date.now();
+      setRecentActivities(
+        activityItems
+          .filter((item) => item.at)
+          .sort((a, b) => new Date(b.at) - new Date(a.at))
+          .slice(0, 6)
+          .map((item) => ({ ...item, when: timeAgo(item.at, now) })),
+      );
       setLoadingStats(false);
       setIsRefreshing(false);
     }
@@ -126,6 +243,8 @@ const AdminDashboard = () => {
         return <UserManagement />;
       case 'courses':
         return <CourseManagement />;
+      case 'attendance':
+        return <AttendanceManagement />;
       case 'analytics':
         return <AnalyticsReports />;
       case 'payments':
@@ -236,7 +355,13 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block">Completed Courses</span>
-                  <span className="text-2xl font-bold text-gray-900 mt-0.5 block">3,102</span>
+                  <span className="text-2xl font-bold text-gray-900 mt-0.5 block">
+                    {loadingStats ? (
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded"></span>
+                    ) : (
+                      completedCourses.toLocaleString()
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -247,7 +372,7 @@ const AdminDashboard = () => {
                 Quick Actions
               </h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
                 {/* Manage Users */}
                 <button
                   onClick={() => handleTabNavigation('users')}
@@ -270,6 +395,18 @@ const AdminDashboard = () => {
                   </div>
                   <span className="text-xs font-bold text-gray-900 block leading-snug">Manage Courses</span>
                   <span className="text-[10px] text-gray-400 font-medium block mt-0.5">Create/Edit Content</span>
+                </button>
+
+                {/* Attendance */}
+                <button
+                  onClick={() => handleTabNavigation('attendance')}
+                  className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-teal-200 hover:bg-teal-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
+                >
+                  <div className="p-2.5 rounded-xl bg-teal-50 text-teal-600 group-hover:scale-110 transition-transform mb-2.5">
+                    <CalendarCheck size={20} />
+                  </div>
+                  <span className="text-xs font-bold text-gray-900 block leading-snug">Attendance</span>
+                  <span className="text-[10px] text-gray-400 font-medium block mt-0.5">Track & Export</span>
                 </button>
 
                 {/* Analytics */}
@@ -336,7 +473,11 @@ const AdminDashboard = () => {
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
                     Korean Program Applications
                   </span>
-                  <span className="text-2xl font-bold text-gray-900 mt-1 block">425</span>
+                  <span className="text-2xl font-bold text-gray-900 mt-1 block">
+                    {loadingStats ? (
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded" />
+                    ) : totalApplications.toLocaleString()}
+                  </span>
                 </div>
               </div>
 
@@ -352,7 +493,11 @@ const AdminDashboard = () => {
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
                     Pending Applications
                   </span>
-                  <span className="text-2xl font-bold text-gray-900 mt-1 block">82</span>
+                  <span className="text-2xl font-bold text-gray-900 mt-1 block">
+                    {loadingStats ? (
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded" />
+                    ) : pendingApplications.toLocaleString()}
+                  </span>
                 </div>
               </div>
 
@@ -473,26 +618,50 @@ const AdminDashboard = () => {
                   </button>
                 </div>
 
-                <div className="p-3 rounded-xl hover:bg-gray-50/70 transition-colors flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-xs">
-                      K
+                <div className="space-y-3">
+                  {loadingStats ? (
+                    <div className="space-y-3 py-2">
+                      <div className="h-14 bg-gray-100 animate-pulse rounded-xl" />
+                      <div className="h-14 bg-gray-100 animate-pulse rounded-xl" />
                     </div>
-                    <div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
-                        Korean Syntax Masterclass
-                      </h4>
-                      <p className="text-[11px] text-gray-400">Language</p>
-                    </div>
-                  </div>
+                  ) : recentCourses.length > 0 ? (
+                    recentCourses.map((course) => {
+                      const studentCount = course.enrolledStudents?.length || 0;
+                      return (
+                        <div
+                          key={course._id}
+                          className="p-3 rounded-xl hover:bg-gray-50/70 transition-colors flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-teal-600 text-white font-bold flex items-center justify-center text-sm shrink-0 shadow-xs">
+                              {(course.title || 'C').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug truncate">
+                                {course.title}
+                              </h4>
+                              <p className="text-[11px] text-gray-400">
+                                {course.category || 'Language'}
+                                {!course.isPublished && ' · Draft'}
+                              </p>
+                            </div>
+                          </div>
 
-                  <div className="flex items-center gap-5 text-right">
-                    <div>
-                      <span className="text-xs font-semibold text-gray-700 block">850</span>
-                      <span className="text-[10px] text-gray-400 block">students</span>
-                    </div>
-                    <span className="text-xs text-gray-400 whitespace-nowrap">Nov 10, 2023</span>
-                  </div>
+                          <div className="flex items-center gap-5 text-right shrink-0">
+                            <div>
+                              <span className="text-xs font-semibold text-gray-700 block">{studentCount.toLocaleString()}</span>
+                              <span className="text-[10px] text-gray-400 block">student{studentCount === 1 ? '' : 's'}</span>
+                            </div>
+                            <span className="text-xs text-gray-400 whitespace-nowrap">
+                              {course.createdAt ? formatShortDate(course.createdAt) : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-gray-400 py-3 text-center">No courses yet.</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -512,51 +681,55 @@ const AdminDashboard = () => {
               </div>
 
               <div className="space-y-3">
-                {/* Application 1 */}
-                <div className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                      AM
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Aruni Madushani</h4>
-                      <p className="text-[11px] text-gray-500">aruni@example.com</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        Level: Intermediate | Interests: 3
-                      </p>
-                    </div>
+                {loadingStats ? (
+                  <div className="space-y-3 py-2">
+                    <div className="h-16 bg-gray-100 animate-pulse rounded-xl" />
+                    <div className="h-16 bg-gray-100 animate-pulse rounded-xl" />
                   </div>
+                ) : recentApplications.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-3 text-center">No applications yet.</p>
+                ) : (
+                  recentApplications.map((app) => {
+                    const initials = (app.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                    const status = (app.status || 'pending').toLowerCase();
+                    const statusClass =
+                      status === 'pending'   ? 'bg-amber-100 text-amber-800' :
+                      status === 'enrolled'  ? 'bg-emerald-100 text-emerald-800' :
+                      status === 'contacted' ? 'bg-blue-100 text-blue-800' :
+                                              'bg-red-100 text-red-800';
+                    return (
+                      <div
+                        key={app._id}
+                        className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                            {initials}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-xs sm:text-sm text-gray-900">{app.name}</h4>
+                            <p className="text-[11px] text-gray-500">{app.email}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {app.currentLevel ? `Level: ${app.currentLevel}` : ''}
+                              {app.interests?.length ? ` | Interests: ${app.interests.length}` : ''}
+                            </p>
+                          </div>
+                        </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider bg-amber-100 text-amber-800 uppercase">
-                      PENDING
-                    </span>
-                    <span className="text-xs text-gray-400 whitespace-nowrap">Nov 14, 2023</span>
-                  </div>
-                </div>
-
-                {/* Application 2 */}
-                <div className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                      KP
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-xs sm:text-sm text-gray-900">Kasun Perera</h4>
-                      <p className="text-[11px] text-gray-500">kasun.p@example.com</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        Level: Beginner | Interests: 1
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider bg-emerald-100 text-emerald-800 uppercase">
-                      ENROLLED
-                    </span>
-                    <span className="text-xs text-gray-400 whitespace-nowrap">Nov 12, 2023</span>
-                  </div>
-                </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase ${statusClass}`}>
+                            {status}
+                          </span>
+                          <span className="text-xs text-gray-400 whitespace-nowrap">
+                            {app.submittedAt
+                              ? new Date(app.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
@@ -567,31 +740,32 @@ const AdminDashboard = () => {
               </h3>
 
               <div className="space-y-4">
-                {/* Activity 1 */}
-                <div className="flex items-start gap-3.5">
-                  <div className="p-2 rounded-full bg-blue-50 text-blue-600 shrink-0 mt-0.5">
-                    <Bell size={16} />
+                {loadingStats ? (
+                  <div className="space-y-3 py-2">
+                    <div className="h-10 bg-gray-100 animate-pulse rounded-xl" />
+                    <div className="h-10 bg-gray-100 animate-pulse rounded-xl" />
                   </div>
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-800 leading-snug">
-                      New student enrollment: Aruni Madushani joined Korean Level 1
-                    </p>
-                    <span className="text-[11px] text-gray-400 mt-0.5 block">2 hours ago</span>
-                  </div>
-                </div>
-
-                {/* Activity 2 */}
-                <div className="flex items-start gap-3.5">
-                  <div className="p-2 rounded-full bg-emerald-50 text-emerald-600 shrink-0 mt-0.5">
-                    <CheckCircle2 size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-800 leading-snug">
-                      Course updated: Business Korean Essentials by Prof. Park
-                    </p>
-                    <span className="text-[11px] text-gray-400 mt-0.5 block">5 hours ago</span>
-                  </div>
-                </div>
+                ) : recentActivities.length > 0 ? (
+                  recentActivities.map((activity) => {
+                    const style = ACTIVITY_STYLES[activity.type] || { icon: Bell, className: 'bg-gray-100 text-gray-600' };
+                    const ActivityIcon = style.icon;
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3.5">
+                        <div className={`p-2 rounded-full shrink-0 mt-0.5 ${style.className}`}>
+                          <ActivityIcon size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs sm:text-sm font-medium text-gray-800 leading-snug">
+                            {activity.text}
+                          </p>
+                          <span className="text-[11px] text-gray-400 mt-0.5 block">{activity.when}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-gray-400 py-3 text-center">No recent activity yet.</p>
+                )}
               </div>
             </div>
           </div>
