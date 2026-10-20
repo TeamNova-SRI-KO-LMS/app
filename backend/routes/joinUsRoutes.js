@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const JoinUsSubmission = require('../models/JoinUsSubmission');
+const { protect, authorize } = require('../middleware/auth');
+const escapeRegex = require('../utils/escapeRegex');
 
 // ─── Public: Submit a new Join-Us application ────────────────────────────────
 // POST /api/join-us/submit
@@ -15,15 +17,16 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name and email are required.' });
     }
 
+    // Optional selects left blank arrive as "", which the schema's enums reject
     const submission = new JoinUsSubmission({
       name,
       email,
       phone,
       age: age ? Number(age) : undefined,
-      currentLevel,
-      preferredTime,
-      interests: Array.isArray(interests) ? interests : [],
-      hearAboutUs,
+      currentLevel: currentLevel || undefined,
+      preferredTime: preferredTime || undefined,
+      interests: Array.isArray(interests) ? interests.filter(Boolean) : [],
+      hearAboutUs: hearAboutUs || undefined,
       message,
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
@@ -37,6 +40,10 @@ router.post('/submit', async (req, res) => {
       data: { id: submission._id },
     });
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      const firstError = Object.values(error.errors)[0];
+      return res.status(400).json({ success: false, message: firstError?.message || 'Please check the form and try again.' });
+    }
     console.error('Join-Us submit error:', error);
     return res.status(500).json({ success: false, message: 'Server error. Please try again later.' });
   }
@@ -44,18 +51,18 @@ router.post('/submit', async (req, res) => {
 
 // ─── Admin: Get all applications (with optional filters) ──────────────────────
 // GET /api/join-us?status=pending&search=aruni&page=1&limit=20
-router.get('/', async (req, res) => {
+router.get('/', protect, authorize('admin'), async (req, res) => {
   try {
     const { status, search, page = 1, limit = 50 } = req.query;
 
     const query = {};
 
     if (status && status !== 'ALL') {
-      query.status = status.toLowerCase();
+      query.status = String(status).toLowerCase();
     }
 
     if (search) {
-      const regex = new RegExp(search, 'i');
+      const regex = new RegExp(escapeRegex(search), 'i');
       query.$or = [{ name: regex }, { email: regex }, { phone: regex }];
     }
 
@@ -82,7 +89,7 @@ router.get('/', async (req, res) => {
 
 // ─── Admin: Get recent applications (for dashboard widget) ─────────────────────
 // GET /api/join-us/recent?limit=5
-router.get('/recent', async (req, res) => {
+router.get('/recent', protect, authorize('admin'), async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 5, 20);
     const submissions = await JoinUsSubmission.find()
@@ -103,7 +110,7 @@ router.get('/recent', async (req, res) => {
 
 // ─── Admin: Update application status ─────────────────────────────────────────
 // PATCH /api/join-us/:id/status
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', protect, authorize('admin'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -132,7 +139,7 @@ router.patch('/:id/status', async (req, res) => {
 
 // ─── Admin: Delete a submission ────────────────────────────────────────────────
 // DELETE /api/join-us/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, authorize('admin'), async (req, res) => {
   try {
     const submission = await JoinUsSubmission.findByIdAndDelete(req.params.id);
     if (!submission) {
