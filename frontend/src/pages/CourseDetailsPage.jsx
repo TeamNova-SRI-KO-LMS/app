@@ -32,7 +32,25 @@ export default function CourseDetails() {
 
   /* ── Fetch course & materials ─────────────────────────────────────────── */
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      // If visited via /course-details without an :id, auto-redirect to first available course
+      apiService.get('/courses', { params: { limit: 1 } })
+        .then((res) => {
+          const first = res.data?.courses?.[0];
+          if (first?._id) {
+            navigate(`/courses/${first._id}`, { replace: true });
+          } else {
+            setError('No courses available yet.');
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          setError('No course specified. Please choose a course from the course catalog.');
+          setLoading(false);
+        });
+      return;
+    }
+
     const fetchCourseData = async () => {
       try {
         setLoading(true);
@@ -62,7 +80,7 @@ export default function CourseDetails() {
       }
     };
     fetchCourseData();
-  }, [id]);
+  }, [id, navigate]);
 
   /* ── Toggle curriculum module ──────────────────────────────────────────── */
   const toggleModule = (idx) =>
@@ -71,6 +89,11 @@ export default function CourseDetails() {
   /* ── Submit review ─────────────────────────────────────────────────────── */
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      toast.error('Please log in to leave a review.');
+      navigate('/login', { state: { from: `/courses/${id}` } });
+      return;
+    }
     if (selectedRating === 0) { toast.error('Please select a star rating first.'); return; }
     if (!feedbackText.trim())  { toast.error('Please write your feedback before submitting.'); return; }
 
@@ -82,21 +105,29 @@ export default function CourseDetails() {
       setCourse(res.data?.course ?? course);
       setFeedbackText('');
       setSelectedRating(0);
+      toast.success('Thank you for your review!');
     } catch (err) {
       toast.error(err?.response?.data?.message ?? 'Failed to submit review. Please try again.');
     }
   };
 
   /* ── Enrolled status ─────────────────────────────────────────────────── */
-  const isEnrolled = course?.enrolledStudents?.some((student) => {
-    const studentId = typeof student === 'object' ? student?._id : student;
-    return studentId === user?._id || studentId === user?.id;
-  });
+  const isEnrolled = Boolean(
+    course?.enrolledStudents?.some((student) => {
+      const studentId = typeof student === 'object' ? (student?._id || student?.id) : student;
+      const currentUserId = user?._id || user?.id;
+      return studentId && currentUserId && String(studentId) === String(currentUserId);
+    }) ||
+    user?.enrolledCourses?.some((c) => {
+      const cId = typeof c === 'object' ? (c?._id || c?.id) : c;
+      return cId && id && String(cId) === String(id);
+    })
+  );
 
   /* ── Enroll or Buy ─────────────────────────────────────────────────────── */
   const handleEnrollOrBuy = async () => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate('/login', { state: { from: `/courses/${id}` } });
       return;
     }
     if (isEnrolled) {
@@ -114,13 +145,65 @@ export default function CourseDetails() {
     try {
       setEnrolling(true);
       await apiService.post(`/courses/${id}/enroll`);
+      setCourse(prev => prev ? {
+        ...prev,
+        enrolledStudents: [...(prev.enrolledStudents || []), user?._id || user?.id]
+      } : prev);
       setEnrollMsg('Successfully enrolled! Redirecting…');
-      setTimeout(() => navigate(`/course-info/${id}`), 1500);
+      setTimeout(() => navigate(`/course-info/${id}`), 1200);
     } catch (err) {
       setEnrollMsg(err?.response?.data?.message ?? 'Enrollment failed. Please try again.');
       setEnrolling(false);
     }
   };
+
+  /* ── Derived Curriculum Weeks & Lessons ───────────────────────────────── */
+  const curriculumWeeks = (() => {
+    const weekMap = new Map();
+
+    // 1. Add curriculum weeks from course doc
+    (course?.curriculum || []).forEach((w, idx) => {
+      const wNum = w.week ?? (idx + 1);
+      weekMap.set(wNum, {
+        week: wNum,
+        title: w.title || `Week ${wNum}`,
+        description: w.description || '',
+        lessons: w.lessons || [],
+      });
+    });
+
+    // 2. Ensure weeks from uploaded materials exist
+    materials.forEach((m) => {
+      const wNum = m.weekNumber || 1;
+      if (!weekMap.has(wNum)) {
+        weekMap.set(wNum, {
+          week: wNum,
+          title: `Week ${wNum}: Course Materials`,
+          description: 'Uploaded lecture resources & media',
+          lessons: [],
+        });
+      }
+    });
+
+    // 3. Ensure weeks from assignments exist
+    assignments.forEach((a) => {
+      const wNum = a.weekNumber || 1;
+      if (!weekMap.has(wNum)) {
+        weekMap.set(wNum, {
+          week: wNum,
+          title: `Week ${wNum}: Assignments`,
+          description: 'Practical exercises & evaluations',
+          lessons: [],
+        });
+      }
+    });
+
+    return Array.from(weekMap.values()).sort((a, b) => a.week - b.week);
+  })();
+
+  const totalLessons = curriculumWeeks.reduce(
+    (sum, w) => sum + (w.lessons?.length ?? 0) + materials.filter(m => (m.weekNumber || 1) === w.week).length, 0
+  );
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
   const formatPrice   = (p) => p === 0 ? 'Free' : `LKR ${p?.toLocaleString()}`;
@@ -134,10 +217,6 @@ export default function CourseDetails() {
     intermediate: { bg: 'bg-blue-100',    text: 'text-blue-700'    },
     advanced:     { bg: 'bg-orange-100',  text: 'text-orange-700'  },
   }[course?.level] ?? { bg: 'bg-gray-100', text: 'text-gray-700' };
-
-  const totalLessons = course?.curriculum?.reduce(
-    (sum, w) => sum + (w.lessons?.length ?? 0), 0
-  ) ?? 0;
 
   /* ── Loading ───────────────────────────────────────────────────────────── */
   if (loading) {
@@ -271,15 +350,18 @@ export default function CourseDetails() {
             {/* ── Overview ────────────────────────────────────────────────── */}
             {activeTab === 'Overview' && (
               <section className="mb-14">
-                {/* What you'll learn — derive from first lesson titles */}
-                {course.curriculum?.length > 0 && (
+                {/* What you'll learn — derive from first lesson titles or materials */}
+                {(course.curriculum?.length > 0 || materials.length > 0) && (
                   <>
                     <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">What you'll learn</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-                      {course.curriculum.flatMap(w => w.lessons ?? []).slice(0, 8).map((lesson, i) => (
+                      {[
+                        ...(course.curriculum?.flatMap(w => w.lessons ?? []) ?? []),
+                        ...materials.map(m => ({ title: m.title })),
+                      ].slice(0, 8).map((item, i) => (
                         <div key={i} className="flex items-start gap-3">
                           <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                          <p className="text-sm text-gray-700 font-medium">{lesson.title}</p>
+                          <p className="text-sm text-gray-700 font-medium">{item.title}</p>
                         </div>
                       ))}
                     </div>
@@ -323,12 +405,19 @@ export default function CourseDetails() {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Course Curriculum</h3>
                   <span className="text-sm text-gray-500 font-medium">
-                    {course.curriculum?.length ?? 0} weeks • {totalLessons} lessons
+                    {curriculumWeeks.length} weeks • {totalLessons} lessons &amp; resources
                   </span>
                 </div>
 
-                <div className="space-y-4">
-                  {(course.curriculum ?? []).map((week, idx) => (
+                {curriculumWeeks.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-gray-200 p-6 shadow-xs">
+                    <Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm font-semibold text-gray-700">Course curriculum is being prepared.</p>
+                    <p className="text-xs text-gray-400 mt-1">Enroll today to receive updates as materials are uploaded.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {curriculumWeeks.map((week, idx) => (
                     <div key={idx} className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-xs">
                       <div
                         onClick={() => toggleModule(idx)}
@@ -426,8 +515,9 @@ export default function CourseDetails() {
                     </div>
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
+          )}
 
             {/* ── Instructor ──────────────────────────────────────────────── */}
             {activeTab === 'Instructor' && (
@@ -579,28 +669,26 @@ export default function CourseDetails() {
         <div className="w-full lg:w-[360px] xl:w-[400px] shrink-0">
           <div className="sticky top-24 bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
             {/* Course Photo / Thumbnail from Google Drive */}
-            {course.thumbnail && (
-              <div className="relative aspect-video rounded-2xl overflow-hidden mb-6 shadow-md border border-gray-100 group">
-                <img 
-                  src={course.thumbnail} 
-                  alt={course.title} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                />
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center transition">
-                  <button 
-                    onClick={() => navigate(`/course-info/${id}`)}
-                    className="w-12 h-12 rounded-full bg-white text-blue-600 flex items-center justify-center shadow-xl hover:scale-110 transition active:scale-95 cursor-pointer"
-                    title="Preview Course"
-                  >
-                    <Play className="w-5 h-5 fill-blue-600 translate-x-0.5" />
-                  </button>
-                </div>
-                <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-bold text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-lg">
-                  <span>Course Preview</span>
-                  <span className="text-blue-300">Google Drive Powered</span>
-                </div>
+            <div className="relative aspect-video rounded-2xl overflow-hidden mb-6 shadow-md border border-gray-100 group">
+              <img 
+                src={course.thumbnail || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800'} 
+                alt={course.title} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+              />
+              <div className="absolute inset-0 bg-black/20 flex items-center justify-center transition">
+                <button 
+                  onClick={() => navigate(`/course-info/${id}`)}
+                  className="w-12 h-12 rounded-full bg-white text-blue-600 flex items-center justify-center shadow-xl hover:scale-110 transition active:scale-95 cursor-pointer"
+                  title="Preview Course"
+                >
+                  <Play className="w-5 h-5 fill-blue-600 translate-x-0.5" />
+                </button>
               </div>
-            )}
+              <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-bold text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-lg">
+                <span>Course Preview</span>
+                <span className="text-blue-300">Google Drive Powered</span>
+              </div>
+            </div>
 
             <div className="text-center mb-6">
               <h2 className="text-4xl font-extrabold text-[#1d4ed8] mb-2 tracking-tight">
