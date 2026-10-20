@@ -59,6 +59,18 @@ const paymentDateMatch = bounds => ({
   ],
 });
 
+const completedProgressMatch = bounds => ({
+  $and: [
+    {
+      $or: [
+        { isCompleted: true },
+        { overallProgress: { $gte: 100 } },
+      ],
+    },
+    dateMatch('completionDate', bounds),
+  ],
+});
+
 const monthlySeries = (items, dateField, valueField, year) => {
   const values = Array(12).fill(0);
   items.forEach(item => {
@@ -103,7 +115,7 @@ const getReport = async ({ year, period }) => {
     currentPayments,
     previousPayments,
     periodPayments,
-    previousProgress,
+    previousCompletedProgress,
     completedProgress,
     periodUsers,
     periodProgress,
@@ -122,8 +134,8 @@ const getReport = async ({ year, period }) => {
       .select('amount paidDate paymentDate').lean(),
     Payment.find({ status: 'completed', ...paymentDateMatch(bounds) })
       .select('amount paidDate paymentDate').lean(),
-    Progress.find(dateMatch('createdAt', previous)).select('createdAt').lean(),
-    Progress.find({ isCompleted: true, ...dateMatch('completionDate', bounds) })
+    Progress.find(completedProgressMatch(previous)).select('completionDate').lean(),
+    Progress.find(completedProgressMatch(bounds))
       .select('completionDate').lean(),
     User.find(dateMatch('createdAt', bounds)).select('createdAt lastLogin').lean(),
     Progress.find(dateMatch('createdAt', bounds)).select('createdAt').lean(),
@@ -137,7 +149,14 @@ const getReport = async ({ year, period }) => {
   const totalRevenue = currentPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const previousRevenue = previousPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
   const activeSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const previousActiveSince = new Date(activeSince.getTime() - 24 * 60 * 60 * 1000);
+  const previousActiveUntil = new Date(activeSince.getTime() - 1);
   const dailyActiveUsers = allUsers.filter(user => user.lastLogin && new Date(user.lastLogin) >= activeSince).length;
+  const previousDailyActiveUsers = allUsers.filter(user => {
+    if (!user.lastLogin) return false;
+    const lastLogin = new Date(user.lastLogin);
+    return lastLogin >= previousActiveSince && lastLogin <= previousActiveUntil;
+  }).length;
   const currentAverageRating = allCourses.length
     ? allCourses.reduce((sum, course) => sum + (course.averageRating || 0), 0) / allCourses.length
     : 0;
@@ -156,13 +175,16 @@ const getReport = async ({ year, period }) => {
       usersGrowth: percentageChange(currentUsers, previousUsers),
       coursesGrowth: percentageChange(currentCourses, previousCourses),
       revenueGrowth: percentageChange(totalRevenue, previousRevenue),
-      activeUsersGrowth: 0,
+      activeUsersGrowth: percentageChange(dailyActiveUsers, previousDailyActiveUsers),
     },
     userActivity: {
       dailyActiveUsers,
-      dailyActiveUsersGrowth: 0,
+      dailyActiveUsersGrowth: percentageChange(dailyActiveUsers, previousDailyActiveUsers),
       courseCompletionsThisMonth: completedProgress.length,
-      courseCompletionsGrowth: percentageChange(completedProgress.length, previousProgress.length),
+      courseCompletionsGrowth: percentageChange(
+        completedProgress.length,
+        previousCompletedProgress.length,
+      ),
       averageRating: Number(currentAverageRating.toFixed(2)),
       averageRatingChange: 0,
     },
