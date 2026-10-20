@@ -1,45 +1,192 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, BookOpen, ChevronDown, ClipboardList, Video, 
   FileText, Calendar, UploadCloud, CheckCircle2, 
-  Film, File, ArrowRight
+  Film, File, ArrowRight, Image as ImageIcon, Link as LinkIcon,
+  Trash2, Loader2, ExternalLink
 } from 'lucide-react';
+import lectureService from '../../services/lectureService';
+import assignmentService from '../../services/assignmentService';
 
 export default function CourseResourceModal({ 
   isOpen, 
   onClose, 
-  courseTitle = "Advanced Level (A/L) Korean Syllabus - Focused Prep",
-  targetModule = "LIT 101: Introduction to Modernism",
+  courseId,
+  courseTitle = "Korean Language Course",
+  targetModule = "Module 1",
+  modules = [],
   onUploadSuccess 
 }) {
-  const [activeTab, setActiveTab] = useState('assignment'); // 'assignment' | 'video' | 'pdf'
+  const [activeTab, setActiveTab] = useState('video'); // 'video' | 'pdf' | 'image' | 'assignment' | 'link'
   const [title, setTitle] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [selectedModule, setSelectedModule] = useState('Module 1: Introduction');
   const [description, setDescription] = useState('');
+  const [selectedModule, setSelectedModule] = useState(targetModule || 'Module 1');
+  const [weekNumber, setWeekNumber] = useState(1);
+  const [isPreview, setIsPreview] = useState(false);
+  
+  // Assignment specific fields
+  const [dueDate, setDueDate] = useState('');
+  const [maxScore, setMaxScore] = useState(100);
+
+  // Link specific field
+  const [externalUrl, setExternalUrl] = useState('');
+
+  // Selected file & upload state
+  const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState(null);
+
+  // Recent materials for this course
+  const [recentMaterials, setRecentMaterials] = useState([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+
+  useEffect(() => {
+    if (targetModule) {
+      setSelectedModule(targetModule);
+    }
+  }, [targetModule]);
+
+  // Load existing materials when modal opens
+  useEffect(() => {
+    if (isOpen && courseId) {
+      loadCourseMaterials();
+    }
+  }, [isOpen, courseId]);
+
+  const loadCourseMaterials = async () => {
+    try {
+      setLoadingRecent(true);
+      const res = await lectureService.getCourseMaterials(courseId);
+      if (res?.materials) {
+        setRecentMaterials(res.materials);
+      }
+    } catch (err) {
+      console.warn('Could not load course materials:', err);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
 
   if (!isOpen) return null;
 
-  const handleUpload = (e) => {
-    e.preventDefault();
-    setIsUploading(true);
-    let progress = 10;
-    const interval = setInterval(() => {
-      progress += 25;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setUploadProgress(100);
-        setTimeout(() => {
-          setIsUploading(false);
-          if (onUploadSuccess) onUploadSuccess({ title, type: activeTab });
-          onClose();
-        }, 500);
-      } else {
-        setUploadProgress(progress);
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!title) {
+        // Auto-fill title from filename
+        const cleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        setTitle(cleanName.replace(/[-_]/g, ' '));
       }
-    }, 200);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!courseId) {
+      alert('Please save the course first before uploading resources.');
+      return;
+    }
+
+    if (!title.trim()) {
+      alert('Please provide a title for the resource.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setStatusMessage(null);
+
+    try {
+      if (activeTab === 'assignment') {
+        // Create an Assignment
+        const payload = {
+          courseId,
+          weekNumber: Number(weekNumber) || 1,
+          lessonTitle: selectedModule,
+          title: title.trim(),
+          description: description.trim() || 'Complete the assignment and submit your files.',
+          dueDate: dueDate || undefined,
+          maxScore: Number(maxScore) || 100,
+        };
+        const res = await assignmentService.createAssignment(payload);
+        setStatusMessage({ type: 'success', text: 'Assignment created successfully!' });
+        if (onUploadSuccess) onUploadSuccess({ type: 'assignment', data: res.assignment });
+      } else if (activeTab === 'link') {
+        // Add External Link (YouTube, Vimeo)
+        if (!externalUrl.trim()) {
+          alert('Please enter a valid URL.');
+          setIsUploading(false);
+          return;
+        }
+        const payload = {
+          courseId,
+          weekNumber: Number(weekNumber) || 1,
+          lessonTitle: selectedModule,
+          title: title.trim(),
+          description: description.trim(),
+          externalUrl: externalUrl.trim(),
+          isPreview,
+        };
+        const res = await lectureService.addExternalLink(payload);
+        setStatusMessage({ type: 'success', text: 'External resource added successfully!' });
+        if (onUploadSuccess) onUploadSuccess({ type: 'link', data: res.material });
+      } else {
+        // Upload file to Google Drive (Video, PDF, Image)
+        if (!selectedFile) {
+          alert('Please select a file to upload.');
+          setIsUploading(false);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('courseId', courseId);
+        formData.append('weekNumber', String(weekNumber || 1));
+        formData.append('lessonTitle', selectedModule);
+        formData.append('title', title.trim());
+        formData.append('description', description.trim());
+        formData.append('isPreview', String(isPreview));
+
+        const res = await lectureService.uploadMaterial(formData, (progress) => {
+          setUploadProgress(progress);
+        });
+
+        setStatusMessage({ type: 'success', text: 'Uploaded to Google Drive successfully!' });
+        if (onUploadSuccess) onUploadSuccess({ type: activeTab, data: res.material });
+      }
+
+      // Refresh list & reset form
+      await loadCourseMaterials();
+      setTitle('');
+      setDescription('');
+      setSelectedFile(null);
+      setExternalUrl('');
+      setUploadProgress(100);
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 1200);
+
+    } catch (err) {
+      console.error('Resource upload error:', err);
+      setStatusMessage({
+        type: 'error',
+        text: err?.response?.data?.message || err.message || 'Upload failed. Check your connection or Google Drive config.',
+      });
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (materialId) => {
+    if (!window.confirm('Are you sure you want to delete this resource from Google Drive?')) return;
+    try {
+      await lectureService.deleteMaterial(materialId);
+      setRecentMaterials(recentMaterials.filter(m => m._id !== materialId));
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to delete material.');
+    }
   };
 
   return (
@@ -49,16 +196,19 @@ export default function CourseResourceModal({
         {/* Modal Top Bar */}
         <div className="bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full">
+                Google Drive Storage
+              </span>
+              <span className="text-xs text-gray-400">• Free & Unlimited for SRI-KO</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mt-0.5">
               {courseTitle}
             </h2>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              Add new assignments, videos, or reading materials to your curriculum.
-            </p>
           </div>
           <button 
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition"
+            className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -75,92 +225,154 @@ export default function CourseResourceModal({
               </div>
               <div>
                 <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider block">
-                  TARGET COURSE
+                  SELECTED MODULE
                 </span>
                 <span className="text-base font-bold text-gray-900 block mt-0.5">
-                  {targetModule}
+                  {selectedModule}
                 </span>
               </div>
             </div>
-            <button className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-xs font-semibold text-gray-700 transition">
-              <span>Change Module</span>
-              <ChevronDown size={14} className="text-gray-400" />
-            </button>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-gray-500">Week #:</label>
+              <input 
+                type="number"
+                min="1"
+                max="52"
+                value={weekNumber}
+                onChange={(e) => setWeekNumber(parseInt(e.target.value, 10) || 1)}
+                className="w-16 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-center text-gray-800 focus:bg-white focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Type Tabs */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
             <button
               type="button"
-              onClick={() => setActiveTab('assignment')}
-              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all shadow-xs ${
-                activeTab === 'assignment'
-                  ? 'bg-blue-50 text-blue-700 border-2 border-blue-600'
+              onClick={() => { setActiveTab('video'); setSelectedFile(null); }}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                activeTab === 'video'
+                  ? 'bg-blue-600 text-white shadow-blue-500/25'
                   : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              <ClipboardList size={18} />
+              <Video size={16} />
+              <span>Video</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('pdf'); setSelectedFile(null); }}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                activeTab === 'pdf'
+                  ? 'bg-blue-600 text-white shadow-blue-500/25'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              <FileText size={16} />
+              <span>PDF / Notes</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('image'); setSelectedFile(null); }}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                activeTab === 'image'
+                  ? 'bg-blue-600 text-white shadow-blue-500/25'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              <ImageIcon size={16} />
+              <span>Image</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setActiveTab('assignment'); setSelectedFile(null); }}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                activeTab === 'assignment'
+                  ? 'bg-blue-600 text-white shadow-blue-500/25'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              <ClipboardList size={16} />
               <span>Assignment</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('video')}
-              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all shadow-xs ${
-                activeTab === 'video'
-                  ? 'bg-blue-50 text-blue-700 border-2 border-blue-600'
+              onClick={() => { setActiveTab('link'); setSelectedFile(null); }}
+              className={`flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                activeTab === 'link'
+                  ? 'bg-blue-600 text-white shadow-blue-500/25'
                   : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
             >
-              <Video size={18} />
-              <span>Video Lesson</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('pdf')}
-              className={`flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all shadow-xs ${
-                activeTab === 'pdf'
-                  ? 'bg-blue-50 text-blue-700 border-2 border-blue-600'
-                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              <FileText size={18} />
-              <span>PDF Document</span>
+              <LinkIcon size={16} />
+              <span>YouTube / Link</span>
             </button>
           </div>
+
+          {/* Feedback banner */}
+          {statusMessage && (
+            <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+              statusMessage.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              {statusMessage.type === 'success' ? <CheckCircle2 size={16} /> : <X size={16} />}
+              <span>{statusMessage.text}</span>
+            </div>
+          )}
 
           {/* Main Grid: Form + Right Uploads/Recents */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
-            {/* Left 8 Cols: Details Form */}
-            <form onSubmit={handleUpload} className="lg:col-span-8 bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
+            {/* Left 7 Cols: Details Form */}
+            <form onSubmit={handleSubmit} className="lg:col-span-7 bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-4">
               <h3 className="font-bold text-gray-900 text-base">
-                {activeTab === 'assignment' ? 'Assignment Details' : activeTab === 'video' ? 'Video Lesson Details' : 'Document Details'}
+                {activeTab === 'assignment' && 'Create Course Assignment'}
+                {activeTab === 'video' && 'Upload Video Lesson to Google Drive'}
+                {activeTab === 'pdf' && 'Upload PDF / Slides to Google Drive'}
+                {activeTab === 'image' && 'Upload Study Image / Diagram'}
+                {activeTab === 'link' && 'Embed YouTube / External Resource'}
               </h3>
 
               {/* Title */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                  Title
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Title <span className="text-red-500">*</span>
                 </label>
                 <input 
                   type="text" 
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Midterm Essay: Modernism"
+                  placeholder="e.g. Lesson 2: Hangul Vowels Pronunciation"
                   required
                   className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition"
                 />
               </div>
 
-              {/* Due Date & Module */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Module selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Due Date
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Lesson / Module Name
                   </label>
-                  <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedModule}
+                    onChange={(e) => setSelectedModule(e.target.value)}
+                    placeholder="e.g. Module 1: Basics"
+                    className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-800 focus:bg-white focus:border-blue-500 focus:outline-none transition"
+                  />
+                </div>
+
+                {activeTab === 'assignment' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Due Date
+                    </label>
                     <input 
                       type="date"
                       value={dueDate}
@@ -168,163 +380,200 @@ export default function CourseResourceModal({
                       className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-800 focus:bg-white focus:border-blue-500 focus:outline-none transition"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Module
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedModule}
-                      onChange={(e) => setSelectedModule(e.target.value)}
-                      className="w-full appearance-none bg-[#f1f5f9] border border-transparent rounded-xl px-4 py-2.5 pr-8 text-xs sm:text-sm text-gray-800 focus:bg-white focus:border-blue-500 focus:outline-none transition"
-                    >
-                      <option>Module 1: Introduction</option>
-                      <option>Module 2: Honorifics in Boardrooms</option>
-                      <option>Module 3: Literature Analysis</option>
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                ) : (
+                  <div className="flex items-center gap-2 pt-6">
+                    <input 
+                      type="checkbox"
+                      id="isPreviewCheckbox"
+                      checked={isPreview}
+                      onChange={(e) => setIsPreview(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="isPreviewCheckbox" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                      Free Preview (Public before enrollment)
+                    </label>
                   </div>
-                </div>
+                )}
               </div>
+
+              {/* External URL if Link tab */}
+              {activeTab === 'link' && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    YouTube or Video URL <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="url"
+                    value={externalUrl}
+                    onChange={(e) => setExternalUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    required
+                    className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition font-mono"
+                  />
+                </div>
+              )}
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                <label className="block text-xs font-bold text-gray-700 mb-1">
                   Description / Instructions
                 </label>
                 <textarea 
-                  rows={4}
+                  rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Provide detailed instructions for this assignment..."
-                  className="w-full bg-[#f1f5f9] border border-transparent rounded-xl p-4 text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none resize-none transition"
+                  placeholder="Provide guidance or summary for students..."
+                  className="w-full bg-[#f1f5f9] border border-transparent rounded-xl p-3 text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none resize-none transition"
                 ></textarea>
               </div>
 
-              {/* Drag & Drop Upload Zone */}
-              <div className="border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl p-7 text-center bg-gray-50/50 hover:bg-blue-50/20 transition cursor-pointer flex flex-col items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3 shadow-xs">
-                  <UploadCloud size={24} />
+              {/* File upload zone if file type */}
+              {activeTab !== 'link' && activeTab !== 'assignment' && (
+                <div className="border-2 border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-6 text-center bg-gray-50/50 hover:bg-blue-50/20 transition cursor-pointer flex flex-col items-center justify-center relative">
+                  <input 
+                    type="file"
+                    accept={
+                      activeTab === 'video' ? 'video/*' :
+                      activeTab === 'pdf' ? '.pdf,.doc,.docx,.ppt,.pptx' :
+                      activeTab === 'image' ? 'image/*' : '*/*'
+                    }
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2 shadow-xs">
+                    <UploadCloud size={24} />
+                  </div>
+                  {selectedFile ? (
+                    <div>
+                      <p className="font-bold text-blue-600 text-sm truncate max-w-xs">{selectedFile.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 font-mono">
+                        {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-bold text-gray-900 text-sm">Choose {activeTab.toUpperCase()} File</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Click or drag & drop (Direct to Google Drive)</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Up to 500MB</p>
+                    </>
+                  )}
                 </div>
-                <p className="font-bold text-gray-900 text-sm">Drag & Drop Files Here</p>
-                <p className="text-xs text-gray-400 mt-0.5">or click to browse from your computer</p>
-                
-                <span className="inline-block mt-3 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold">
-                  Uploading to: LIT 101
-                </span>
+              )}
 
-                <p className="text-[10px] text-gray-400 mt-2">
-                  Supported formats: PDF, DOCX, ZIP (Max 50MB)
-                </p>
-              </div>
+              {/* Upload Progress Bar */}
+              {isUploading && (
+                <div className="space-y-1.5 pt-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-700">
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 size={13} className="animate-spin" /> Uploading to Google Drive...
+                    </span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-3">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition"
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition cursor-pointer"
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
                   type="submit"
                   disabled={isUploading}
-                  className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 transition disabled:opacity-50"
+                  className="px-7 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isUploading ? `Uploading (${uploadProgress}%)` : 'Upload Resource'}
+                  {isUploading && <Loader2 size={14} className="animate-spin" />}
+                  <span>
+                    {isUploading 
+                      ? `Uploading (${uploadProgress}%)` 
+                      : activeTab === 'assignment' ? 'Create Assignment' : 'Upload to Google Drive 🚀'}
+                  </span>
                 </button>
               </div>
             </form>
 
-            {/* Right 4 Cols: Active Uploads & Recent Additions */}
-            <div className="lg:col-span-4 space-y-6">
-              
-              {/* Active Uploads */}
+            {/* Right 5 Cols: Uploaded Materials in this Course */}
+            <div className="lg:col-span-5 space-y-4">
               <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-bold text-gray-900 text-sm">Active Uploads</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-gray-900 text-sm">Course Materials ({recentMaterials.length})</h4>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    Live in Drive
+                  </span>
                 </div>
-                <p className="text-[11px] text-gray-400 mb-4">Adding to LIT 101</p>
 
-                <div className="space-y-4">
-                  {/* Item 1 */}
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-semibold text-gray-700 mb-1.5">
-                      <div className="flex items-center gap-2 truncate">
-                        <Film size={14} className="text-gray-400 shrink-0" />
-                        <span className="truncate">Lecture_04.mp4</span>
+                {loadingRecent ? (
+                  <div className="py-8 flex flex-col items-center justify-center text-gray-400 gap-2">
+                    <Loader2 size={18} className="animate-spin text-blue-600" />
+                    <span className="text-xs font-medium">Loading materials...</span>
+                  </div>
+                ) : recentMaterials.length === 0 ? (
+                  <div className="py-8 text-center text-gray-400 text-xs">
+                    No lecture materials uploaded yet. Use the form on the left to upload your first video or PDF!
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                    {recentMaterials.map((mat) => (
+                      <div 
+                        key={mat._id}
+                        className="p-3 bg-gray-50 hover:bg-blue-50/40 rounded-xl border border-gray-100 flex items-center justify-between gap-3 transition group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                            mat.type === 'video' ? 'bg-purple-100 text-purple-700' :
+                            mat.type === 'pdf' ? 'bg-red-100 text-red-700' :
+                            mat.type === 'image' ? 'bg-amber-100 text-amber-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {mat.type === 'video' && <Video size={14} />}
+                            {mat.type === 'pdf' && <FileText size={14} />}
+                            {mat.type === 'image' && <ImageIcon size={14} />}
+                            {mat.type === 'link' && <LinkIcon size={14} />}
+                          </div>
+                          <div className="truncate">
+                            <p className="text-xs font-bold text-gray-800 truncate">{mat.title}</p>
+                            <p className="text-[10px] text-gray-400 truncate">
+                              W{mat.weekNumber} • {mat.lessonTitle} {mat.isPreview && '• Free Preview'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {mat.embedUrl && (
+                            <a 
+                              href={mat.viewUrl || mat.embedUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1 text-gray-400 hover:text-blue-600 transition"
+                              title="Open in Google Drive"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMaterial(mat._id)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
-                      <span className="text-blue-600 font-bold ml-2">45%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-600 rounded-full" style={{ width: '45%' }}></div>
-                    </div>
+                    ))}
                   </div>
-
-                  {/* Item 2 */}
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-semibold text-gray-700 mb-1.5">
-                      <div className="flex items-center gap-2 truncate">
-                        <File size={14} className="text-gray-400 shrink-0" />
-                        <span className="truncate">Reading_Material.pdf</span>
-                      </div>
-                      <span className="text-emerald-600 font-bold ml-2 flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Done
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: '100%' }}></div>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
-
-              {/* Recent Additions */}
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-xs">
-                <h4 className="font-bold text-gray-900 text-sm mb-4">Recent Additions</h4>
-                
-                <div className="space-y-3.5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
-                      <ClipboardList size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900 leading-snug">Week 3 Essay Prompts</p>
-                      <p className="text-[11px] text-gray-400">Assignment • Oct 24, 2023</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
-                      <Video size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900 leading-snug">Introduction to Typography</p>
-                      <p className="text-[11px] text-gray-400">Video • Oct 22, 2023</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                      <FileText size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-gray-900 leading-snug">Syllabus Fall 2023</p>
-                      <p className="text-[11px] text-gray-400">PDF • Oct 20, 2023</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 mt-4 border-t border-gray-100 text-center">
-                  <button type="button" className="text-xs font-bold text-blue-600 hover:text-blue-700 transition">
-                    View All Resources
-                  </button>
-                </div>
-              </div>
-
             </div>
 
           </div>

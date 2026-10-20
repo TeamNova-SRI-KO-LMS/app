@@ -3,10 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   User, ArrowLeft, Clock, Users, Star, Calendar,
   CheckCircle2, AlertTriangle, Tag, ChevronDown, PlayCircle,
-  CreditCard, FileText, ChevronUp, GraduationCap, Loader2, AlertCircle, ShieldCheck
+  CreditCard, FileText, ChevronUp, GraduationCap, Loader2, AlertCircle, ShieldCheck,
+  Video, ClipboardList, Image as ImageIcon, Play, Download
 } from 'lucide-react';
 import apiService from '../services/apiService';
 import useAuth from '../context/useAuth';
+import lectureService from '../services/lectureService';
+import assignmentService from '../services/assignmentService';
 
 export default function CourseDetails() {
   const { id } = useParams();
@@ -23,15 +26,33 @@ export default function CourseDetails() {
   const [feedbackText,   setFeedbackText]   = useState('');
   const [enrolling,      setEnrolling]      = useState(false);
   const [enrollMsg,      setEnrollMsg]      = useState(null);
+  const [materials,      setMaterials]      = useState([]);
+  const [assignments,    setAssignments]    = useState([]);
 
-  /* ── Fetch course ──────────────────────────────────────────────────────── */
+  /* ── Fetch course & materials ─────────────────────────────────────────── */
   useEffect(() => {
     if (!id) return;
-    const fetchCourse = async () => {
+    const fetchCourseData = async () => {
       try {
         setLoading(true);
-        const res = await apiService.get(`/courses/${id}`);
-        setCourse(res.data?.course ?? null);
+        const [courseRes, matsRes, assignRes] = await Promise.allSettled([
+          apiService.get(`/courses/${id}`),
+          lectureService.getCourseMaterials(id),
+          assignmentService.getCourseAssignments(id),
+        ]);
+
+        if (courseRes.status === 'fulfilled') {
+          setCourse(courseRes.value.data?.course ?? null);
+        } else {
+          setError('Course not found or failed to load.');
+        }
+
+        if (matsRes.status === 'fulfilled') {
+          setMaterials(matsRes.value?.materials || []);
+        }
+        if (assignRes.status === 'fulfilled') {
+          setAssignments(assignRes.value?.assignments || []);
+        }
       } catch (err) {
         setError('Course not found or failed to load.');
         console.error('CourseDetails fetch error:', err);
@@ -39,7 +60,7 @@ export default function CourseDetails() {
         setLoading(false);
       }
     };
-    fetchCourse();
+    fetchCourseData();
   }, [id]);
 
   /* ── Toggle curriculum module ──────────────────────────────────────────── */
@@ -339,7 +360,7 @@ export default function CourseDetails() {
                           {(week.lessons ?? []).map((lesson, li) => (
                             <div
                               key={li}
-                              onClick={() => navigate('/course-info')}
+                              onClick={() => navigate(`/course-info/${id}`)}
                               className="flex items-center justify-between p-4 px-6 hover:bg-blue-50/40 transition cursor-pointer"
                             >
                               <div className="flex items-center gap-3">
@@ -353,6 +374,49 @@ export default function CourseDetails() {
                               </div>
                               <span className="text-xs text-gray-400 font-mono">
                                 {lesson.duration ? `${lesson.duration}m` : '—'}
+                              </span>
+                            </div>
+                          ))}
+
+                          {/* Live Google Drive Lecture Materials for this week */}
+                          {materials.filter(m => m.weekNumber === (week.week ?? idx + 1)).map((mat) => (
+                            <div
+                              key={mat._id}
+                              onClick={() => navigate(`/course-info/${id}`)}
+                              className="flex items-center justify-between p-4 px-6 hover:bg-blue-50/40 transition cursor-pointer bg-blue-50/15"
+                            >
+                              <div className="flex items-center gap-3">
+                                {mat.type === 'video' && <Video className="w-4 h-4 text-purple-600" />}
+                                {mat.type === 'pdf' && <FileText className="w-4 h-4 text-red-600" />}
+                                {mat.type === 'image' && <ImageIcon className="w-4 h-4 text-amber-600" />}
+                                {mat.type === 'link' && <PlayCircle className="w-4 h-4 text-blue-600" />}
+                                <span className="text-xs sm:text-sm font-medium text-gray-900">{mat.title}</span>
+                                <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
+                                  {mat.type}
+                                </span>
+                              </div>
+                              <span className="text-xs text-gray-400">
+                                {mat.isPreview ? 'Free Preview' : 'Enrolled only'}
+                              </span>
+                            </div>
+                          ))}
+
+                          {/* Assignments for this week */}
+                          {assignments.filter(a => a.weekNumber === (week.week ?? idx + 1)).map((assign) => (
+                            <div
+                              key={assign._id}
+                              onClick={() => navigate(`/course-info/${id}`)}
+                              className="flex items-center justify-between p-4 px-6 hover:bg-amber-50/40 transition cursor-pointer bg-amber-50/10"
+                            >
+                              <div className="flex items-center gap-3">
+                                <ClipboardList className="w-4 h-4 text-amber-600" />
+                                <span className="text-xs sm:text-sm font-medium text-gray-900">{assign.title}</span>
+                                <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase">
+                                  Assignment
+                                </span>
+                              </div>
+                              <span className="text-xs text-amber-700 font-medium">
+                                {assign.maxScore} pts
                               </span>
                             </div>
                           ))}
@@ -513,6 +577,30 @@ export default function CourseDetails() {
         {/* ── Right column: Sticky pricing card ───────────────────────────── */}
         <div className="w-full lg:w-[360px] xl:w-[400px] shrink-0">
           <div className="sticky top-24 bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+            {/* Course Photo / Thumbnail from Google Drive */}
+            {course.thumbnail && (
+              <div className="relative aspect-video rounded-2xl overflow-hidden mb-6 shadow-md border border-gray-100 group">
+                <img 
+                  src={course.thumbnail} 
+                  alt={course.title} 
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                />
+                <div className="absolute inset-0 bg-black/20 flex items-center justify-center transition">
+                  <button 
+                    onClick={() => navigate(`/course-info/${id}`)}
+                    className="w-12 h-12 rounded-full bg-white text-blue-600 flex items-center justify-center shadow-xl hover:scale-110 transition active:scale-95 cursor-pointer"
+                    title="Preview Course"
+                  >
+                    <Play className="w-5 h-5 fill-blue-600 translate-x-0.5" />
+                  </button>
+                </div>
+                <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-bold text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-lg">
+                  <span>Course Preview</span>
+                  <span className="text-blue-300">Google Drive Powered</span>
+                </div>
+              </div>
+            )}
+
             <div className="text-center mb-6">
               <h2 className="text-4xl font-extrabold text-[#1d4ed8] mb-2 tracking-tight">
                 {course.price === 0 ? 'Free' : `LKR ${course.price?.toLocaleString()}`}
