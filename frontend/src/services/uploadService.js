@@ -1,5 +1,14 @@
 import { supabase } from '../config/supabase';
 
+const requireSupabase = () => {
+  if (!supabase) {
+    throw new Error(
+      'Image uploads are not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the frontend environment.'
+    );
+  }
+  return supabase;
+};
+
 /**
  * Uploads a file to a Supabase Storage bucket and returns its public URL.
  *
@@ -22,6 +31,8 @@ export async function uploadToSupabase(file, bucket = (import.meta.env.VITE_SUPA
     throw new Error('No file provided for upload.');
   }
 
+  const client = requireSupabase();
+
   // Sanitize filename and create unique path
   const sanitizedName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image';
   const ext = sanitizedName.split('.').pop()?.toLowerCase() || 'jpg';
@@ -30,7 +41,7 @@ export async function uploadToSupabase(file, bucket = (import.meta.env.VITE_SUPA
 
   // Helper to attempt upload on a specific bucket
   const attemptUpload = async (targetBucket) => {
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await client.storage
       .from(targetBucket)
       .upload(filePath, file, {
         upsert: true,
@@ -66,7 +77,7 @@ export async function uploadToSupabase(file, bucket = (import.meta.env.VITE_SUPA
   }
 
   // Get the permanent public URL
-  const { data } = supabase.storage.from(activeBucket).getPublicUrl(filePath);
+  const { data } = client.storage.from(activeBucket).getPublicUrl(filePath);
 
   if (!data?.publicUrl) {
     throw new Error('Could not retrieve public URL from Supabase Storage.');
@@ -89,7 +100,7 @@ export async function deleteFromSupabase(publicUrl, fallbackBucket = 'courses') 
   const targetBucket = match ? match[1] : fallbackBucket;
   const filePath = match ? match[2] : null;
 
-  if (!filePath) return;
+  if (!filePath || !supabase) return;
 
   const { error } = await supabase.storage.from(targetBucket).remove([filePath]);
   if (error) {
