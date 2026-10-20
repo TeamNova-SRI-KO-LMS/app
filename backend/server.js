@@ -1,110 +1,37 @@
-const express = require('express');
 const http = require('http');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const path = require('path');
-const dns = require('dns');
-require('dotenv').config();
-
-// Use public DNS to prevent SRV lookup failures (ECONNREFUSED) with MongoDB Atlas
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (e) {
-  console.warn('Could not set custom DNS servers:', e.message);
-}
-
+const app = require('./app');
+const { connectDB } = require('./config/db');
 const { initSocket } = require('./socket/socketManager');
 
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const courseRoutes = require('./routes/courseRoutes');
-const subscriptionRoutes = require('./routes/subscriptionRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const settingsRoutes = require('./routes/settingsRoutes');
-const announcementRoutes = require('./routes/announcementRoutes');
-const discussionForumRoutes = require('./routes/discussionForumRoutes');
-const attendanceRoutes = require('./routes/attendanceRoutes');
-const analyticsRoutes = require('./routes/analyticsRoutes');
-const eventRoutes = require('./routes/eventRoutes');
-const joinUsRoutes = require('./routes/joinUsRoutes');
-const lectureRoutes = require('./routes/lectureRoutes');
-const assignmentRoutes = require('./routes/assignmentRoutes');
+// Long-running server for local development and traditional hosting: adds the
+// HTTP listener and Socket.IO (real-time notifications) on top of the Express
+// app. On Vercel the app is served as a function instead (see app.js), so the
+// listener only starts when this file is run directly (`npm start`/`npm run dev`).
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  const server = http.createServer(app);
 
-const app = express();
-const server = http.createServer(app);
-const PORT = process.env.PORT || 5000;
+  // Initialize Socket.IO with HTTP server
+  initSocket(server);
 
-// Initialize Socket.IO with HTTP server
-initSocket(server);
+  // Keep retrying in the background so the API recovers by itself when the network
+  // or DNS comes back (API requests also retry through requireDatabase).
+  const connectWithRetry = (attempt = 1) => {
+    connectDB().catch((err) => {
+      const delaySeconds = Math.min(30, attempt * 5);
+      console.error(`MongoDB connection error (attempt ${attempt}): ${err.message}`);
+      if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEOUT|querySrv/.test(err.message)) {
+        console.error('  The database host could not be reached. Check your internet connection or DNS.');
+      }
+      console.error(`  Retrying in ${delaySeconds}s...`);
+      setTimeout(() => connectWithRetry(attempt + 1), delaySeconds * 1000);
+    });
+  };
+  connectWithRetry();
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB database!'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+  server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true,
-}));
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Serve uploaded files (avatars)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Enhanced database availability middleware with auto-reconnect
-const checkDatabase = async (req, res, next) => {
-  if (mongoose.connection.readyState !== 1) {
-    console.log(`⚠️ Database disconnected for ${req.method} ${req.path}. Attempting to reconnect...`);
-
-    try {
-      const mongooseOptions = {
-        serverSelectionTimeoutMS: 30000,
-        socketTimeoutMS: 45000,
-        maxPoolSize: 10,
-        minPoolSize: 1,
-        bufferCommands: false,
-        connectTimeoutMS: 30000,
-        heartbeatFrequencyMS: 10000,
-        maxIdleTimeMS: 30000,
-        retryWrites: true,
-        w: 'majority'
-      };
-
-      await mongoose.connect(process.env.MONGODB_URI, mongooseOptions);
-      console.log('✅ Database reconnected successfully');
-      return next();
-    } catch (err) {
-      console.error('❌ Database reconnection failed:', err.message);
-      return res.status(503).json({
-        success: false,
-        message: 'Database service temporarily unavailable. Please try again shortly.',
-        error: 'DATABASE_CONNECTION_ERROR',
-        retryAfter: 5 // seconds
-      });
-    }
-  }
-  next();
-};
-
-// Route registrations
-app.use('/api/auth', authRoutes);
-app.use('/api/users', checkDatabase, userRoutes);
-app.use('/api/courses', checkDatabase, courseRoutes);
-app.use('/api/subscriptions', checkDatabase, subscriptionRoutes);
-app.use('/api/payments', checkDatabase, paymentRoutes);
-app.use('/api/notifications', checkDatabase, notificationRoutes);
-app.use('/api/announcements', checkDatabase, announcementRoutes);
-app.use('/api/forums', checkDatabase, discussionForumRoutes);
-app.use('/api/admin/settings', checkDatabase, settingsRoutes);
-app.use('/api/attendance', checkDatabase, attendanceRoutes);
-app.use('/api/admin/analytics', checkDatabase, analyticsRoutes);
-app.use('/api/events', checkDatabase, eventRoutes);
-app.use('/api/join-us', checkDatabase, joinUsRoutes);
-app.use('/api/lectures', checkDatabase, lectureRoutes);
-app.use('/api/assignments', checkDatabase, assignmentRoutes);
-
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+module.exports = app;
