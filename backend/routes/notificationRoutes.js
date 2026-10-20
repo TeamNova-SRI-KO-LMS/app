@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const { protect, authorize } = require('../middleware/auth');
 const NotificationEngine = require('../services/NotificationEngine');
+const escapeRegex = require('../utils/escapeRegex');
 
 // @desc    Get active notifications for current user
 // @route   GET /api/notifications
@@ -182,9 +183,10 @@ router.get('/target-users', protect, authorize('admin'), async (req, res) => {
     }
 
     if (search) {
+      const pattern = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: pattern, $options: 'i' } },
+        { email: { $regex: pattern, $options: 'i' } }
       ];
     }
 
