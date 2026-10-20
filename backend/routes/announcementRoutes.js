@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const Announcement = require('../models/Announcement');
 const { protect, authorize } = require('../middleware/auth');
+const escapeRegex = require('../utils/escapeRegex');
 
 // Announcements use Supabase Storage for photos and thumbnails - no local disk storage
 
@@ -28,13 +29,13 @@ router.get('/', async (req, res) => {
     if (req.query.audience && req.query.audience !== 'all' && req.query.audience !== 'ALL') {
       query.$or = [
         { targetAudience: 'all' },
-        { targetAudience: new RegExp(req.query.audience, 'i') }
+        { targetAudience: new RegExp(escapeRegex(req.query.audience), 'i') }
       ];
     }
 
     // Search query in title or content
     if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(req.query.search), 'i');
       query.$or = [
         { title: searchRegex },
         { content: searchRegex }
@@ -124,7 +125,7 @@ const handleGetAllAdminAnnouncements = async (req, res) => {
     }
 
     if (req.query.targetAudience && req.query.targetAudience !== 'all' && req.query.targetAudience !== 'ALL') {
-      query.targetAudience = new RegExp(req.query.targetAudience, 'i');
+      query.targetAudience = new RegExp(escapeRegex(req.query.targetAudience), 'i');
     }
 
     if (req.query.isActive !== undefined && req.query.isActive !== '') {
@@ -136,7 +137,7 @@ const handleGetAllAdminAnnouncements = async (req, res) => {
     }
 
     if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search, 'i');
+      const searchRegex = new RegExp(escapeRegex(req.query.search), 'i');
       query.$or = [
         { title: searchRegex },
         { content: searchRegex }
