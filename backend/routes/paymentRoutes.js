@@ -7,9 +7,20 @@ const Course = require('../models/Course');
 const User = require('../models/User');
 const Progress = require('../models/Progress');
 const Notification = require('../models/Notification');
+const escapeRegex = require('../utils/escapeRegex');
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripe = require('stripe')(stripeSecretKey);
+// Created on first use: the Stripe SDK throws when constructed without a key, which
+// would otherwise crash the whole API at startup when STRIPE_SECRET_KEY is unset.
+let stripeClient = null;
+const getStripe = () => {
+  if (!stripeClient) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('Card payments are not configured on the server (STRIPE_SECRET_KEY is missing).');
+    }
+    stripeClient = require('stripe')(process.env.STRIPE_SECRET_KEY);
+  }
+  return stripeClient;
+};
 
 const router = express.Router();
 
@@ -81,7 +92,7 @@ router.post(
       const amountInCents = Math.round(priceAmount * 100);
 
       // Create Stripe PaymentIntent
-      const paymentIntent = await stripe.paymentIntents.create({
+      const paymentIntent = await getStripe().paymentIntents.create({
         amount: amountInCents,
         currency: 'lkr',
         description: `Enrollment: ${course.title}`,
@@ -171,7 +182,7 @@ router.post(
       }
 
       // Verify payment directly with Stripe
-      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId);
       if (!paymentIntent) {
         return res.status(404).json({
           success: false,
@@ -191,6 +202,14 @@ router.post(
         return res.status(400).json({
           success: false,
           message: 'Payment verification failed: course ID mismatch',
+        });
+      }
+
+      // A payment can only enroll the account that created it
+      if (paymentIntent.metadata?.userId && paymentIntent.metadata.userId !== req.user.id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Payment verification failed: this payment belongs to a different account',
         });
       }
 
@@ -681,7 +700,7 @@ router.get('/all', protect, authorize('admin'), async (req, res) => {
     }
 
     if (search && search.trim()) {
-      const searchTerm = search.trim();
+      const searchTerm = escapeRegex(search.trim());
       const matchingUsers = await User.find({
         $or: [
           { name: { $regex: searchTerm, $options: 'i' } },
