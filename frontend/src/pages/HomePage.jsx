@@ -13,7 +13,7 @@ const HomePage = () => {
 
       {/* Hero Banner Section */}
       <section className="max-w-[1400px] mx-auto pt-0 p-4  relative ">
-        <img src="/public/regHero1.png" className="w-full h-full object-cover" alt="SRI-KO Home Banner" />
+        <img src="/reghero1.png" className="w-full h-full object-cover" alt="SRI-KO Home Banner" />
        
       </section>
 
