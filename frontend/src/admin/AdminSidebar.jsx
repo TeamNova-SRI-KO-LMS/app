@@ -7,6 +7,7 @@ import {
   CreditCard, 
   Bell, 
   Megaphone, 
+  Calendar,
   MessageSquare, 
   Settings, 
   LogOut,
@@ -23,6 +24,7 @@ const navItems = [
   { id: 'payments', label: 'Payment Management', icon: CreditCard },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
+  { id: 'events', label: 'Events Management', icon: Calendar },
   { id: 'forums', label: 'Discussion Forums', icon: MessageSquare },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

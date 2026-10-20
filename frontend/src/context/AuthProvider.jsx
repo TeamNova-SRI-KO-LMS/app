@@ -46,6 +46,12 @@ const persistSession = (session) => {
       user: sanitizeUser(session.user),
     };
 
+    // Always persist the token key first so it is never lost, even if the
+    // session object fails to serialize due to a quota error.
+    if (safeSession.token) {
+      localStorage.setItem('token', safeSession.token);
+    }
+
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(safeSession));
     } catch (error) {
@@ -58,19 +64,16 @@ const persistSession = (session) => {
         try {
           localStorage.setItem(
             SESSION_KEY,
-            JSON.stringify({ token: null, user: userWithoutAvatar }),
+            // NOTE: preserve the token – the original code mistakenly set token: null here
+            JSON.stringify({ token: safeSession.token, user: userWithoutAvatar }),
           );
-          console.warn('Avatar was not cached in localStorage:', error);
+          console.warn('Avatar was too large to cache in localStorage; it will be fetched from the server on next load:', error);
         } catch (fallbackError) {
           console.error('Could not persist the authentication session:', fallbackError);
         }
       } else {
         console.error('Could not persist the authentication session:', error);
       }
-    }
-
-    if (safeSession.token) {
-      localStorage.setItem('token', safeSession.token);
     }
   }
 };
@@ -169,7 +172,7 @@ const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const session = getStoredSession();
-    const token = isBrowser ? localStorage.getItem('token') : null;
+    const standaloneToken = isBrowser ? localStorage.getItem('token') : null;
 
     if (session.token && session.user) {
       dispatch({
@@ -180,7 +183,9 @@ const AuthProvider = ({ children }) => {
         },
       });
 
-      // Silently synchronize full, fresh user data from the database
+      // Silently synchronize full, fresh user data from the database.
+      // If the token is expired/invalid, the 401 interceptor fires first and
+      // clears the session; we just need to reflect that in auth state too.
       apiService.getCurrentUser()
         .then((responseData) => {
           const freshUser = responseData?.user ?? responseData?.data?.user ?? responseData?.data ?? null;
@@ -195,12 +200,24 @@ const AuthProvider = ({ children }) => {
             });
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          // Only log out if the server explicitly rejects the token (401 Unauthorized).
+          // For network errors, timeouts, or server restarts the local session is
+          // still valid, so keep the user logged in.
+          const status = err?.response?.status;
+          if (status === 401) {
+            clearSession();
+            dispatch({ type: 'LOGOUT' });
+          }
+          // For any other error (network down, 500, 503, timeout) → stay logged in.
+        });
       return;
     }
 
-    // If only token exists, try to fetch user from backend
-    if (token) {
+    // Recovery: session has a user but token is null (corrupted by old bug)
+    // or only the standalone token key is present — try to recover the session.
+    const recoveryToken = standaloneToken;
+    if (recoveryToken) {
       dispatch({ type: 'SET_LOADING', payload: true });
 
       apiService.getCurrentUser()
@@ -208,7 +225,7 @@ const AuthProvider = ({ children }) => {
           const user = responseData?.user ?? responseData?.data?.user ?? responseData?.data ?? null;
 
           if (user) {
-            const nextSession = { token, user };
+            const nextSession = { token: recoveryToken, user };
             persistSession(nextSession);
             dispatch({
               type: 'LOGIN_SUCCESS',
@@ -227,6 +244,8 @@ const AuthProvider = ({ children }) => {
       return;
     }
 
+    // No valid session at all
+    clearSession();
     dispatch({ type: 'SET_LOADING', payload: false });
   }, []);
 

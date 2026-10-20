@@ -9,6 +9,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import useAuth from '../context/useAuth';
+import UserAvatar from './UserAvatar';
 import toast from 'react-hot-toast';
 
 export default function StudentSidebar({ activeTab: propActiveTab }) {
@@ -40,9 +41,6 @@ export default function StudentSidebar({ activeTab: propActiveTab }) {
     return false;
   };
 
-  const userAvatar =
-    user?.avatar ||
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'Scholar'}`;
 
   return (
     <aside className="w-full lg:w-64 flex-shrink-0 flex flex-col bg-white lg:bg-transparent p-4 lg:p-0 rounded-2xl shadow-sm lg:shadow-none border lg:border-none border-gray-100 lg:sticky lg:top-8 h-fit">
@@ -50,13 +48,12 @@ export default function StudentSidebar({ activeTab: propActiveTab }) {
         {/* User Profile Card */}
         <div className="flex flex-col items-center text-center pb-6 border-b border-gray-200/70 mb-6">
           <div className="relative mb-3">
-            <div className="w-20 h-20 rounded-full bg-pink-100 p-1 border-2 border-pink-200 shadow-sm overflow-hidden">
-              <img
-                src={userAvatar}
-                alt="Student Avatar"
-                className="w-full h-full object-cover rounded-full"
-              />
-            </div>
+            <UserAvatar
+              user={user}
+              size="w-20 h-20"
+              iconSize={32}
+              className="border-2 border-blue-100 shadow-sm"
+            />
           </div>
           <h3 className="font-bold text-gray-900 text-base">
             {user?.name || 'Student Name'}
