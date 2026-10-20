@@ -6,6 +6,11 @@ import useAuth from './useAuth';
 
 const SocketContext = createContext(null);
 
+// Socket.IO runs only on the long-running backend (npm run dev / npm start). When the
+// API is deployed as a Vercel Function, set VITE_ENABLE_SOCKET=false: notifications
+// then refresh by polling instead (see NotificationContext).
+const SOCKETS_ENABLED = import.meta.env.VITE_ENABLE_SOCKET !== 'false';
+
 export const SocketProvider = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
@@ -14,7 +19,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     const token = getAuthToken();
 
-    if (!isAuthenticated || !token) {
+    if (!SOCKETS_ENABLED || !isAuthenticated || !token) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
