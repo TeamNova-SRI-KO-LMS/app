@@ -1,16 +1,28 @@
-# React + Vite
+# SRI-KO LMS — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Single-page application for SRI-KO LMS, built with **React 19, Vite 8 and Tailwind CSS 4**. It contains the public website, the student portal and the admin portal (loaded on demand).
 
-Currently, two official plugins are available:
+> Full documentation — features, environment variables and API reference — is in the [main README](../README.md). Deployment is covered in the [Vercel Deployment Guide](../VERCEL_DEPLOYMENT.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Quick start
 
-## React Compiler
+```bash
+npm install
+cp env.example .env      # set VITE_API_URL to your backend, e.g. http://localhost:5000/api
+npm run dev              # http://localhost:5173
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Requires Node.js 22.12 or newer.
 
-## Expanding the ESLint configuration
+## Scripts
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite development server. |
+| `npm run build` | Build the production bundle into `dist/`. |
+| `npm run preview` | Preview the production build locally. |
+| `npm run lint` | Run ESLint. |
+
+## Deployment
+
+Deploy as a Vercel project with **Root Directory = `frontend`**. [`vercel.json`](vercel.json) adds the SPA rewrites (so deep links like `/admin/attendance` work on refresh) and long-term caching for hashed assets. Set `VITE_API_URL` to the deployed backend and `VITE_ENABLE_SOCKET=false`, then redeploy whenever `VITE_*` values change. Step-by-step instructions: [Vercel Deployment Guide](../VERCEL_DEPLOYMENT.md).
