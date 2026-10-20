@@ -1,36 +1,34 @@
-# TeamNova SRI-KO LMS Backend
+# SRI-KO LMS — Backend API
 
-This is the backend for the LMS project, built with Express.js and Node.js.
+REST API for SRI-KO LMS, built with **Node.js, Express 5 and MongoDB (Mongoose)**, with optional real-time notifications over Socket.IO.
 
-## Prerequisites
+> Full documentation — features, environment variables and API reference — is in the [main README](../README.md). Deployment is covered in the [Vercel Deployment Guide](../VERCEL_DEPLOYMENT.md).
 
-- Node.js installed on your machine.
+## Quick start
 
-## Setup Instructions
+```bash
+npm install
+cp env.example .env      # then fill in MONGODB_URI, JWT_SECRET, ...
+npm run dev              # http://localhost:5000 (auto-reload)
+```
 
-1. Clone the repository or navigate to this project folder.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server (uses Nodemon for automatic restarts):
-   ```bash
-   npm run dev
-   ```
-   *Alternatively, start the server without Nodemon:*
-   ```bash
-   npm start
-   ```
+Requires Node.js 22.12 or newer. Check the API with `GET /api/health`.
 
-## API Endpoints
+## Entry points
 
-- `GET /` - Returns a simple response indicating the server is running.
-- `GET /api/admin/analytics?period=30&year=2026` - Returns admin-only overview,
-  growth, revenue, course, and activity analytics.
-- `GET /api/admin/analytics/export?format=csv&period=30` - Downloads an admin-only
-  analytics report as CSV or PDF (`format=pdf`).
+| File | Purpose |
+| --- | --- |
+| `app.js` | Builds and exports the Express app (routes, CORS, database check, JSON error handling). Vercel runs this file as a single Vercel Function. |
+| `server.js` | Long-running server for `npm run dev` / `npm start`: HTTP listener plus Socket.IO. When imported (as Vercel does), it only re-exports the app. |
 
-Analytics endpoints require an administrator JWT in the `Authorization: Bearer <token>`
-header.
+## Scripts
 
-The server will be running at `http://localhost:3000` by default.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start with nodemon (auto-reload). |
+| `npm start` | Start with Node.js. |
+| `node seedCourses.js` | **Replaces all courses** with sample data — development databases only. |
+
+## Deployment
+
+Deploy as a Vercel project with **Root Directory = `backend`** (see [`vercel.json`](vercel.json)) and configure the variables from [`env.example`](env.example). Step-by-step instructions: [Vercel Deployment Guide](../VERCEL_DEPLOYMENT.md).
