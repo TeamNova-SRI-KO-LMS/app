@@ -52,7 +52,7 @@ const SettingsContent = ({ user, updateUser }) => {
         linkedin: user.socialLinks?.linkedin || prev.linkedin,
       }));
     }
-  });
+  }, [user]);
 
   // Data Privacy Toggle in Account tab
   const [dataPrivacy, setDataPrivacy] = useState(
@@ -378,7 +378,7 @@ const SettingsContent = ({ user, updateUser }) => {
           {/* Sub Navigation Tabs & Form Card Container */}
           <div className="flex flex-col md:flex-row gap-8 items-start">
             {/* Inner Sub Tabs Navigation */}
-            <div className="w-full md:w-44 lg:w-48 flex-shrink-0 space-y-1">
+            <div className="w-full md:w-44 lg:w-48 shrink-0 space-y-1">
               {navTabs.map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -558,7 +558,7 @@ const SettingsContent = ({ user, updateUser }) => {
                           PORTFOLIO WEBSITE
                         </label>
                         <div className="flex items-center gap-3 bg-[#EAECEF] hover:bg-[#E2E6EA] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-xl px-4 py-3 transition">
-                          <Globe size={18} className="text-gray-500 flex-shrink-0" />
+                          <Globe size={18} className="text-gray-500 shrink-0" />
                           <input
                             type="text"
                             name="website"
@@ -576,7 +576,7 @@ const SettingsContent = ({ user, updateUser }) => {
                           LINKEDIN PROFILE
                         </label>
                         <div className="flex items-center gap-3 bg-[#EAECEF] hover:bg-[#E2E6EA] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-xl px-4 py-3 transition">
-                          <Link2 size={18} className="text-gray-500 flex-shrink-0" />
+                          <Link2 size={18} className="text-gray-500 shrink-0" />
                           <input
                             type="text"
                             name="linkedin"
@@ -716,7 +716,7 @@ const SettingsContent = ({ user, updateUser }) => {
                     </h3>
                     <div className="bg-red-50/70 border border-red-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
-                        <AlertTriangle className="text-red-500 mt-0.5 flex-shrink-0" size={20} />
+                        <AlertTriangle className="text-red-500 mt-0.5 shrink-0" size={20} />
                         <div>
                           <h4 className="text-sm font-bold text-red-900">
                             Delete Account
@@ -791,7 +791,7 @@ const SettingsContent = ({ user, updateUser }) => {
                         <button
                           type="button"
                           onClick={() => handleNotificationToggle(item.key)}
-                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 flex-shrink-0 ${
+                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ${
                             notifications[item.key]
                               ? 'bg-blue-600 justify-end'
                               : 'bg-gray-300 justify-start'
@@ -881,7 +881,7 @@ const SettingsContent = ({ user, updateUser }) => {
                         <button
                           type="button"
                           onClick={() => handlePrivacyToggle(item.key)}
-                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 flex-shrink-0 ${
+                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ${
                             privacy[item.key]
                               ? 'bg-blue-600 justify-end'
                               : 'bg-gray-300 justify-start'
