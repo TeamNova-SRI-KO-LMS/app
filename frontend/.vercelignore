@@ -1,0 +1,8 @@
+# Never upload local env files when deploying with the Vercel CLI: Vite would bake
+# their values (e.g. a localhost API URL) into the production bundle.
+# Set environment variables in the Vercel dashboard instead.
+.env
+.env.*
+node_modules
+dist
+*.log
