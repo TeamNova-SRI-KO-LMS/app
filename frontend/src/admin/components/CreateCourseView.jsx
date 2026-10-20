@@ -176,19 +176,19 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                    Price (USD)
+                    Price (LKR)
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
-                      $
+                      LKR
                     </span>
-                    <input 
+                    <input
                       type="number"
                       step="0.01"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
-                      placeholder="49.99"
-                      className="w-full bg-[#f1f5f9] border border-transparent rounded-2xl pl-8 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition shadow-2xs"
+                      placeholder="15000"
+                      className="w-full bg-[#f1f5f9] border border-transparent rounded-2xl pl-14 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition shadow-2xs"
                     />
                   </div>
                 </div>
