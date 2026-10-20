@@ -17,7 +17,7 @@ export default function AboutUs() {
             
             {/* Main Collage Placeholder (Represents the top complex graphic) */}
             <div className="w-full max-w-6xl bg-black/10 rounded-xl overflow-hidden shadow-2xl relative h-[400px] border border-white/20 flex items-center justify-center">
-                <img src="../public/aboutHero.png" class="w-full h-full object-cover"></img >
+                <img src="/aboutHero.png" alt="Explore the Korean language at SRIKO Institute: classrooms, expert leadership and student success stories" className="w-full h-full object-cover" />
             </div>
         </div>
 
@@ -52,7 +52,7 @@ export default function AboutUs() {
                 <div className="relative rounded-3xl overflow-hidden shadow-xl aspect-[3/4] max-w-md mx-auto lg:mx-0 w-full">
                     {/* Using the provided teacher image */}
                     <img 
-                        src="../public/teacher.png" 
+                        src="/teacher.png"
                         alt="Nandana Kekulawala" 
                         className="w-full h-full object-cover"
                     />
@@ -135,7 +135,7 @@ export default function AboutUs() {
             <section className="w-full rounded-3xl overflow-hidden shadow-2xl mb-12">
                  {/* Using the provided generated image */}
                  <img 
-                    src="../public/aboutwall2.png" 
+                    src="/aboutwall2.png"
                     alt="SRIKO Building a bridge to your future" 
                     className="w-full h-auto object-cover"
                 />
