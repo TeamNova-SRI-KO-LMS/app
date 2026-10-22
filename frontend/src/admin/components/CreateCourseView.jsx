@@ -318,13 +318,13 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
                     setThumbnailPreview(URL.createObjectURL(file));
                     setUploadingThumbnail(true);
                     try {
-                      // Upload to Google Drive
+                      // Upload to Supabase Storage
                       const res = await lectureService.uploadThumbnail(file);
                       if (res?.url) {
                         setThumbnailPreview(res.url);
                       }
                     } catch (err) {
-                      console.error('Course thumbnail Google Drive upload error, falling back:', err);
+                      console.error('Course thumbnail upload error, falling back:', err);
                       try {
                         const url = await uploadToSupabase(file, 'courses', 'thumbnails');
                         setThumbnailPreview(url);
