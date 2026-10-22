@@ -186,8 +186,12 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const otp = crypto.randomInt(100000, 1000000).toString();
+    const resetRequestToken = crypto.randomBytes(32).toString('hex');
     user.resetPasswordToken = hashOtp(otp);
     user.resetPasswordExpire = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+    user.resetPasswordRequestToken = hashOtp(resetRequestToken);
+    user.resetPasswordRequestExpire = user.resetPasswordExpire;
+    user.resetPasswordVerified = false;
     await user.save();
 
     try {
@@ -195,6 +199,9 @@ router.post('/forgot-password', async (req, res) => {
     } catch (mailError) {
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
+      user.resetPasswordRequestToken = undefined;
+      user.resetPasswordRequestExpire = undefined;
+      user.resetPasswordVerified = false;
       await user.save();
       console.error('Password reset email could not be sent:', mailError.message);
       return res.status(503).json({
@@ -206,6 +213,7 @@ router.post('/forgot-password', async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'If an account exists for this email, a verification code has been sent',
+      resetRequestToken,
     });
   } catch (error) {
     console.error('Password reset request failed:', error.message);
@@ -218,25 +226,30 @@ router.post('/forgot-password', async (req, res) => {
 
 // Verify a password reset code and issue a short-lived reset credential.
 router.post('/verify-reset-otp', async (req, res) => {
-  const email = typeof req.body.email === 'string'
-    ? req.body.email.trim().toLowerCase()
+  const resetRequestToken = typeof req.body.resetRequestToken === 'string'
+    ? req.body.resetRequestToken.trim()
     : '';
   const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
 
-  if (!email || !/^\d{6}$/.test(otp)) {
+  if (!/^[a-f0-9]{64}$/.test(resetRequestToken) || !/^\d{6}$/.test(otp)) {
     return res.status(400).json({
       success: false,
-      message: 'A valid email address and six-digit verification code are required',
+      message: 'A valid reset request and six-digit verification code are required',
     });
   }
 
   try {
-    const user = await User.findOne({ email }).select('+resetPasswordToken');
+    const user = await User.findOne({
+      resetPasswordRequestToken: hashOtp(resetRequestToken),
+    }).select('+resetPasswordToken');
     const isValid = user
       && user.isActive
       && user.resetPasswordToken
       && user.resetPasswordExpire
       && user.resetPasswordExpire > new Date()
+      && user.resetPasswordRequestExpire
+      && user.resetPasswordRequestExpire > new Date()
+      && !user.resetPasswordVerified
       && crypto.timingSafeEqual(
         Buffer.from(user.resetPasswordToken, 'hex'),
         Buffer.from(hashOtp(otp), 'hex'),
@@ -249,8 +262,33 @@ router.post('/verify-reset-otp', async (req, res) => {
       });
     }
 
+    const verifiedUser = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+        resetPasswordRequestToken: hashOtp(resetRequestToken),
+        resetPasswordVerified: false,
+      },
+      {
+        $unset: {
+          resetPasswordRequestToken: 1,
+          resetPasswordRequestExpire: 1,
+        },
+        $set: {
+          resetPasswordVerified: true,
+        },
+      },
+      { new: true },
+    ).select('+resetPasswordToken');
+
+    if (!verifiedUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification code',
+      });
+    }
+
     const resetToken = jwt.sign(
-      { id: user._id.toString(), purpose: 'password-reset' },
+      { id: verifiedUser._id.toString(), purpose: 'password-reset' },
       process.env.JWT_SECRET,
       { expiresIn: '10m' },
     );
@@ -290,7 +328,14 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const user = await User.findById(payload.id).select('+resetPasswordToken');
-    if (!user || !user.isActive || !user.resetPasswordToken || !user.resetPasswordExpire || user.resetPasswordExpire <= new Date()) {
+    if (
+      !user
+      || !user.isActive
+      || !user.resetPasswordToken
+      || !user.resetPasswordExpire
+      || user.resetPasswordExpire <= new Date()
+      || !user.resetPasswordVerified
+    ) {
       return res.status(401).json({
         success: false,
         message: 'Password reset token is invalid or expired',
@@ -300,6 +345,7 @@ router.post('/reset-password', async (req, res) => {
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
+    user.resetPasswordVerified = false;
     await user.save();
 
     return res.status(200).json({

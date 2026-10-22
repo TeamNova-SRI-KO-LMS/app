@@ -1,21 +1,43 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import apiService from '../services/apiService';
+
+const OTP_LENGTH = 6;
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
-  const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
+  const [resetRequestToken, setResetRequestToken] = useState('');
+  const [verificationCode, setVerificationCode] = useState(
+    () => Array(OTP_LENGTH).fill(''),
+  );
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const otpInputRefs = useRef([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (otpSent) {
+      otpInputRefs.current[0]?.focus();
+    }
+  }, [otpSent]);
 
   const handleSendOtp = async event => {
     event.preventDefault();
     setError('');
     setMessage('');
     try {
-      await apiService.post('/auth/forgot-password', { email });
+      const response = await apiService.post('/auth/forgot-password', { email });
+      const requestToken = response.data.resetRequestToken;
+      if (!/^[a-f0-9]{64}$/.test(requestToken || '')) {
+        setOtpSent(false);
+        setVerificationCode(Array(OTP_LENGTH).fill(''));
+        throw new Error(
+          'The password-reset service is out of date. Please restart or redeploy the backend and request a new code.',
+        );
+      }
+
+      setResetRequestToken(requestToken);
       setOtpSent(true);
       setMessage('If an account exists for this email, a verification code has been sent.');
     } catch (requestError) {
@@ -23,9 +45,13 @@ const ForgotPasswordPage = () => {
     }
   };
 
-  const handleVerificationChange = (index, value) => {
-    if (!/^\d?$/.test(value)) return;
+  const focusOtpInput = index => {
+    if (index >= 0 && index < OTP_LENGTH) {
+      otpInputRefs.current[index]?.focus();
+    }
+  };
 
+  const updateVerificationCode = (index, value) => {
     setVerificationCode(currentCode => {
       const nextCode = [...currentCode];
       nextCode[index] = value;
@@ -33,18 +59,73 @@ const ForgotPasswordPage = () => {
     });
   };
 
+  const distributeOtp = (value, startIndex = 0) => {
+    const digits = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    if (!digits) return;
+
+    setVerificationCode(currentCode => {
+      const nextCode = [...currentCode];
+      digits.split('').forEach((digit, offset) => {
+        const targetIndex = startIndex + offset;
+        if (targetIndex < OTP_LENGTH) {
+          nextCode[targetIndex] = digit;
+        }
+      });
+      return nextCode;
+    });
+
+    focusOtpInput(Math.min(startIndex + digits.length, OTP_LENGTH - 1));
+  };
+
+  const handleVerificationChange = (index, value) => {
+    if (value.length > 1) {
+      distributeOtp(value);
+      return;
+    }
+    if (!/^\d?$/.test(value)) return;
+
+    updateVerificationCode(index, value);
+    if (value) {
+      focusOtpInput(index + 1);
+    }
+  };
+
+  const handleVerificationPaste = (event, index) => {
+    const pastedValue = event.clipboardData.getData('text');
+    if (!/\d/.test(pastedValue)) {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+    distributeOtp(pastedValue, pastedValue.replace(/\D/g, '').length > 1 ? 0 : index);
+  };
+
+  const handleVerificationKeyDown = (event, index) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      focusOtpInput(index - 1);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      focusOtpInput(index + 1);
+    } else if (event.key === 'Backspace' && !verificationCode[index]) {
+      event.preventDefault();
+      focusOtpInput(index - 1);
+    }
+  };
+
   const handleVerifyOtp = async event => {
     event.preventDefault();
-    if (verificationCode.join('').length !== verificationCode.length) return;
+    if (verificationCode.join('').length !== OTP_LENGTH) return;
 
     setError('');
     try {
       const response = await apiService.post('/auth/verify-reset-otp', {
-        email,
+        resetRequestToken,
         otp: verificationCode.join(''),
       });
       navigate('/reset-password', {
-        state: { email, resetToken: response.data.resetToken },
+        state: { email: email.trim().toLowerCase(), resetToken: response.data.resetToken },
       });
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Invalid or expired verification code.');
@@ -73,7 +154,16 @@ const ForgotPasswordPage = () => {
             Enter your email address to receive a one-time verification code.
           </p>
           {message && <p className="mt-3 text-center text-xs text-green-700">{message}</p>}
-          {error && <p className="mt-3 text-center text-xs text-red-600">{error}</p>}
+          {error && (
+            <p
+              id="verification-code-error"
+              className="mt-3 text-center text-xs text-red-600"
+              role="alert"
+              aria-live="assertive"
+            >
+              {error}
+            </p>
+          )}
 
           <form className="mt-6 space-y-4" onSubmit={handleSendOtp}>
             <div>
@@ -120,25 +210,38 @@ const ForgotPasswordPage = () => {
 
             <div>
               <label
-                htmlFor="verification-code"
+                id="verification-code-label"
+                htmlFor="verification-code-1"
                 className="block text-center text-[10px] font-bold tracking-wider text-gray-600"
               >
                 VERIFICATION CODE
               </label>
-              <div className="mt-2 flex justify-center gap-4">
-                {[0, 1, 2, 3, 4, 5].map(index => (
+              <div
+                className="mt-2 flex justify-center gap-2 sm:gap-4"
+                role="group"
+                aria-labelledby="verification-code-label"
+              >
+                {Array.from({ length: OTP_LENGTH }, (_, index) => (
                   <input
                     key={index}
-                    id={index === 0 ? 'verification-code' : undefined}
+                    ref={input => {
+                      otpInputRefs.current[index] = input;
+                    }}
+                    id={`verification-code-${index + 1}`}
                     name={`verificationCode-${index + 1}`}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
+                    pattern="[0-9]*"
+                    autoComplete={index === 0 ? 'one-time-code' : 'off'}
                     aria-label={`Verification code digit ${index + 1}`}
+                    aria-describedby={error ? 'verification-code-error' : undefined}
                     value={verificationCode[index]}
                     onChange={event =>
                       handleVerificationChange(index, event.target.value)
                     }
+                    onPaste={event => handleVerificationPaste(event, index)}
+                    onKeyDown={event => handleVerificationKeyDown(event, index)}
                     className="h-10 w-10 rounded-md border border-transparent bg-gray-200 text-center text-sm text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
                   />
                 ))}
@@ -148,7 +251,7 @@ const ForgotPasswordPage = () => {
             <button
               type="button"
               onClick={handleVerifyOtp}
-              disabled={!otpSent || verificationCode.join('').length !== verificationCode.length}
+              disabled={!otpSent || verificationCode.join('').length !== OTP_LENGTH}
               className="w-full rounded-md bg-linear-to-r from-blue-700 to-purple-600 py-2 text-xs font-medium text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Submit
