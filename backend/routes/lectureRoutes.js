@@ -3,7 +3,7 @@ const multer = require('multer');
 const { protect, authorize } = require('../middleware/auth');
 const LectureMaterial = require('../models/LectureMaterial');
 const Course = require('../models/Course');
-const { uploadToDrive, deleteFromDrive } = require('../services/googleDriveService');
+const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
 
 const router = express.Router();
 
@@ -73,14 +73,14 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
       return res.status(400).json({ success: false, message: 'Material title is required.' });
     }
 
-    const driveType = getDriveType(req.file.mimetype);
+    const storageType = getDriveType(req.file.mimetype);
 
-    // Upload to Google Drive using Service Account
-    const driveResult = await uploadToDrive(
+    // Upload directly to Supabase Storage bucket
+    const storageResult = await uploadToStorage(
       req.file.buffer,
       req.file.originalname,
       req.file.mimetype,
-      driveType
+      storageType
     );
 
     // Create record in MongoDB
@@ -91,13 +91,13 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
       lessonTitle,
       title: title.trim(),
       description: description.trim(),
-      type: driveType,
-      driveFileId: driveResult.fileId,
-      viewUrl: driveResult.viewUrl,
-      embedUrl: driveResult.embedUrl,
-      downloadUrl: driveResult.downloadUrl,
-      fileName: driveResult.fileName,
-      fileSizeBytes: driveResult.size,
+      type: storageType,
+      driveFileId: storageResult.fileId,
+      viewUrl: storageResult.viewUrl,
+      embedUrl: storageResult.embedUrl,
+      downloadUrl: storageResult.downloadUrl,
+      fileName: storageResult.fileName,
+      fileSizeBytes: storageResult.size,
       mimeType: req.file.mimetype,
       isPreview: isPreview === 'true' || isPreview === true,
       uploadedBy: req.user._id || req.user.id,
@@ -105,20 +105,20 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
 
     res.status(201).json({
       success: true,
-      message: 'Lecture material uploaded to Google Drive successfully.',
+      message: 'Lecture material uploaded to Supabase Storage successfully.',
       material,
     });
   } catch (error) {
     console.error('[lectureRoutes] Upload error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to upload material to Google Drive.',
+      message: error.message || 'Failed to upload material to Supabase Storage.',
     });
   }
 });
 
 // ─────────────────────────────────────────────────────────────
-// 2. ADMIN: Upload Course Cover / Thumbnail to Google Drive
+// 2. ADMIN: Upload Course Cover / Thumbnail to Supabase Storage
 // POST /api/lectures/upload-thumbnail
 // ─────────────────────────────────────────────────────────────
 router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thumbnail'), async (req, res) => {
@@ -127,7 +127,7 @@ router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thu
       return res.status(400).json({ success: false, message: 'Please select an image file.' });
     }
 
-    const driveResult = await uploadToDrive(
+    const storageResult = await uploadToStorage(
       req.file.buffer,
       req.file.originalname,
       req.file.mimetype,
@@ -136,16 +136,16 @@ router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thu
 
     res.status(200).json({
       success: true,
-      message: 'Thumbnail uploaded to Google Drive successfully.',
-      url: driveResult.embedUrl,
-      viewUrl: driveResult.viewUrl,
-      fileId: driveResult.fileId,
+      message: 'Thumbnail uploaded to Supabase Storage successfully.',
+      url: storageResult.embedUrl,
+      viewUrl: storageResult.viewUrl,
+      fileId: storageResult.fileId,
     });
   } catch (error) {
     console.error('[lectureRoutes] Thumbnail upload error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to upload thumbnail to Google Drive.',
+      message: error.message || 'Failed to upload thumbnail to Supabase Storage.',
     });
   }
 });
@@ -255,7 +255,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 6. ADMIN: Delete a material (deletes from Google Drive & MongoDB)
+// 6. ADMIN: Delete a material (deletes from Supabase Storage & MongoDB)
 // DELETE /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
 router.delete('/:id', protect, authorize('admin'), async (req, res) => {
@@ -265,12 +265,13 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
 
-    // Delete from Google Drive if fileId exists
-    if (material.driveFileId) {
+    // Delete from Supabase Storage if fileId or viewUrl exists
+    const fileIdentifier = material.driveFileId || material.viewUrl;
+    if (fileIdentifier && material.type !== 'link') {
       try {
-        await deleteFromDrive(material.driveFileId);
-      } catch (driveErr) {
-        console.warn(`[lectureRoutes] Warning: Could not delete file ${material.driveFileId} from Drive:`, driveErr.message);
+        await deleteFromStorage(fileIdentifier);
+      } catch (storageErr) {
+        console.warn(`[lectureRoutes] Warning: Could not delete file ${fileIdentifier} from Supabase:`, storageErr.message);
       }
     }
 
@@ -278,7 +279,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Lecture material deleted from Google Drive and database.',
+      message: 'Lecture material deleted from Supabase Storage and database.',
     });
   } catch (error) {
     console.error('[lectureRoutes] Delete error:', error);

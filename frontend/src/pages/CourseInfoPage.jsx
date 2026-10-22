@@ -183,7 +183,7 @@ export default function CourseInfoPage() {
     }
   };
 
-  // Submit files to Google Drive for an assignment
+  // Submit files to Supabase Storage for an assignment
   const handleAssignmentSubmit = async (e) => {
     e.preventDefault();
     if (!activeAssignmentForSubmit) return;
@@ -210,7 +210,7 @@ export default function CourseInfoPage() {
       setCurrentSubmission(res.submission);
       setSubmissionStatusMsg({
         type: 'success',
-        text: 'Assignment submitted to Google Drive successfully! 🎉',
+        text: 'Assignment submitted to Supabase Cloud Storage successfully! 🎉',
       });
       setSubmissionFiles([]);
     } catch (err) {
@@ -475,8 +475,6 @@ export default function CourseInfoPage() {
             {/* Bottom Assignment Quick Launcher */}
             <div className="pt-4 mt-4 border-t border-gray-100">
               <button 
-                onClick={() => toast('Assignment submission is not available yet.')}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
                 onClick={() => {
                   if (assignments.length > 0) {
                     handleOpenAssignmentModal(assignments[0]);
@@ -498,17 +496,40 @@ export default function CourseInfoPage() {
             {/* Main Media Player / Viewer */}
             <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
               
-              {/* If Video: Google Drive Video Embed or YouTube */}
+              {/* If Video: Native HTML5 Player for Supabase Videos or YouTube/Vimeo Embed */}
               {selectedMaterial?.type === 'video' || selectedMaterial?.type === 'link' ? (
-                <div className="relative aspect-video w-full bg-black">
-                  {selectedMaterial?.embedUrl ? (
-                    <iframe
-                      src={selectedMaterial.embedUrl}
-                      title={selectedMaterial.title}
-                      className="w-full h-full border-0"
-                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                      allowFullScreen
-                    />
+                <div className="relative aspect-video w-full bg-black rounded-t-3xl overflow-hidden flex items-center justify-center">
+                  {selectedMaterial?.embedUrl || selectedMaterial?.viewUrl ? (
+                    (() => {
+                      const videoUrl = selectedMaterial.embedUrl || selectedMaterial.viewUrl;
+                      const isExternalEmbed = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') || videoUrl.includes('vimeo.com');
+
+                      if (!isExternalEmbed && (selectedMaterial.type === 'video' || videoUrl.includes('supabase.co') || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(videoUrl))) {
+                        return (
+                          <video
+                            key={videoUrl}
+                            controls
+                            playsInline
+                            controlsList="nodownload"
+                            preload="metadata"
+                            className="w-full h-full max-h-[600px] object-contain bg-black"
+                            src={videoUrl}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        );
+                      }
+
+                      return (
+                        <iframe
+                          src={videoUrl}
+                          title={selectedMaterial.title}
+                          className="w-full h-full border-0"
+                          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                        />
+                      );
+                    })()
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
                       <PlayCircle className="w-16 h-16 text-blue-400 mb-3" />
@@ -915,7 +936,7 @@ export default function CourseInfoPage() {
                   )}
 
                   <div className="space-y-1.5 mt-2">
-                    <p className="text-[11px] font-bold text-gray-600">Submitted Files on Google Drive:</p>
+                    <p className="text-[11px] font-bold text-gray-600">Submitted Files on Supabase Cloud Storage:</p>
                     {currentSubmission.files?.map((f, i) => (
                       <div key={i} className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100 text-xs">
                         <span className="truncate text-gray-800 font-medium">{f.fileName}</span>
@@ -960,7 +981,7 @@ export default function CourseInfoPage() {
                       : 'Choose files or drag & drop'}
                   </p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    PDF, DOCX, ZIP, JPG, PNG (Saved directly to Google Drive)
+                    PDF, DOCX, ZIP, JPG, PNG (Saved directly to Supabase Cloud Storage)
                   </p>
                 </div>
 
@@ -996,7 +1017,7 @@ export default function CourseInfoPage() {
                 {submittingAssignment && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-bold text-blue-600">
-                      <span>Uploading to Google Drive...</span>
+                      <span>Uploading to Supabase Cloud Storage...</span>
                       <span>{submissionProgress}%</span>
                     </div>
                     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">

@@ -15,7 +15,7 @@ const lectureService = {
     return res.data;
   },
 
-  // Upload lecture material (video, pdf, image) to Google Drive with progress tracking
+  // Upload lecture material (video, pdf, image) to Supabase Storage with progress tracking
   uploadMaterial: async (formData, onProgress) => {
     const token = getAuthToken();
     const response = await axios.post(`${apiUrl}/lectures/upload`, formData, {
@@ -23,7 +23,7 @@ const lectureService = {
         'Content-Type': 'multipart/form-data',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      timeout: 300000, // 5 minutes timeout for Google Drive uploads
+      timeout: 300000, // 5 minutes timeout for Supabase Storage uploads
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -34,7 +34,7 @@ const lectureService = {
     return response.data;
   },
 
-  // Upload course thumbnail to Google Drive
+  // Upload course thumbnail to Supabase Storage
   uploadThumbnail: async (file, onProgress) => {
     const token = getAuthToken();
     const formData = new FormData();
@@ -62,7 +62,7 @@ const lectureService = {
     return res.data;
   },
 
-  // Delete lecture material from Google Drive & MongoDB
+  // Delete lecture material from Supabase Storage & MongoDB
   deleteMaterial: async (id) => {
     const res = await apiClient.delete(`/lectures/${id}`);
     return res.data;
