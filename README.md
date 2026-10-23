@@ -148,7 +148,6 @@ app/
 │   ├── services/            # NotificationEngine, ChatbotEngine
 │   ├── socket/              # Socket.IO manager (real-time notifications)
 │   ├── utils/               # Attendance date helpers, regex escaping
-│   ├── seedCourses.js       # Sample course data (replaces ALL courses)
 │   └── env.example          # Backend environment template
 ├── frontend/
 │   ├── index.html
@@ -222,16 +221,7 @@ npm run dev
 
 Open **http://localhost:5173**.
 
-### 5. Load sample courses (optional)
-
-```bash
-cd backend
-node seedCourses.js
-```
-
-> **Warning:** `seedCourses.js` **deletes every existing course** before inserting the samples. Never run it against a production database.
-
-### 6. Create the first administrator
+### 5. Create the first administrator
 
 For security, the public registration form only creates **student** or **instructor** accounts. To create the first admin:
 
@@ -447,7 +437,6 @@ Admin attendance endpoints accept `from`, `to` (`YYYY-MM-DD`), `courseId`, `stud
 | --- | --- | --- |
 | `backend/` | `npm run dev` | Start the API with auto-reload (nodemon) and Socket.IO. |
 | `backend/` | `npm start` | Start the API with Node.js. |
-| `backend/` | `node seedCourses.js` | Replace all courses with sample data (development only). |
 | `frontend/` | `npm run dev` | Start the Vite development server on port 5173. |
 | `frontend/` | `npm run build` | Build the production bundle into `frontend/dist`. |
 | `frontend/` | `npm run preview` | Preview the production build locally. |

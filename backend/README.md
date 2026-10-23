@@ -27,7 +27,6 @@ Requires Node.js 22.12 or newer. Check the API with `GET /api/health`.
 | --- | --- |
 | `npm run dev` | Start with nodemon (auto-reload). |
 | `npm start` | Start with Node.js. |
-| `node seedCourses.js` | **Replaces all courses** with sample data — development databases only. |
 
 ## Deployment
 
