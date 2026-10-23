@@ -23,7 +23,7 @@ const courseSchema = new mongoose.Schema({
   },
   level: {
     type: String,
-    enum: ['beginner', 'intermediate', 'advanced']
+    enum: ['beginner', 'intermediate', 'advanced', 'all-levels', 'all levels']
   },
   duration: {
     type: Number,
@@ -85,6 +85,11 @@ const courseSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isFeatured: {
+    type: Boolean,
+    default: false
+  },
+  features: [String],
   tags: [String],
   prerequisites: [String]
 }, {

@@ -288,8 +288,6 @@ Public registration only creates **student** or **instructor** accounts (an acce
 
 3. Sign in at **`/admin/login`**. Create further administrators from **Admin → User Management**.
 
-> Never run `backend/seedCourses.js` against a production database. It deletes every existing course before inserting sample data.
-
 ---
 
 ## 10. Step 7: Verify the deployment
@@ -440,7 +438,7 @@ vercel env add JWT_SECRET production --cwd backend
 - [ ] Stripe uses test keys unless live payments are approved.
 - [ ] The Supabase bucket accepts images only, with a size limit, through explicit Storage policies.
 - [ ] The Google OAuth client lists only real origins, and its consent screen is published (refresh-token validity).
-- [ ] The first administrator was promoted manually; test accounts and sample data are removed. `seedCourses.js` is never run against production.
+- [ ] The first administrator was promoted manually; test accounts and sample data are removed.
 - [ ] The deployed build includes the access-control fixes: role on registration (#166), Join Us management restricted to admins (#167), ownership checks (#168) and escaped search input (#169).
 
 ---
