@@ -133,7 +133,11 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
 // @access  Private/Admin
 router.post('/admin', protect, authorize('admin'), async (req, res) => {
   try {
-    const { title, description, category, level, duration, price, isPublished, tags, thumbnail } = req.body;
+    const {
+      title, description, category, level, duration, price, isPublished,
+      tags, thumbnail, instructor, instructorName, instructorImage,
+      instructorRole, instructorBio, prerequisites, curriculum
+    } = req.body;
 
     if (!title || title.trim().length < 3)
       return res.status(400).json({ success: false, message: 'Course title must be at least 3 characters' });
@@ -143,16 +147,22 @@ router.post('/admin', protect, authorize('admin'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'A valid price is required' });
 
     const courseData = {
-      title:       title.trim(),
-      description: description.trim(),
-      category:    category    || 'Language',
-      level:       (level      || 'beginner').toLowerCase(),
-      duration:    duration    || 4,
-      price:       Number(price),
-      isPublished: isPublished !== undefined ? isPublished : false,
-      tags:        tags        || [],
-      thumbnail:   thumbnail   || '',
-      instructor:  req.user._id,
+      title:           title.trim(),
+      description:     description.trim(),
+      category:        category    || 'Language',
+      level:           (level      || 'beginner').toLowerCase(),
+      duration:        duration    || 4,
+      price:           Number(price),
+      isPublished:     isPublished !== undefined ? isPublished : false,
+      tags:            tags        || [],
+      thumbnail:       thumbnail   || '',
+      instructor:      instructor  || req.user._id,
+      instructorName:  instructorName  ? String(instructorName).trim()  : '',
+      instructorImage: instructorImage ? String(instructorImage).trim() : '',
+      instructorRole:  instructorRole  ? String(instructorRole).trim()  : 'Lead Korean Instructor',
+      instructorBio:   instructorBio   ? String(instructorBio).trim()   : '',
+      prerequisites:   prerequisites   || [],
+      curriculum:      curriculum      || [],
     };
 
     const course = await Course.create(courseData);
@@ -172,13 +182,20 @@ router.put('/admin/:id', protect, authorize('admin'), async (req, res) => {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
 
-    const allowed = ['title','description','category','level','duration','price','isPublished','tags','thumbnail','prerequisites'];
+    const allowed = [
+      'title', 'description', 'category', 'level', 'duration', 'price',
+      'isPublished', 'tags', 'thumbnail', 'prerequisites', 'instructor',
+      'instructorName', 'instructorImage', 'instructorRole', 'instructorBio',
+      'curriculum'
+    ];
     const updateData = {};
-    allowed.forEach(field => { if (req.body[field] !== undefined) updateData[field] = req.body[field]; });
+    allowed.forEach(field => {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    });
     if (updateData.level)              updateData.level  = updateData.level.toLowerCase();
     if (updateData.price !== undefined) updateData.price = Number(updateData.price);
 
-    const updatedCourse = await Course.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true })
+    const updatedCourse = await Course.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true })
       .populate('instructor', 'name avatar');
     res.status(200).json({ success: true, message: 'Course updated successfully', course: updatedCourse });
   } catch (error) {
@@ -209,12 +226,17 @@ router.patch('/admin/:id/toggle-publish', protect, authorize('admin'), async (re
   try {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
-    course.isPublished = !course.isPublished;
-    await course.save();
+    const newPublishStatus = !course.isPublished;
+    const updatedCourse = await Course.findByIdAndUpdate(
+      req.params.id,
+      { $set: { isPublished: newPublishStatus } },
+      { new: true }
+    );
     res.status(200).json({
       success: true,
-      message: `Course ${course.isPublished ? 'published' : 'unpublished'} successfully`,
-      isPublished: course.isPublished,
+      message: `Course ${updatedCourse.isPublished ? 'published' : 'unpublished'} successfully`,
+      isPublished: updatedCourse.isPublished,
+      course: updatedCourse,
     });
   } catch (error) {
     console.error('Admin toggle publish error:', error);

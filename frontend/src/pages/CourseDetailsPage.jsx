@@ -206,11 +206,11 @@ export default function CourseDetails() {
   );
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
-  const formatPrice   = (p) => p === 0 ? 'Free' : `LKR ${p?.toLocaleString()}`;
-  const instructorName   = () => course?.instructor?.name ?? 'SRI-KO Instructor';
+  const instructorName   = () => course?.instructorName || course?.instructor?.name || 'SRI-KO Instructor';
   const instructorAvatar = () =>
-    course?.instructor?.avatar ??
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${instructorName()}`;
+    course?.instructorImage ||
+    course?.instructor?.avatar ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(instructorName())}`;
 
   const levelColor = {
     beginner:     { bg: 'bg-emerald-100', text: 'text-emerald-700' },
@@ -531,10 +531,12 @@ export default function CourseDetails() {
                   />
                   <div>
                     <h4 className="text-xl font-bold text-gray-900 mb-1">{instructorName()}</h4>
-                    <p className="text-blue-600 text-sm font-semibold mb-4">SRI-KO Certified Instructor</p>
-                    {course.instructor?.bio && (
+                    <p className="text-blue-600 text-sm font-semibold mb-4">
+                      {course.instructorRole || 'SRI-KO Certified Instructor'}
+                    </p>
+                    {(course.instructorBio || course.instructor?.bio) && (
                       <p className="text-gray-600 text-sm italic mb-6 leading-relaxed max-w-2xl">
-                        "{course.instructor.bio}"
+                        "{course.instructorBio || course.instructor.bio}"
                       </p>
                     )}
                     <div className="flex gap-8">

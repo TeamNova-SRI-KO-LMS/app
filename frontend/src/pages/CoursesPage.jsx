@@ -88,11 +88,12 @@ export default function Courses() {
     price === 0 ? 'Free' : `LKR ${price.toLocaleString()}`;
 
   const instructorName = (course) =>
-    course.instructor?.name ?? 'SRI-KO Instructor';
+    course.instructorName || course.instructor?.name || 'SRI-KO Instructor';
 
   const instructorAvatar = (course) =>
-    course.instructor?.avatar ??
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${instructorName(course)}`;
+    course.instructorImage ||
+    course.instructor?.avatar ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(instructorName(course))}`;
 
   const studentCount = (course) => {
     const n = course.enrolledStudents?.length ?? 0;

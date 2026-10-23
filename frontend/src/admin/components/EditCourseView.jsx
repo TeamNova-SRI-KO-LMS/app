@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   ArrowLeft, Edit2, PlusCircle, CheckCircle2, 
-  AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload
+  AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload,
+  User, Sparkles, Camera, Link as LinkIcon, X
 } from 'lucide-react';
 import CourseResourceModal from './CourseResourceModal';
 import lectureService from '../../services/lectureService';
@@ -18,6 +19,41 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
 
   const [thumbnail, setThumbnail] = useState(course?.thumbnail || '');
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+
+  // Instructor State
+  const [instructorName, setInstructorName] = useState(
+    course?.instructorName || course?.instructor?.name || ''
+  );
+  const [instructorRole, setInstructorRole] = useState(
+    course?.instructorRole || 'Lead Korean Instructor'
+  );
+  const [instructorBio, setInstructorBio] = useState(
+    course?.instructorBio || course?.instructor?.bio || ''
+  );
+  const [instructorImage, setInstructorImage] = useState(
+    course?.instructorImage || course?.instructor?.avatar || ''
+  );
+  const [uploadingInstructorImg, setUploadingInstructorImg] = useState(false);
+
+  const handleInstructorImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file');
+      return;
+    }
+    setUploadingInstructorImg(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setInstructorImage(reader.result);
+      setUploadingInstructorImg(false);
+    };
+    reader.onerror = () => {
+      alert('Failed to read image file');
+      setUploadingInstructorImg(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Quick settings toggles
   const [openEnrollment, setOpenEnrollment] = useState(true);
@@ -54,6 +90,10 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
       level,
       description,
       thumbnail: thumbnail || course?.thumbnail,
+      instructorName: instructorName.trim(),
+      instructorRole: instructorRole.trim(),
+      instructorBio: instructorBio.trim(),
+      instructorImage: instructorImage.trim(),
       openEnrollment,
       certificatesEnabled,
       featuredOnHome,
@@ -172,6 +212,137 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-[#f1f5f9] border border-transparent rounded-2xl p-4 text-sm text-gray-800 leading-relaxed focus:bg-white focus:border-blue-500 focus:outline-none resize-none transition shadow-2xs font-normal"
                 ></textarea>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Course Instructor */}
+          <div>
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-1.5 h-6 bg-indigo-600 rounded-full" />
+              <h2 className="text-xl font-bold text-gray-900 tracking-tight">
+                Course Instructor
+              </h2>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-xs space-y-5">
+              {/* Instructor Photo Section */}
+              <div className="bg-[#f8fafc] border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-5">
+                {/* Avatar Preview */}
+                <div className="relative group shrink-0">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-indigo-200 bg-white shadow-xs flex items-center justify-center">
+                    {instructorImage ? (
+                      <img 
+                        src={instructorImage} 
+                        alt="Instructor Avatar" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-indigo-50/50">
+                        <User size={30} className="text-indigo-300" />
+                      </div>
+                    )}
+                  </div>
+                  {uploadingInstructorImg && (
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                      <Loader2 size={18} className="animate-spin text-white" />
+                    </div>
+                  )}
+                  {instructorImage && (
+                    <button
+                      type="button"
+                      onClick={() => setInstructorImage('')}
+                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow-xs transition cursor-pointer"
+                      title="Remove photo"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Upload & Preset Options */}
+                <div className="flex-1 space-y-2.5 w-full">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition shadow-xs">
+                      <Camera size={13} />
+                      <span>{instructorImage ? 'Change Photo' : 'Upload Photo'}</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleInstructorImageUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const seed = instructorName.trim() || 'Korean-Instructor';
+                        setInstructorImage(`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-xs font-semibold cursor-pointer transition"
+                    >
+                      <Sparkles size={13} className="text-amber-500" />
+                      <span>Generate Avatar</span>
+                    </button>
+                  </div>
+
+                  {/* Or image URL input */}
+                  <div className="relative">
+                    <LinkIcon size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={instructorImage}
+                      onChange={(e) => setInstructorImage(e.target.value)}
+                      placeholder="Or paste instructor photo URL (https://...)"
+                      className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none transition shadow-2xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Name & Role Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    Instructor Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={instructorName}
+                    onChange={(e) => setInstructorName(e.target.value)}
+                    placeholder="e.g. Prof. Min-Jun Park"
+                    className="w-full bg-[#f1f5f9] border border-transparent rounded-2xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition shadow-2xs font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    Instructor Title / Role
+                  </label>
+                  <input
+                    type="text"
+                    value={instructorRole}
+                    onChange={(e) => setInstructorRole(e.target.value)}
+                    placeholder="e.g. Lead Korean Linguist & TOPIK Specialist"
+                    className="w-full bg-[#f1f5f9] border border-transparent rounded-2xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition shadow-2xs font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Bio Field */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Instructor Bio / Qualifications
+                </label>
+                <textarea
+                  rows={3}
+                  value={instructorBio}
+                  onChange={(e) => setInstructorBio(e.target.value)}
+                  placeholder="Provide credentials, teaching background, or a brief greeting from the instructor..."
+                  className="w-full bg-[#f1f5f9] border border-transparent rounded-2xl p-4 text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none resize-none transition shadow-2xs font-normal"
+                />
               </div>
             </div>
           </div>

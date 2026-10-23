@@ -19,6 +19,14 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
+  Clock,
+  Calendar,
+  Layers,
+  GraduationCap,
+  Tag,
+  Star,
+  CheckCircle2,
+  User,
 } from 'lucide-react';
 import courseService from '../services/courseService';
 import CreateCourseView from './components/CreateCourseView';
@@ -48,6 +56,9 @@ const EMPTY_FORM = {
   isPublished: false,
   tags: '',
   thumbnail: '',
+  instructorName: '',
+  instructorImage: '',
+  instructorRole: 'Lead Korean Instructor',
 };
 
 const CATEGORIES = ['All Categories', 'Literature', 'Business', 'Language', 'Culture', 'Grammar', 'Conversation', 'Other'];
@@ -116,15 +127,18 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
   useEffect(() => {
     if (mode === 'edit' && course) {
       setForm({
-        title:       course.title       || '',
-        description: course.description || '',
-        category:    course.category    || 'Language',
-        level:       course.level       || 'beginner',
-        duration:    course.duration    || 4,
-        price:       course.price       ?? '',
-        isPublished: course.isPublished ?? false,
-        tags:        Array.isArray(course.tags) ? course.tags.join(', ') : '',
-        thumbnail:   course.thumbnail   || '',
+        title:           course.title           || '',
+        description:     course.description     || '',
+        category:        course.category        || 'Language',
+        level:           course.level           || 'beginner',
+        duration:        course.duration        || 4,
+        price:           course.price           ?? '',
+        isPublished:     course.isPublished     ?? false,
+        tags:            Array.isArray(course.tags) ? course.tags.join(', ') : '',
+        thumbnail:       course.thumbnail       || '',
+        instructorName:  course.instructorName  || course.instructor?.name   || '',
+        instructorImage: course.instructorImage || course.instructor?.avatar || '',
+        instructorRole:  course.instructorRole  || 'Lead Korean Instructor',
       });
     } else {
       setForm(EMPTY_FORM);
@@ -277,6 +291,32 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
             />
           </div>
 
+          {/* Instructor Fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Instructor Name</label>
+              <input
+                type="text"
+                name="instructorName"
+                placeholder="e.g. Prof. Min-Jun Park"
+                value={form.instructorName || ''}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Instructor Photo URL</label>
+              <input
+                type="text"
+                name="instructorImage"
+                placeholder="https://..."
+                value={form.instructorImage || ''}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100"
+              />
+            </div>
+          </div>
+
           {/* Published toggle */}
           <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
             <label className="relative inline-flex items-center cursor-pointer">
@@ -325,6 +365,281 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
   );
 };
 
+/* ─────────────────────────── ViewCourseModal ─────────────────────────── */
+const ViewCourseModal = ({ course, onClose, onEdit, onTogglePublish, toggling }) => {
+  if (!course) return null;
+
+  const createdDate = course.createdAt
+    ? new Date(course.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Recently';
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div 
+        className="relative bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-gray-100 overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Banner / Header */}
+        <div className="relative bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white shrink-0 overflow-hidden">
+          {course.thumbnail && (
+            <img
+              src={course.thumbnail}
+              alt={course.title}
+              className="absolute inset-0 w-full h-full object-cover opacity-30"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-gray-950/90 via-gray-950/40 to-black/20" />
+
+          {/* Top Controls */}
+          <div className="relative z-10 flex items-center justify-between p-5 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase bg-white/20 backdrop-blur-md text-white border border-white/20 shadow-xs">
+                {course.category || 'Language'}
+              </span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold tracking-wider uppercase ${getLevelStyle(course.level)}`}>
+                {course.level || 'Beginner'}
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors cursor-pointer border border-white/10"
+              title="Close modal"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Title & Status */}
+          <div className="relative z-10 px-5 pb-5 pt-1">
+            <h2 className="text-xl sm:text-2xl font-black text-white leading-snug drop-shadow-sm mb-2.5">
+              {course.title}
+            </h2>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-white/80">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-xs ${course.isPublished ? 'bg-emerald-500/90 text-white' : 'bg-amber-500/90 text-white'}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                {course.isPublished ? 'PUBLISHED' : 'DRAFT'}
+              </span>
+              <span className="font-mono text-white/60 text-[11px]">ID: {course._id}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-gray-100 border-b border-gray-100 bg-gray-50/70 shrink-0">
+          <div className="p-3.5 sm:p-4 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Price</span>
+            <span className="text-sm font-extrabold text-gray-900">{formatPrice(course.price)}</span>
+          </div>
+          <div className="p-3.5 sm:p-4 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Duration</span>
+            <span className="text-sm font-bold text-gray-900">{course.duration ? `${course.duration} Weeks` : 'Self-Paced'}</span>
+          </div>
+          <div className="p-3.5 sm:p-4 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Enrolled</span>
+            <span className="text-sm font-bold text-gray-900">{course.enrolledStudents?.length || 0} Students</span>
+          </div>
+          <div className="p-3.5 sm:p-4 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Rating</span>
+            <span className="text-sm font-bold text-amber-600 flex items-center justify-center gap-1">
+              <Star size={13} className="fill-amber-400 text-amber-400" />
+              {course.averageRating ? Number(course.averageRating).toFixed(1) : '5.0'}
+              <span className="text-gray-400 font-normal text-xs">({course.reviews?.length || 0})</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Modal Scrollable Content */}
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 text-sm text-gray-600">
+          {/* Description */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-900 mb-2 flex items-center gap-1.5">
+              <FileText size={14} className="text-blue-600" />
+              Course Overview
+            </h4>
+            <div className="bg-gray-50/80 rounded-2xl p-4 border border-gray-100 text-gray-700 leading-relaxed whitespace-pre-line text-sm">
+              {course.description || 'No description provided for this course.'}
+            </div>
+          </div>
+
+          {/* Instructor & Metadata */}
+          <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/60 rounded-2xl p-4 border border-blue-100/60 text-xs">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-indigo-200 shrink-0 shadow-2xs flex items-center justify-center">
+                {course.instructorImage || course.instructor?.avatar ? (
+                  <img
+                    src={course.instructorImage || course.instructor?.avatar}
+                    alt={course.instructorName || course.instructor?.name || 'Instructor'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  <User size={22} className="text-indigo-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-gray-400 block uppercase font-bold text-[9px] tracking-wider">Instructor</span>
+                <h5 className="font-bold text-gray-900 text-sm truncate">
+                  {course.instructorName || course.instructor?.name || 'SRI-KO LMS Faculty'}
+                </h5>
+                <p className="text-[11px] text-blue-600 font-medium truncate">
+                  {course.instructorRole || 'Lead Korean Instructor'}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-gray-400 block uppercase font-bold text-[9px] tracking-wider">Created</span>
+                <span className="font-semibold text-gray-700 text-xs">{createdDate}</span>
+              </div>
+            </div>
+            {(course.instructorBio || course.instructor?.bio) && (
+              <p className="text-xs text-gray-600 italic border-t border-blue-100/40 pt-2 mt-2 leading-relaxed">
+                "{course.instructorBio || course.instructor.bio}"
+              </p>
+            )}
+          </div>
+
+          {/* Curriculum Section */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-900 mb-2.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Layers size={14} className="text-blue-600" />
+                Curriculum Structure
+              </span>
+              <span className="text-[11px] font-medium text-gray-400">
+                {course.curriculum?.length || 0} {course.curriculum?.length === 1 ? 'Module' : 'Modules'}
+              </span>
+            </h4>
+
+            {course.curriculum && course.curriculum.length > 0 ? (
+              <div className="space-y-2.5">
+                {course.curriculum.map((mod, idx) => (
+                  <div key={idx} className="border border-gray-100 rounded-xl p-3.5 bg-white shadow-2xs hover:border-blue-100 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-bold text-gray-900 text-xs sm:text-sm">
+                        <span className="text-blue-600 mr-1.5 font-extrabold">Module {mod.week || idx + 1}:</span>
+                        {mod.title || 'Untitled Module'}
+                      </div>
+                      {mod.lessons && (
+                        <span className="text-[11px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                          {mod.lessons.length} {mod.lessons.length === 1 ? 'Lesson' : 'Lessons'}
+                        </span>
+                      )}
+                    </div>
+                    {mod.description && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{mod.description}</p>
+                    )}
+                    {mod.lessons && mod.lessons.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-gray-50 space-y-1">
+                        {mod.lessons.map((lesson, lIdx) => (
+                          <div key={lIdx} className="flex items-center justify-between text-xs text-gray-600 py-0.5">
+                            <span className="truncate pr-2">• {lesson.title}</span>
+                            <span className="shrink-0 text-[10px] text-gray-400">
+                              {lesson.duration ? `${lesson.duration}m` : ''} {lesson.type ? `(${lesson.type})` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-5 bg-gray-50/60 rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                No syllabus modules configured yet. Use "Edit Course" to manage curriculum materials and lectures.
+              </div>
+            )}
+          </div>
+
+          {/* Prerequisites & Tags */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Prerequisites */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-900 mb-2 flex items-center gap-1.5">
+                <CheckCircle2 size={13} className="text-emerald-600" />
+                Prerequisites
+              </h4>
+              {course.prerequisites && course.prerequisites.length > 0 ? (
+                <ul className="space-y-1 text-xs text-gray-600">
+                  {course.prerequisites.map((req, i) => (
+                    <li key={i} className="flex items-start gap-1.5">
+                      <span className="text-emerald-500 mt-0.5 font-bold">✓</span>
+                      <span>{req}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-400 italic">None required. Open to all students.</p>
+              )}
+            </div>
+
+            {/* Tags */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-900 mb-2 flex items-center gap-1.5">
+                <Tag size={13} className="text-indigo-600" />
+                Tags
+              </h4>
+              {course.tags && course.tags.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {course.tags.map((t, i) => (
+                    <span key={i} className="text-[11px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg border border-blue-100/60">
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No tags assigned.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <button
+            onClick={() => onTogglePublish(course)}
+            disabled={toggling}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer disabled:opacity-50
+              ${course.isPublished
+                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'}`}
+          >
+            {toggling ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : course.isPublished ? (
+              <EyeOff size={14} />
+            ) : (
+              <Eye size={14} />
+            )}
+            {course.isPublished ? 'Unpublish Course' : 'Publish Course'}
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                onEdit(course);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            >
+              <Edit3 size={14} />
+              Edit Course
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 hover:bg-white bg-white/70 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ─────────────────────────── Main Component ─────────────────────────── */
 const CourseManagement = () => {
   // ── State ──────────────────────────────────────────────────────────
@@ -352,6 +667,8 @@ const CourseManagement = () => {
   const [modal,         setModal]         = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [deleteTarget,  setDeleteTarget]  = useState(null);
+  const [viewingCourse, setViewingCourse] = useState(null);
+  const [togglingId,    setTogglingId]    = useState(null);
 
   // Toasts
   const [toasts, setToasts] = useState([]);
@@ -450,12 +767,23 @@ const CourseManagement = () => {
   };
 
   const handleTogglePublish = async (course) => {
+    if (!course?._id || togglingId) return;
+    setTogglingId(course._id);
     try {
       const res = await courseService.togglePublish(course._id);
-      setCourses(prev => prev.map(c => c._id === course._id ? { ...c, isPublished: res.isPublished } : c));
-      addToast(`Course ${res.isPublished ? 'published' : 'unpublished'} successfully!`);
+      const newStatus = res.isPublished;
+      setCourses(prev => prev.map(c => c._id === course._id ? { ...c, isPublished: newStatus } : c));
+      setStats(prev => ({
+        ...prev,
+        totalPublished: newStatus ? prev.totalPublished + 1 : Math.max(0, prev.totalPublished - 1),
+        totalDraft: newStatus ? Math.max(0, prev.totalDraft - 1) : prev.totalDraft + 1,
+      }));
+      setViewingCourse(prev => (prev && prev._id === course._id ? { ...prev, isPublished: newStatus } : prev));
+      addToast(res.message || `Course ${newStatus ? 'published' : 'unpublished'} successfully!`);
     } catch (err) {
       addToast(err?.response?.data?.message || 'Failed to toggle status.', 'error');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -547,6 +875,18 @@ const CourseManagement = () => {
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={actionLoading}
+        />
+      )}
+      {viewingCourse && (
+        <ViewCourseModal
+          course={viewingCourse}
+          onClose={() => setViewingCourse(null)}
+          onEdit={(c) => {
+            setViewingCourse(null);
+            openEdit(c);
+          }}
+          onTogglePublish={handleTogglePublish}
+          toggling={togglingId === viewingCourse._id}
         />
       )}
 
@@ -762,11 +1102,19 @@ const CourseManagement = () => {
                   <tr key={course._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                        <div 
+                          onClick={() => setViewingCourse(course)}
+                          className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 cursor-pointer hover:scale-105 transition-transform"
+                          title="View Course Details"
+                        >
                           <BookOpen size={17} />
                         </div>
                         <div>
-                          <h4 className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate">
+                          <h4 
+                            onClick={() => setViewingCourse(course)}
+                            className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate cursor-pointer hover:text-blue-600 transition-colors"
+                            title={course.title}
+                          >
                             {course.title}
                           </h4>
                           <span className="text-[10px] font-mono text-gray-400 block mt-0.5 truncate max-w-[180px]">
@@ -802,27 +1150,38 @@ const CourseManagement = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2.5">
-                        <button title="View Details" className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors">
+                        <button
+                          onClick={() => setViewingCourse(course)}
+                          title="View Details"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors"
+                        >
                           <FileText size={15} />
                         </button>
                         <button
                           onClick={() => openEdit(course)}
                           title="Edit Course"
-                          className="text-gray-400 hover:text-indigo-600 cursor-pointer transition-colors"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer transition-colors"
                         >
                           <Edit3 size={15} />
                         </button>
                         <button
                           onClick={() => handleTogglePublish(course)}
+                          disabled={togglingId === course._id}
                           title={course.isPublished ? 'Unpublish' : 'Publish'}
-                          className={`cursor-pointer transition-colors ${course.isPublished ? 'text-gray-400 hover:text-amber-500' : 'text-gray-400 hover:text-emerald-600'}`}
+                          className={`p-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-40 ${course.isPublished ? 'text-gray-400 hover:text-amber-500 hover:bg-amber-50' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
                         >
-                          {course.isPublished ? <EyeOff size={15} /> : <Eye size={15} />}
+                          {togglingId === course._id ? (
+                            <Loader2 size={15} className="animate-spin text-blue-600" />
+                          ) : course.isPublished ? (
+                            <EyeOff size={15} />
+                          ) : (
+                            <Eye size={15} />
+                          )}
                         </button>
                         <button
                           onClick={() => setDeleteTarget(course)}
                           title="Delete Course"
-                          className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>

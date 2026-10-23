@@ -16,6 +16,25 @@ const courseSchema = new mongoose.Schema({
     ref: 'User',
     required: false
   },
+  instructorName: {
+    type: String,
+    trim: true,
+    maxLength: [100, 'Instructor name cannot be more than 100 characters']
+  },
+  instructorImage: {
+    type: String,
+    trim: true
+  },
+  instructorRole: {
+    type: String,
+    trim: true,
+    maxLength: [100, 'Instructor role cannot be more than 100 characters']
+  },
+  instructorBio: {
+    type: String,
+    trim: true,
+    maxLength: [1000, 'Instructor bio cannot be more than 1000 characters']
+  },
   category: {
     type: String,
     enum: ['Literature', 'Business', 'Language', 'Culture', 'Grammar', 'Conversation', 'Other'],
