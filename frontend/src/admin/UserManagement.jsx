@@ -1,8 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, Trash2, Edit2, Shield, Mail, X, ChevronDown, Loader2 } from 'lucide-react';
+import { 
+  Search, 
+  UserPlus, 
+  Trash2, 
+  Edit2, 
+  Shield, 
+  Mail, 
+  X, 
+  ChevronDown, 
+  Loader2,
+  Eye,
+  Phone,
+  MapPin,
+  Globe,
+  ExternalLink,
+  Link2,
+  Calendar,
+  BookOpen,
+  Copy,
+  Check,
+  User as UserIcon,
+  Sparkles
+} from 'lucide-react';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../components/ConfirmDialog';
+import UserAvatar from '../components/UserAvatar';
+
+const LinkedinIcon = ({ size = 14, className = "text-blue-600 shrink-0" }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="currentColor" 
+    className={className}
+  >
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+  </svg>
+);
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -15,6 +50,33 @@ const UserManagement = () => {
   const [updatingUserId, setUpdatingUserId] = useState(null);
   const [error, setError] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [viewingUser, setViewingUser] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(null);
+
+  // Close popup modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setViewingUser(null);
+    };
+    if (viewingUser) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [viewingUser]);
+
+  const handleCopy = (text, keyName) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(keyName);
+    toast.success(`${keyName} copied to clipboard!`);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -23,13 +85,25 @@ const UserManagement = () => {
       const response = await apiService.get('/users');
       if (response.data?.data) {
         const apiUsers = response.data.data.map(u => ({
+          ...u,
           id: u._id || u.id,
           name: u.name || 'User',
           email: u.email,
           role: u.role === 'admin' ? 'Admin' : u.role === 'instructor' ? 'Instructor' : 'Student',
+          rawRole: u.role,
           status: u.isActive !== false ? 'Active' : 'Inactive',
           joinedDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          coursesEnrolled: u.enrolledCourses?.length || 0
+          coursesEnrolled: Array.isArray(u.enrolledCourses) ? u.enrolledCourses.length : 0,
+          enrolledCoursesList: Array.isArray(u.enrolledCourses) ? u.enrolledCourses : [],
+          avatar: u.avatar || null,
+          phone: u.phone || '',
+          location: u.location || '',
+          bio: u.bio || '',
+          website: u.website || '',
+          linkedin: u.socialLinks?.linkedin || '',
+          socialLinks: u.socialLinks || {},
+          createdAt: u.createdAt,
+          updatedAt: u.updatedAt
         }));
         setUsers(apiUsers);
       }
@@ -59,6 +133,9 @@ const UserManagement = () => {
 
     // Optimistically update the UI
     setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    if (viewingUser && viewingUser.id === userId) {
+      setViewingUser(prev => ({ ...prev, role: newRole }));
+    }
     setUpdatingUserId(userId);
     setError(null);
 
@@ -91,13 +168,23 @@ const UserManagement = () => {
       if (response.data?.data) {
         const u = response.data.data;
         const createdUser = {
+          ...u,
           id: u._id || u.id,
           name: u.name,
           email: u.email,
           role: u.role === 'admin' ? 'Admin' : u.role === 'instructor' ? 'Instructor' : 'Student',
+          rawRole: u.role,
           status: 'Active',
           joinedDate: new Date(u.createdAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          coursesEnrolled: 0
+          coursesEnrolled: 0,
+          enrolledCoursesList: [],
+          avatar: u.avatar || null,
+          phone: '',
+          location: '',
+          bio: '',
+          website: '',
+          linkedin: '',
+          socialLinks: {}
         };
         setUsers([createdUser, ...users]);
         toast.success(`User ${createdUser.name} created successfully`);
@@ -214,12 +301,47 @@ const UserManagement = () => {
                   <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs shrink-0">
-                          {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-gray-900">{user.name}</div>
-                          <div className="text-[11px] text-gray-400">{user.email}</div>
+                        <button
+                          type="button"
+                          onClick={() => setViewingUser(user)}
+                          className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                          title="Click to view full profile details"
+                        >
+                          <UserAvatar
+                            user={user}
+                            size="w-10 h-10"
+                            iconSize={18}
+                            showInitials={true}
+                            className="shrink-0 ring-1 ring-gray-200/80 shadow-2xs hover:ring-blue-400 hover:scale-105 transition-all"
+                          />
+                        </button>
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => setViewingUser(user)}
+                            className="font-semibold text-gray-900 hover:text-blue-600 transition-colors text-left flex items-center gap-1.5 group cursor-pointer"
+                            title="Click to view student profile details"
+                          >
+                            <span className="truncate">{user.name}</span>
+                            <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              View Profile
+                            </span>
+                          </button>
+                          <div className="text-[11px] text-gray-400 truncate flex items-center gap-1.5 mt-0.5">
+                            <span className="truncate">{user.email}</span>
+                            {user.phone && (
+                              <>
+                                <span className="text-gray-300">•</span>
+                                <span className="text-gray-500 font-medium truncate">{user.phone}</span>
+                              </>
+                            )}
+                            {user.location && (
+                              <>
+                                <span className="text-gray-300">•</span>
+                                <span className="text-gray-500 truncate">{user.location}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -263,7 +385,14 @@ const UserManagement = () => {
                       {user.joinedDate}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button 
+                          onClick={() => setViewingUser(user)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="View Full Profile Details"
+                        >
+                          <Eye size={16} />
+                        </button>
                         <button 
                           onClick={() => setUserToDelete(user.id)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
@@ -281,7 +410,306 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* Add User Modal */}
+      {/* Student Profile Details Popup Modal */}
+      {viewingUser && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn"
+          onClick={() => setViewingUser(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-gray-100 overflow-hidden my-auto flex flex-col max-h-[92vh] animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/70 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="p-1.5 bg-blue-100/70 text-blue-700 rounded-lg">
+                  <UserIcon size={16} />
+                </span>
+                <div>
+                  <h3 className="font-bold text-base text-gray-900 leading-tight">
+                    {viewingUser.role === 'Student' ? 'Student Profile Details' : `${viewingUser.role} Profile Details`}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">View live profile information updated from user settings</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setViewingUser(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-lg transition-colors cursor-pointer"
+                title="Close (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Profile Card Banner */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-2xl bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-purple-50/30 border border-blue-100/70 shadow-xs">
+                <div className="relative shrink-0">
+                  <UserAvatar
+                    user={viewingUser}
+                    size="w-20 h-20"
+                    iconSize={28}
+                    showInitials={true}
+                    className="ring-4 ring-white shadow-md"
+                  />
+                  <span 
+                    className={`absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full border-2 border-white ${
+                      viewingUser.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                    title={`Status: ${viewingUser.status}`}
+                  />
+                </div>
+
+                <div className="flex-1 text-center sm:text-left min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1.5">
+                    <h4 className="text-lg font-bold text-gray-900 truncate">
+                      {viewingUser.name}
+                    </h4>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                      viewingUser.role === 'Admin'
+                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                        : viewingUser.role === 'Instructor'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                      {viewingUser.role}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                      viewingUser.status === 'Active' 
+                        ? 'bg-emerald-100/80 text-emerald-800' 
+                        : 'bg-amber-100/80 text-amber-800'
+                    }`}>
+                      {viewingUser.status}
+                    </span>
+                  </div>
+
+                  {/* Email & copy button */}
+                  <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs text-gray-600 mb-2.5">
+                    <Mail size={13} className="text-gray-400 shrink-0" />
+                    <span className="truncate">{viewingUser.email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(viewingUser.email, 'Email')}
+                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-white rounded transition-colors cursor-pointer"
+                      title="Copy email"
+                    >
+                      {copiedKey === 'Email' ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                    </button>
+                  </div>
+
+                  {/* Joined Date & Enrolled count pills */}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5 text-[11px] text-gray-500">
+                    <span className="inline-flex items-center gap-1 bg-white/80 px-2.5 py-1 rounded-lg border border-gray-100">
+                      <Calendar size={12} className="text-gray-400" />
+                      Joined {viewingUser.joinedDate}
+                    </span>
+                    <span className="inline-flex items-center gap-1 bg-white/80 px-2.5 py-1 rounded-lg border border-gray-100">
+                      <BookOpen size={12} className="text-blue-500" />
+                      {viewingUser.coursesEnrolled} {viewingUser.coursesEnrolled === 1 ? 'course' : 'courses'} enrolled
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personal Information (Matches User Settings) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                    <UserIcon size={13} className="text-blue-600" />
+                    Personal Information
+                  </h5>
+                  <span className="text-[11px] text-gray-400 font-medium">Student Settings Data</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Full Name */}
+                  <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                      Full Name
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-gray-800">
+                      {viewingUser.name || 'Not provided'}
+                    </span>
+                  </div>
+
+                  {/* Email Address */}
+                  <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                      Email Address
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-gray-800 truncate block" title={viewingUser.email}>
+                      {viewingUser.email}
+                    </span>
+                  </div>
+
+                  {/* Phone Number */}
+                  <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                      Phone Number
+                    </span>
+                    {viewingUser.phone ? (
+                      <a 
+                        href={`tel:${viewingUser.phone}`} 
+                        className="text-xs sm:text-sm font-semibold text-blue-600 hover:underline flex items-center gap-1.5"
+                      >
+                        <Phone size={12} className="text-blue-500 shrink-0" />
+                        <span>{viewingUser.phone}</span>
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Not provided</span>
+                    )}
+                  </div>
+
+                  {/* Location */}
+                  <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                      Location
+                    </span>
+                    {viewingUser.location ? (
+                      <span className="text-xs sm:text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                        <MapPin size={12} className="text-rose-500 shrink-0" />
+                        <span>{viewingUser.location}</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Not specified</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scholar Biography */}
+                <div className="bg-gray-50/70 p-3.5 rounded-xl border border-gray-100">
+                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                    Scholar Biography
+                  </span>
+                  {viewingUser.bio ? (
+                    <div className="text-xs sm:text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-white p-3 rounded-lg border border-gray-100 shadow-2xs">
+                      {viewingUser.bio}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic py-1">
+                      No biography provided by the user yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Digital Presence (Matches User Settings) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                    <Globe size={13} className="text-indigo-600" />
+                    Digital Presence
+                  </h5>
+                  <span className="text-[11px] text-gray-400 font-medium">Links & Social Profiles</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Portfolio Website */}
+                  <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                      Portfolio Website
+                    </span>
+                    {viewingUser.website ? (
+                      <a
+                        href={viewingUser.website.startsWith('http') ? viewingUser.website : `https://${viewingUser.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs sm:text-sm font-semibold text-blue-600 hover:underline flex items-center gap-1.5 truncate group"
+                      >
+                        <Globe size={13} className="text-blue-500 shrink-0" />
+                        <span className="truncate">{viewingUser.website}</span>
+                        <ExternalLink size={11} className="opacity-60 group-hover:opacity-100 shrink-0" />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Not provided</span>
+                    )}
+                  </div>
+
+                  {/* LinkedIn Profile */}
+                  <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                      LinkedIn Profile
+                    </span>
+                    {viewingUser.linkedin || viewingUser.socialLinks?.linkedin ? (
+                      <a
+                        href={
+                          (viewingUser.linkedin || viewingUser.socialLinks?.linkedin).startsWith('http')
+                            ? viewingUser.linkedin || viewingUser.socialLinks?.linkedin
+                            : `https://${viewingUser.linkedin || viewingUser.socialLinks?.linkedin}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs sm:text-sm font-semibold text-blue-700 hover:underline flex items-center gap-1.5 truncate group"
+                      >
+                        <LinkedinIcon size={14} className="text-blue-600 shrink-0" />
+                        <span className="truncate">View LinkedIn Profile</span>
+                        <ExternalLink size={11} className="opacity-60 group-hover:opacity-100 shrink-0" />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Not linked</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Enrolled Courses */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                    <BookOpen size={13} className="text-emerald-600" />
+                    Enrolled Courses ({viewingUser.coursesEnrolled})
+                  </h5>
+                </div>
+
+                {viewingUser.enrolledCoursesList && viewingUser.enrolledCoursesList.length > 0 ? (
+                  <div className="space-y-2">
+                    {viewingUser.enrolledCoursesList.map((course, idx) => (
+                      <div 
+                        key={course._id || course.id || idx}
+                        className="flex items-center justify-between p-2.5 bg-gray-50/80 rounded-xl border border-gray-100 text-xs hover:bg-gray-100/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-[10px] shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="font-semibold text-gray-800 truncate">
+                            {course.title || (typeof course === 'string' ? `Course #${course.slice(-6)}` : 'Course')}
+                          </span>
+                        </div>
+                        {course.level && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white text-gray-600 border border-gray-200 shrink-0 ml-2">
+                            {course.level}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100 text-center">
+                    <p className="text-xs text-gray-400 italic">No courses currently enrolled</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between px-6 py-3.5 bg-gray-50/80 border-t border-gray-100 shrink-0">
+              <span className="text-[11px] text-gray-400 flex items-center gap-1">
+                Press <kbd className="px-1.5 py-0.5 bg-white border border-gray-200 rounded text-[10px] font-mono shadow-2xs">Esc</kbd> to close
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingUser(null)}
+                className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-gray-100 animate-fadeIn">
