@@ -23,6 +23,9 @@ const AdminLogin = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    if (name === 'email' && typeof value === 'string') {
+      sessionStorage.setItem('lastLoginEmail', value.trim());
+    }
     if (localError) setLocalError('');
   };
 
@@ -132,6 +135,7 @@ const AdminLogin = () => {
                 </label>
                 <Link
                   to="/forgot-password"
+                  state={{ email: formData.email }}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
                 >
                   Forgot password?

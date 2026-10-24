@@ -32,6 +32,7 @@ import DiscussionForums from './DiscussionForums';
 import SystemSettings from './SystemSettings';
 import KoreanProgramApplications from './KoreanProgramApplications';
 import apiService from '../services/apiService';
+import UserAvatar from '../components/UserAvatar';
 
 const ADMIN_TABS = ['dashboard', 'users', 'courses', 'attendance', 'analytics', 'payments', 'notifications', 'announcements', 'events', 'forums', 'settings', 'applications'];
 
@@ -566,17 +567,13 @@ const AdminDashboard = () => {
                           className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50/70 transition-colors"
                         >
                           <div className="flex items-center gap-3">
-                            {u.avatar ? (
-                              <img
-                                src={u.avatar}
-                                alt={u.name}
-                                className="w-10 h-10 rounded-full object-cover shrink-0 shadow-xs"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
-                                {initials}
-                              </div>
-                            )}
+                            <UserAvatar
+                              user={u}
+                              size="w-10 h-10"
+                              iconSize={18}
+                              showInitials={true}
+                              className="shrink-0 shadow-xs"
+                            />
                             <div>
                               <h4 className="font-bold text-xs sm:text-sm text-gray-900">{u.name}</h4>
                               <p className="text-[11px] text-gray-400">{u.email}</p>

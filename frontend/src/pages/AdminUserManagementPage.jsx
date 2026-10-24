@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
 import toast from 'react-hot-toast';
 import apiUrl, { getWorkingApiUrl } from '../config/apiConfig';
+import UserAvatar from '../components/UserAvatar';
 import {
   UsersIcon,
   PlusIcon,
@@ -346,9 +347,13 @@ const AdminUserManagementPage = () => {
                     <tr key={user._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                            {user.name?.charAt(0)?.toUpperCase() || 'U'}
-                          </div>
+                          <UserAvatar
+                            user={user}
+                            size="h-10 w-10"
+                            iconSize={18}
+                            showInitials={true}
+                            className="shrink-0 ring-1 ring-gray-200"
+                          />
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
                               {user.name}
@@ -694,6 +699,13 @@ const AdminUserManagementPage = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 User Details
               </h3>
+              <div className="flex items-center gap-3.5 mb-4 pb-4 border-b border-gray-100">
+                <UserAvatar user={selectedUser} size="w-12 h-12" iconSize={22} showInitials={true} className="shrink-0 ring-1 ring-gray-200" />
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm">{selectedUser.name}</h4>
+                  <p className="text-xs text-gray-500">{selectedUser.email}</p>
+                </div>
+              </div>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">

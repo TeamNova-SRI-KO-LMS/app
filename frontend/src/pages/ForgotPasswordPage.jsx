@@ -1,11 +1,12 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import apiService from '../services/apiService';
 
 const OTP_LENGTH = 6;
 
 const ForgotPasswordPage = () => {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(() => location.state?.email || sessionStorage.getItem('lastLoginEmail') || '');
   const [otpSent, setOtpSent] = useState(false);
   const [resetRequestToken, setResetRequestToken] = useState('');
   const [verificationCode, setVerificationCode] = useState(
