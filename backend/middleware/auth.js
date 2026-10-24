@@ -64,6 +64,7 @@ exports.protect = async (req, res, next) => {
   }
 
   if (!token) {
+    console.warn(`[auth.protect] No token provided in authorization header for ${req.method} ${req.originalUrl}`);
     return res.status(401).json({
       success: false,
       message: 'Not authorized to access this route',
@@ -72,6 +73,7 @@ exports.protect = async (req, res, next) => {
 
   try {
     if (!process.env.JWT_SECRET) {
+      console.error('[auth.protect] JWT_SECRET is not configured');
       return res.status(500).json({
         success: false,
         message: 'JWT_SECRET is not configured',
@@ -82,6 +84,7 @@ exports.protect = async (req, res, next) => {
     req.user = await User.findById(decoded.id);
 
     if (!req.user) {
+      console.warn(`[auth.protect] User not found for id ${decoded.id}`);
       return res.status(401).json({
         success: false,
         message: 'Token is not valid',
@@ -89,6 +92,7 @@ exports.protect = async (req, res, next) => {
     }
 
     if (!req.user.isActive) {
+      console.warn(`[auth.protect] User ${req.user._id} is deactivated`);
       return res.status(401).json({
         success: false,
         message: 'Account is deactivated',
@@ -97,9 +101,10 @@ exports.protect = async (req, res, next) => {
 
     next();
   } catch (error) {
+    console.warn(`[auth.protect] Token verification failed for ${req.method} ${req.originalUrl}:`, error.message);
     return res.status(401).json({
       success: false,
-      message: 'Token is not valid',
+      message: error.message || 'Token is not valid',
     });
   }
 };
