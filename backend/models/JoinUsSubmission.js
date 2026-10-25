@@ -59,7 +59,7 @@ const joinUsSubmissionSchema = new mongoose.Schema({
   userAgent: String,
   status: {
     type: String,
-    enum: ['pending', 'contacted', 'enrolled', 'rejected', 'new', 'in_progress', 'resolved'],
+    enum: ['new', 'in_progress', 'resolved'],
     default: 'new'
   },
   contactedAt: Date,

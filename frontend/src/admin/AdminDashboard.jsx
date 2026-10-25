@@ -94,7 +94,8 @@ const AdminDashboard = () => {
   const [loadingStats, setLoadingStats] = useState(true);
   const [recentApplications, setRecentApplications] = useState([]);
   const [totalApplications, setTotalApplications] = useState(0);
-  const [pendingApplications, setPendingApplications] = useState(0);
+  const [newApplications, setNewApplications] = useState(0);
+  const [resolvedApplications, setResolvedApplications] = useState(0);
   const [completedCourses, setCompletedCourses] = useState(0);
   const [recentCourses, setRecentCourses] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
@@ -200,7 +201,8 @@ const AdminDashboard = () => {
         if (appsRes.data?.success) {
           setRecentApplications(appsRes.data.data || []);
           setTotalApplications(appsRes.data.total || 0);
-          setPendingApplications(appsRes.data.pending || 0);
+          setNewApplications(appsRes.data.new ?? appsRes.data.pending ?? 0);
+          setResolvedApplications(appsRes.data.resolved ?? appsRes.data.contacted ?? 0);
           (appsRes.data.data || []).forEach((app) => {
             activityItems.push({
               id: `application-${app._id}`,
@@ -487,29 +489,32 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Pending Inquiries */}
+              {/* New Inquiries */}
               <div 
                 onClick={() => handleTabNavigation('applications')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
               >
-                <div className="p-3.5 rounded-2xl bg-orange-50 text-orange-600 shrink-0">
+                <div className="p-3.5 rounded-2xl bg-amber-50 text-amber-600 shrink-0">
                   <FileClock size={24} />
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
-                    Pending Inquiries
+                    New Inquiries
                   </span>
                   <span className="text-2xl font-bold text-gray-900 mt-1 block">
                     {loadingStats ? (
                       <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded" />
-                    ) : pendingApplications.toLocaleString()}
+                    ) : newApplications.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-amber-600 font-medium block mt-0.5">
+                    Awaiting response
                   </span>
                 </div>
               </div>
 
-              {/* Enrolled Students */}
+              {/* Resolved Inquiries */}
               <div 
-                onClick={() => handleTabNavigation('users')}
+                onClick={() => handleTabNavigation('applications')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
               >
                 <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-600 shrink-0">
@@ -517,17 +522,17 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
-                    Enrolled Students
+                    Resolved Inquiries
                   </span>
                   <span className="text-2xl font-bold text-gray-900 mt-1 block">
                     {loadingStats ? (
-                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded"></span>
+                      <span className="inline-block w-16 h-7 bg-gray-200 animate-pulse rounded" />
                     ) : (
-                      enrolledStudents.toLocaleString()
+                      resolvedApplications.toLocaleString()
                     )}
                   </span>
-                  <span className="text-[10px] text-gray-400 font-medium block mt-0.5">
-                    {registeredStudents} registered students
+                  <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
+                    Followed up & resolved
                   </span>
                 </div>
               </div>

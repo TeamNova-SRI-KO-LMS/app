@@ -9,10 +9,15 @@ import {
 import apiService from '../services/apiService';
 
 const STATUS_STYLES = {
-  pending:   'bg-amber-100 text-amber-800 border-amber-200',
-  contacted: 'bg-blue-100 text-blue-800 border-blue-200',
-  enrolled:  'bg-emerald-100 text-emerald-800 border-emerald-200',
-  rejected:  'bg-rose-100 text-rose-800 border-rose-200',
+  new:         'bg-amber-100 text-amber-800 border-amber-200',
+  in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
+  resolved:    'bg-emerald-100 text-emerald-800 border-emerald-200',
+};
+
+const STATUS_LABELS = {
+  new:         'New',
+  in_progress: 'In Progress',
+  resolved:    'Resolved',
 };
 
 const AVATAR_COLORS = [
@@ -61,20 +66,20 @@ function formatDateTime(dateStr) {
   });
 }
 
-const FILTERS = ['ALL', 'PENDING', 'CONTACTED', 'ENROLLED', 'REJECTED'];
+const FILTERS = ['ALL', 'NEW', 'IN PROGRESS', 'RESOLVED'];
 
 const KoreanProgramApplications = () => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [counts, setCounts] = useState({ total: 0, pending: 0, contacted: 0, enrolled: 0, rejected: 0 });
+  const [counts, setCounts] = useState({ total: 0, new: 0, in_progress: 0, resolved: 0 });
   const [updatingId, setUpdatingId] = useState(null);
   const [error, setError] = useState(null);
 
   // Popup Modal state
   const [selectedApp, setSelectedApp] = useState(null);
-  const [modalStatus, setModalStatus] = useState('pending');
+  const [modalStatus, setModalStatus] = useState('new');
   const [modalNotes, setModalNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [modalError, setModalError] = useState(null);
@@ -85,22 +90,26 @@ const KoreanProgramApplications = () => {
     setError(null);
     try {
       const params = new URLSearchParams({ limit: 100 });
-      if (filterStatus !== 'ALL') params.set('status', filterStatus.toLowerCase());
+      if (filterStatus !== 'ALL') params.set('status', filterStatus.toLowerCase().replace(/\s+/g, '_'));
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
 
       const res = await apiService.get(`/join-us?${params.toString()}`);
       if (res.data?.success) {
         setApplications(res.data.data || []);
         if (res.data.counts) {
-          setCounts(res.data.counts);
+          setCounts({
+            total: res.data.counts.total || 0,
+            new: res.data.counts.new || 0,
+            in_progress: res.data.counts.in_progress || 0,
+            resolved: res.data.counts.resolved || 0,
+          });
         } else {
           const apps = res.data.data || [];
           setCounts({
             total: res.data.total || apps.length,
-            pending: apps.filter(a => a.status === 'pending').length,
-            contacted: apps.filter(a => a.status === 'contacted').length,
-            enrolled: apps.filter(a => a.status === 'enrolled').length,
-            rejected: apps.filter(a => a.status === 'rejected').length,
+            new: apps.filter(a => a.status === 'new').length,
+            in_progress: apps.filter(a => a.status === 'in_progress').length,
+            resolved: apps.filter(a => a.status === 'resolved').length,
           });
         }
       }
@@ -119,7 +128,7 @@ const KoreanProgramApplications = () => {
   // Open Details Modal
   const handleOpenDetails = (app) => {
     setSelectedApp(app);
-    setModalStatus(app.status || 'pending');
+    setModalStatus(app.status || 'new');
     setModalNotes(app.notes || '');
     setModalError(null);
   };
@@ -127,7 +136,7 @@ const KoreanProgramApplications = () => {
   // Close Details Modal
   const handleCloseDetails = () => {
     setSelectedApp(null);
-    setModalStatus('pending');
+    setModalStatus('new');
     setModalNotes('');
     setModalError(null);
     setCopiedField(null);
@@ -202,7 +211,7 @@ const KoreanProgramApplications = () => {
 
         // Update stats counts
         setCounts(prev => {
-          const oldStatus = selectedApp.status || 'pending';
+          const oldStatus = selectedApp.status || 'new';
           if (oldStatus === targetStatus) return prev;
           return {
             ...prev,
@@ -251,7 +260,7 @@ const KoreanProgramApplications = () => {
         }
         setCounts(prev => {
           const oldApp = applications.find(a => a._id === id);
-          const oldStatus = oldApp?.status || 'pending';
+          const oldStatus = oldApp?.status || 'new';
           if (oldStatus === newStatus) return prev;
           return {
             ...prev,
@@ -319,10 +328,10 @@ const KoreanProgramApplications = () => {
       {/* Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Applications', value: counts.total, color: 'text-indigo-600', bg: 'bg-indigo-50/50' },
-          { label: 'Pending Review',    value: counts.pending, color: 'text-amber-600', bg: 'bg-amber-50/50' },
-          { label: 'Enrolled Students', value: counts.enrolled, color: 'text-emerald-600', bg: 'bg-emerald-50/50' },
-          { label: 'Rejected',          value: counts.rejected, color: 'text-rose-600', bg: 'bg-rose-50/50' },
+          { label: 'Total Inquiries', value: counts.total, color: 'text-indigo-600', bg: 'bg-indigo-50/50' },
+          { label: 'New',             value: counts.new, color: 'text-amber-600', bg: 'bg-amber-50/50' },
+          { label: 'In Progress',     value: counts.in_progress, color: 'text-blue-600', bg: 'bg-blue-50/50' },
+          { label: 'Resolved',        value: counts.resolved, color: 'text-emerald-600', bg: 'bg-emerald-50/50' },
         ].map(({ label, value, color, bg }) => (
           <div key={label} className={`bg-white rounded-xl border border-gray-100 p-4 shadow-xs text-center ${bg}`}>
             <span className={`text-2xl font-bold ${color}`}>{loading ? '—' : value}</span>
@@ -512,7 +521,7 @@ const KoreanProgramApplications = () => {
                 <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-3 sm:pt-0 shrink-0">
                   <div className="text-right">
                     <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase border ${STATUS_STYLES[status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
-                      {status}
+                      {STATUS_LABELS[status] || status}
                     </span>
                     <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 justify-end">
                       <Calendar size={10} />
@@ -533,28 +542,20 @@ const KoreanProgramApplications = () => {
                   {/* Quick Action Buttons */}
                   <div className="flex items-center gap-1 border-l border-gray-100 pl-2">
                     <button
-                      onClick={() => handleListStatusChange(app._id, 'enrolled')}
-                      disabled={updatingId === app._id || status === 'enrolled'}
+                      onClick={() => handleListStatusChange(app._id, 'in_progress')}
+                      disabled={updatingId === app._id || status === 'in_progress'}
+                      className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-40 rounded-lg transition-colors cursor-pointer"
+                      title="Mark In Progress"
+                    >
+                      <Clock size={17} />
+                    </button>
+                    <button
+                      onClick={() => handleListStatusChange(app._id, 'resolved')}
+                      disabled={updatingId === app._id || status === 'resolved'}
                       className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 rounded-lg transition-colors cursor-pointer"
-                      title="Approve / Enroll"
+                      title="Mark Resolved"
                     >
                       <CheckCircle2 size={17} />
-                    </button>
-                    <button
-                      onClick={() => handleListStatusChange(app._id, 'contacted')}
-                      disabled={updatingId === app._id || status === 'contacted'}
-                      className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-40 rounded-lg transition-colors cursor-pointer"
-                      title="Mark as Contacted"
-                    >
-                      <PhoneCall size={17} />
-                    </button>
-                    <button
-                      onClick={() => handleListStatusChange(app._id, 'rejected')}
-                      disabled={updatingId === app._id || status === 'rejected'}
-                      className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 disabled:opacity-40 rounded-lg transition-colors cursor-pointer"
-                      title="Reject"
-                    >
-                      <XCircle size={17} />
                     </button>
                   </div>
                 </div>
@@ -800,31 +801,25 @@ const KoreanProgramApplications = () => {
                   </p>
 
                   {/* Interactive Status Selector Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-3 gap-2.5">
                     {[
                       {
-                        key: 'pending',
-                        label: 'Pending',
+                        key: 'new',
+                        label: 'New',
                         activeClass: 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-300 shadow-xs',
                         inactiveClass: 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50',
                       },
                       {
-                        key: 'contacted',
-                        label: 'Contacted',
+                        key: 'in_progress',
+                        label: 'In Progress',
                         activeClass: 'bg-blue-600 text-white border-blue-700 ring-2 ring-blue-300 shadow-xs',
                         inactiveClass: 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50',
                       },
                       {
-                        key: 'enrolled',
-                        label: 'Enrolled',
+                        key: 'resolved',
+                        label: 'Resolved',
                         activeClass: 'bg-emerald-600 text-white border-emerald-700 ring-2 ring-emerald-300 shadow-xs',
                         inactiveClass: 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50',
-                      },
-                      {
-                        key: 'rejected',
-                        label: 'Rejected',
-                        activeClass: 'bg-rose-600 text-white border-rose-700 ring-2 ring-rose-300 shadow-xs',
-                        inactiveClass: 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50',
                       },
                     ].map(({ key, label, activeClass, inactiveClass }) => {
                       const isSelected = modalStatus === key;

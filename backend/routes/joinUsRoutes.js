@@ -60,7 +60,16 @@ router.get('/', protect, authorize('admin', 'instructor'), async (req, res) => {
     const query = {};
 
     if (status && status !== 'ALL') {
-      query.status = String(status).toLowerCase();
+      const s = String(status).toLowerCase().replace(/\s+/g, '_');
+      if (s === 'new' || s === 'pending') {
+        query.status = { $in: ['new', 'pending'] };
+      } else if (s === 'in_progress' || s === 'contacted') {
+        query.status = { $in: ['in_progress', 'contacted'] };
+      } else if (s === 'resolved' || s === 'enrolled' || s === 'rejected') {
+        query.status = { $in: ['resolved', 'enrolled', 'rejected'] };
+      } else {
+        query.status = s;
+      }
     }
 
     if (search) {
@@ -76,17 +85,28 @@ router.get('/', protect, authorize('admin', 'instructor'), async (req, res) => {
       .limit(Number(limit))
       .lean();
 
+    const newCount = await JoinUsSubmission.countDocuments({ status: { $in: ['new', 'pending'] } });
+    const inProgressCount = await JoinUsSubmission.countDocuments({ status: { $in: ['in_progress', 'contacted'] } });
+    const resolvedCount = await JoinUsSubmission.countDocuments({ status: { $in: ['resolved', 'enrolled', 'rejected'] } });
+
     const counts = {
       total: await JoinUsSubmission.countDocuments(),
-      pending: await JoinUsSubmission.countDocuments({ status: 'pending' }),
-      contacted: await JoinUsSubmission.countDocuments({ status: 'contacted' }),
-      enrolled: await JoinUsSubmission.countDocuments({ status: 'enrolled' }),
-      rejected: await JoinUsSubmission.countDocuments({ status: 'rejected' }),
+      new: newCount,
+      in_progress: inProgressCount,
+      resolved: resolvedCount,
     };
+
+    const normalizedSubmissions = submissions.map((sub) => {
+      let st = sub.status;
+      if (st === 'pending') st = 'new';
+      else if (st === 'contacted') st = 'in_progress';
+      else if (st === 'enrolled' || st === 'rejected') st = 'resolved';
+      return { ...sub, status: st || 'new' };
+    });
 
     return res.json({
       success: true,
-      data: submissions,
+      data: normalizedSubmissions,
       total,
       counts,
       page: Number(page),
@@ -108,11 +128,28 @@ router.get('/recent', protect, authorize('admin', 'instructor'), async (req, res
       .limit(limit)
       .lean();
 
+    const normalizedSubmissions = submissions.map((sub) => {
+      let st = sub.status;
+      if (st === 'pending') st = 'new';
+      else if (st === 'contacted') st = 'in_progress';
+      else if (st === 'enrolled' || st === 'rejected') st = 'resolved';
+      return { ...sub, status: st || 'new' };
+    });
+
     // Stats
     const total = await JoinUsSubmission.countDocuments();
-    const pending = await JoinUsSubmission.countDocuments({ status: 'pending' });
+    const newCount = await JoinUsSubmission.countDocuments({ status: { $in: ['new', 'pending'] } });
+    const inProgressCount = await JoinUsSubmission.countDocuments({ status: { $in: ['in_progress', 'contacted'] } });
+    const resolvedCount = await JoinUsSubmission.countDocuments({ status: { $in: ['resolved', 'enrolled', 'rejected'] } });
 
-    return res.json({ success: true, data: submissions, total, pending });
+    return res.json({
+      success: true,
+      data: normalizedSubmissions,
+      total,
+      new: newCount,
+      in_progress: inProgressCount,
+      resolved: resolvedCount,
+    });
   } catch (error) {
     console.error('Join-Us recent error:', error);
     return res.status(500).json({ success: false, message: 'Server error.' });
@@ -130,7 +167,11 @@ router.get('/:id', protect, authorize('admin', 'instructor'), async (req, res) =
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Application not found.' });
     }
-    return res.json({ success: true, data: submission });
+    let st = submission.status;
+    if (st === 'pending') st = 'new';
+    else if (st === 'contacted') st = 'in_progress';
+    else if (st === 'enrolled' || st === 'rejected') st = 'resolved';
+    return res.json({ success: true, data: { ...submission, status: st || 'new' } });
   } catch (error) {
     console.error('Join-Us get error:', error);
     return res.status(500).json({ success: false, message: 'Server error.' });
@@ -144,18 +185,23 @@ const handleStatusUpdate = async (req, res) => {
     const { id } = req.params;
     const { status, notes } = req.body;
 
-    const allowed = ['pending', 'contacted', 'enrolled', 'rejected', 'new', 'in_progress', 'resolved'];
-    if (status && !allowed.includes(status)) {
+    let targetStatus = status;
+    if (status === 'pending') targetStatus = 'new';
+    else if (status === 'contacted') targetStatus = 'in_progress';
+    else if (status === 'enrolled' || status === 'rejected') targetStatus = 'resolved';
+
+    const allowed = ['new', 'in_progress', 'resolved'];
+    if (targetStatus && !allowed.includes(targetStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status value '${status}'. Allowed values: ${allowed.join(', ')}`,
+        message: `Invalid status value '${status}'. Allowed values: new, in_progress, resolved`,
       });
     }
 
     const updateData = {};
-    if (status) {
-      updateData.status = status;
-      if (status === 'contacted') {
+    if (targetStatus) {
+      updateData.status = targetStatus;
+      if (targetStatus === 'in_progress' || targetStatus === 'resolved') {
         updateData.contactedAt = new Date();
       }
     }
