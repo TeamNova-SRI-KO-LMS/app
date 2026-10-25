@@ -24,6 +24,7 @@ import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import StudentSidebar from '../components/StudentSidebar';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 export default function DashboardPage() {
   const { user, logout, loading: authLoading, isAuthenticated } = useAuth();
@@ -465,11 +466,25 @@ export default function DashboardPage() {
                     className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex gap-4 items-center hover:shadow-md hover:border-blue-100 transition group"
                   >
                     {course.thumbnail ? (
-                      <img
-                        src={course.thumbnail}
-                        alt={course.title}
-                        className="w-16 h-16 rounded-xl object-cover border border-gray-100 flex-shrink-0"
-                      />
+                      isVideoUrl(course.thumbnail) ? (
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-gray-100 flex-shrink-0">
+                          <video
+                            src={course.thumbnail}
+                            className="w-full h-full object-cover"
+                            muted
+                            preload="metadata"
+                          />
+                          <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                            <Play size={10} className="text-white fill-current translate-x-0.5" />
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={course.thumbnail}
+                          alt={course.title}
+                          className="w-16 h-16 rounded-xl object-cover border border-gray-100 flex-shrink-0"
+                        />
+                      )
                     ) : (
                       <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center border border-blue-200/60 shadow-inner flex-shrink-0">
                         <span className="font-serif text-xl font-bold text-blue-800 tracking-tighter">

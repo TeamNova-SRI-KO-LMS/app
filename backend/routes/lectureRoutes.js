@@ -124,7 +124,7 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
 router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thumbnail'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Please select an image file.' });
+      return res.status(400).json({ success: false, message: 'Please select an image or video file.' });
     }
 
     const storageResult = await uploadToStorage(
@@ -210,7 +210,7 @@ router.post('/link', protect, authorize('admin'), async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 4. GET: Materials for a Course (Enrolled students or admin get full access; unenrolled only see titles and public preview videos)
+// 4. GET: Materials for a Course (Enrolled students or admin get full URLs, unenrolled get curriculum text + public previews)
 // GET /api/lectures/course/:courseId
 // ─────────────────────────────────────────────────────────────
 router.get('/course/:courseId', optionalAuth, async (req, res) => {
@@ -223,56 +223,71 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    const isAuthorized = hasCourseAccess(req.user, course);
+    const hasAccess = await hasCourseAccess(req.user, course);
 
     const materials = await LectureMaterial.find({ course: courseId })
       .sort({ weekNumber: 1, order: 1, createdAt: 1 })
       .populate('uploadedBy', 'name');
 
-    // If enrolled student, instructor, or admin: return all materials with full streaming/download URLs
-    if (isAuthorized) {
+    // Enrolled students, course instructors, and admins get all materials with full playback & download URLs
+    if (hasAccess) {
       return res.status(200).json({
         success: true,
         count: materials.length,
-        isEnrolled: true,
-        materials: materials.map((m) => {
-          const doc = m.toObject ? m.toObject() : { ...m };
-          doc.isLocked = false;
-          return doc;
-        }),
+        hasFullAccess: true,
+        materials,
       });
     }
 
-    // Unenrolled visitors/students: can only see topics & titles, and can ONLY watch videos admin accepted for everyone (isPreview: true)
+    // Unenrolled users can only view curriculum text (titles, topics, week numbers)
+    // and video playback strictly for videos explicitly marked as preview/public (isPreview: true).
     const sanitizedMaterials = materials.map((m) => {
-      const doc = m.toObject ? m.toObject() : { ...m };
-      if (doc.isPreview) {
-        // Free preview video published for everyone by admin -> full playback URLs included
-        doc.isLocked = false;
-        return doc;
+      const isPublic = Boolean(m.isPreview);
+
+      if (isPublic) {
+        // Public preview: playback URLs are permitted
+        return {
+          _id: m._id,
+          course: m.course,
+          weekNumber: m.weekNumber,
+          lessonIndex: m.lessonIndex,
+          lessonTitle: m.lessonTitle,
+          title: m.title,
+          description: m.description,
+          type: m.type,
+          isPreview: true,
+          isLocked: false,
+          viewUrl: m.viewUrl,
+          embedUrl: m.embedUrl,
+          externalUrl: m.externalUrl,
+          fileName: m.fileName,
+          mimeType: m.mimeType,
+          order: m.order,
+          createdAt: m.createdAt,
+        };
       }
 
-      // Not published for everyone -> strip streaming URLs, download URLs, and Drive file IDs
+      // Restricted material: ONLY curriculum text and topics, NO playback/download URLs
       return {
-        _id: doc._id,
-        course: doc.course,
-        weekNumber: doc.weekNumber,
-        lessonIndex: doc.lessonIndex,
-        lessonTitle: doc.lessonTitle,
-        title: doc.title,
-        description: doc.description,
-        type: doc.type,
+        _id: m._id,
+        course: m.course,
+        weekNumber: m.weekNumber,
+        lessonIndex: m.lessonIndex,
+        lessonTitle: m.lessonTitle,
+        title: m.title,
+        description: m.description,
+        type: m.type,
         isPreview: false,
         isLocked: true,
-        fileSizeBytes: doc.fileSizeBytes,
-        createdAt: doc.createdAt,
+        order: m.order,
+        createdAt: m.createdAt,
       };
     });
 
     res.status(200).json({
       success: true,
       count: sanitizedMaterials.length,
-      isEnrolled: false,
+      hasFullAccess: false,
       materials: sanitizedMaterials,
     });
   } catch (error) {
@@ -282,7 +297,7 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 5. GET: Single Material by ID
+// 5. GET: Single Material by ID (Guarded for restricted content)
 // GET /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
 router.get('/:id', optionalAuth, async (req, res) => {
@@ -292,22 +307,25 @@ router.get('/:id', optionalAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
 
-    // If admin accepted for everyone (isPreview: true), allow anyone to view/watch
+    // Public preview videos/materials are accessible to everyone
     if (material.isPreview) {
       return res.status(200).json({ success: true, material });
     }
 
-    // Otherwise, user must be enrolled in the course or be admin/instructor
+    // Restricted materials require enrollment, instructor, or admin access
     const course = await Course.findById(material.course);
-    if (!course || !hasCourseAccess(req.user, course)) {
+    const hasAccess = await hasCourseAccess(req.user, course);
+
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
-        message: 'This video is only available to enrolled students. Please enroll to watch.',
+        message: 'Access denied. You must be enrolled in this course to view this restricted content.',
       });
     }
 
     res.status(200).json({ success: true, material });
   } catch (error) {
+    console.error('[lectureRoutes] Get single material error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -339,7 +357,7 @@ router.patch('/:id/toggle-preview', protect, authorize('admin'), async (req, res
 });
 
 // ─────────────────────────────────────────────────────────────
-// 6. ADMIN: Delete a material (deletes from Supabase Storage & MongoDB)
+// 7. ADMIN: Delete a material (deletes from Supabase Storage & MongoDB)
 // DELETE /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
 router.delete('/:id', protect, authorize('admin'), async (req, res) => {

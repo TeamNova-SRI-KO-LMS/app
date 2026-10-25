@@ -1,9 +1,9 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize, hasCourseAccess } = require('../middleware/auth');
+const { protect, authorize, optionalAuth, hasCourseAccess } = require('../middleware/auth');
+const Course = require('../models/Course');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
-const Course = require('../models/Course');
 const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
 
 const router = express.Router();
@@ -67,15 +67,44 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
 // 2. GET: Assignments for a Course
 // GET /api/assignments/course/:courseId
 // ─────────────────────────────────────────────────────────────
-router.get('/course/:courseId', async (req, res) => {
+router.get('/course/:courseId', optionalAuth, async (req, res) => {
   try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const hasAccess = await hasCourseAccess(req.user, course);
     const assignments = await Assignment.find({ course: req.params.courseId })
       .sort({ weekNumber: 1, createdAt: 1 });
 
+    if (hasAccess) {
+      return res.status(200).json({
+        success: true,
+        count: assignments.length,
+        hasFullAccess: true,
+        assignments,
+      });
+    }
+
+    // Unenrolled users: only title and week metadata for curriculum display
+    const sanitized = assignments.map((a) => ({
+      _id: a._id,
+      course: a.course,
+      weekNumber: a.weekNumber,
+      lessonTitle: a.lessonTitle,
+      title: a.title,
+      description: a.description,
+      dueDate: a.dueDate,
+      maxScore: a.maxScore,
+      isLocked: true,
+    }));
+
     res.status(200).json({
       success: true,
-      count: assignments.length,
-      assignments,
+      count: sanitized.length,
+      hasFullAccess: false,
+      assignments: sanitized,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch assignments.' });
@@ -86,12 +115,21 @@ router.get('/course/:courseId', async (req, res) => {
 // 3. GET: Single Assignment Details
 // GET /api/assignments/:id
 // ─────────────────────────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    const assignment = await Assignment.findById(req.params.id).populate('course', 'title');
+    const assignment = await Assignment.findById(req.params.id).populate('course', 'title instructor enrolledStudents');
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
     }
+
+    const hasAccess = await hasCourseAccess(req.user, assignment.course);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You must be enrolled in this course to view assignment details.',
+      });
+    }
+
     res.status(200).json({ success: true, assignment });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
@@ -114,10 +152,11 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
     }
 
     const course = await Course.findById(assignment.course);
-    if (!course || !hasCourseAccess(req.user, course)) {
+    const hasAccess = await hasCourseAccess(req.user, course);
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
-        message: 'You must be enrolled in this course to submit assignments.',
+        message: 'Access denied. You must be enrolled in this course to submit assignments.',
       });
     }
 

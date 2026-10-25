@@ -15,6 +15,7 @@ import apiService from '../services/apiService';
 import lectureService from '../services/lectureService';
 import assignmentService from '../services/assignmentService';
 import useAuth from '../context/useAuth';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 export default function CourseInfoPage() {
   const { id } = useParams();
@@ -68,16 +69,16 @@ export default function CourseInfoPage() {
       // If no ID in route, try to find an enrolled course or redirect
       (async () => {
         try {
-          const res = await apiService.get('/courses');
+          const res = await apiService.get('/courses/my-courses');
           if (res.data?.courses?.length > 0) {
             navigate(`/course-info/${res.data.courses[0]._id}`, { replace: true });
           } else {
-            setError('No courses available yet.');
-            setLoading(false);
+            toast.error('You are not enrolled in any courses yet.');
+            navigate('/courses', { replace: true });
           }
         } catch {
-          setError('Failed to load courses.');
-          setLoading(false);
+          toast.error('Failed to load courses.');
+          navigate('/courses', { replace: true });
         }
       })();
       return;
@@ -86,17 +87,43 @@ export default function CourseInfoPage() {
     const loadClassroomData = async () => {
       try {
         setLoading(true);
-        const [courseRes, matsRes, assignRes] = await Promise.allSettled([
-          apiService.get(`/courses/${courseId}`),
+        setError(null);
+
+        // Fetch course details with access status
+        const courseRes = await apiService.get(`/courses/${courseId}`);
+        const courseData = courseRes.data?.course ?? null;
+
+        if (!courseData) {
+          setError('Course not found.');
+          setLoading(false);
+          return;
+        }
+
+        // Access check: Admin, course instructor, or enrolled student
+        const currentUserId = user?._id || user?.id;
+        const isAdmin = user?.role === 'admin';
+        const isInstructor = courseData?.instructor &&
+          (String(courseData.instructor._id || courseData.instructor) === String(currentUserId));
+        const isEnrolledInCourseDoc = Array.isArray(courseData?.enrolledStudents) &&
+          courseData.enrolledStudents.some(s => String(s._id || s.id || s) === String(currentUserId));
+        const isEnrolledInUserDoc = Array.isArray(user?.enrolledCourses) &&
+          user.enrolledCourses.some(c => String(c._id || c.id || c) === String(courseId));
+        const serverConfirmed = Boolean(courseRes.data?.isEnrolled);
+
+        const hasAccess = isAdmin || isInstructor || isEnrolledInCourseDoc || isEnrolledInUserDoc || serverConfirmed;
+
+        if (!hasAccess) {
+          toast.error('Access restricted: You must be enrolled in this course to access the classroom.');
+          navigate(`/courses/${courseId}`, { replace: true });
+          return;
+        }
+
+        setCourse(courseData);
+
+        const [matsRes, assignRes] = await Promise.allSettled([
           lectureService.getCourseMaterials(courseId),
           assignmentService.getCourseAssignments(courseId),
         ]);
-
-        let courseData = null;
-        if (courseRes.status === 'fulfilled') {
-          courseData = courseRes.value.data?.course ?? null;
-          setCourse(courseData);
-        }
 
         let matsData = [];
         if (matsRes.status === 'fulfilled') {
@@ -110,90 +137,29 @@ export default function CourseInfoPage() {
           setAssignments(assignData);
         }
 
-        const userHasAccess = Boolean(
-          user?.role === 'admin' ||
-          (courseData?.instructor && (String(courseData.instructor?._id || courseData.instructor) === String(user?._id || user?.id))) ||
-          courseData?.enrolledStudents?.some((student) => {
-            const studentId = typeof student === 'object' ? (student?._id || student?.id) : student;
-            const currentUserId = user?._id || user?.id;
-            return studentId && currentUserId && String(studentId) === String(currentUserId);
-          }) ||
-          user?.enrolledCourses?.some((c) => {
-            const cId = typeof c === 'object' ? (c?._id || c?.id) : c;
-            return cId && (courseId || courseData?._id) && String(cId) === String(courseId || courseData?._id);
-          }) ||
-          courseData?.isEnrolled
-        );
-
-        // Auto-select first available material or lesson:
-        // Enrolled: first material or lesson
-        // Unenrolled: only first FREE PREVIEW material/lesson published by admin for everyone
-        if (userHasAccess) {
-          if (matsData.length > 0) {
-            setSelectedMaterial(matsData[0]);
-          } else if (courseData?.curriculum?.[0]?.lessons?.[0]) {
-            const firstLesson = courseData.curriculum[0].lessons[0];
-            setSelectedMaterial({
-              _id: 'lesson-0',
-              title: firstLesson.title,
-              type: firstLesson.type || 'video',
-              description: courseData.description,
-              lessonTitle: courseData.curriculum[0].title,
-              weekNumber: 1,
-              embedUrl: firstLesson.content || courseData.thumbnail,
-              viewUrl: firstLesson.content || courseData.thumbnail,
-              isLocked: false,
-            });
-          }
-        } else {
-          // Find first material or lesson where admin accepted for everyone
-          const previewMat = matsData.find(m => m.isPreview);
-          if (previewMat) {
-            setSelectedMaterial(previewMat);
-          } else {
-            let previewLessonFound = null;
-            for (let w = 0; w < (courseData?.curriculum || []).length; w++) {
-              const week = courseData.curriculum[w];
-              const pLesson = (week.lessons || []).find(l => l.isFreePreview);
-              if (pLesson) {
-                previewLessonFound = {
-                  _id: `curriculum-${w}-preview`,
-                  title: pLesson.title,
-                  type: pLesson.type || 'video',
-                  description: courseData.description,
-                  lessonTitle: week.title,
-                  weekNumber: week.week || (w + 1),
-                  embedUrl: pLesson.content || courseData.thumbnail,
-                  viewUrl: pLesson.content || courseData.thumbnail,
-                  isPreview: true,
-                  isFreePreview: true,
-                  isLocked: false,
-                };
-                break;
-              }
-            }
-
-            if (previewLessonFound) {
-              setSelectedMaterial(previewLessonFound);
-            } else if (matsData.length > 0) {
-              setSelectedMaterial({ ...matsData[0], isLocked: true });
-            } else if (courseData?.curriculum?.[0]?.lessons?.[0]) {
-              const firstLesson = courseData.curriculum[0].lessons[0];
-              setSelectedMaterial({
-                _id: 'lesson-0',
-                title: firstLesson.title,
-                type: firstLesson.type || 'video',
-                description: courseData.description,
-                lessonTitle: courseData.curriculum[0].title,
-                weekNumber: 1,
-                isLocked: true,
-              });
-            }
-          }
+        // Auto-select first available material or lesson
+        if (matsData.length > 0) {
+          setSelectedMaterial(matsData[0]);
+        } else if (courseData?.curriculum?.[0]?.lessons?.[0]) {
+          const firstLesson = courseData.curriculum[0].lessons[0];
+          setSelectedMaterial({
+            _id: 'lesson-0',
+            title: firstLesson.title,
+            type: firstLesson.type || 'video',
+            description: courseData.description,
+            lessonTitle: courseData.curriculum[0].title,
+            weekNumber: 1,
+            embedUrl: courseData.thumbnail,
+          });
         }
       } catch (err) {
         console.error('Failed to load classroom data:', err);
-        setError('Failed to load classroom content.');
+        if (err?.response?.status === 403) {
+          toast.error('Access restricted: You must be enrolled in this course to access the classroom.');
+          navigate(`/courses/${courseId}`, { replace: true });
+        } else {
+          setError('Failed to load classroom content.');
+        }
       } finally {
         setLoading(false);
       }
@@ -314,32 +280,15 @@ export default function CourseInfoPage() {
           <h2 className="text-lg font-bold text-gray-900 mb-1">Classroom Unavailable</h2>
           <p className="text-xs text-gray-500 mb-6">{error || 'Course not found.'}</p>
           <Link 
-            to="/courses" 
+            to={id ? `/courses/${id}` : "/courses"} 
             className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition"
           >
-            ← Back to Courses
+            ← View Course &amp; Enroll
           </Link>
         </div>
       </div>
     );
   }
-
-  const isEnrolled = Boolean(
-    user?.role === 'admin' ||
-    (course?.instructor && (String(course.instructor?._id || course.instructor) === String(user?._id || user?.id))) ||
-    course?.enrolledStudents?.some((student) => {
-      const studentId = typeof student === 'object' ? (student?._id || student?.id) : student;
-      const currentUserId = user?._id || user?.id;
-      return studentId && currentUserId && String(studentId) === String(currentUserId);
-    }) ||
-    user?.enrolledCourses?.some((c) => {
-      const cId = typeof c === 'object' ? (c?._id || c?.id) : c;
-      return cId && (id || course?._id) && String(cId) === String(id || course?._id);
-    }) ||
-    course?.isEnrolled
-  );
-
-  const isLockedItem = !isEnrolled && (selectedMaterial?.isLocked || (!selectedMaterial?.isPreview && !selectedMaterial?.isFreePreview));
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-800 font-sans">
@@ -361,23 +310,9 @@ export default function CourseInfoPage() {
             <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
               {course.level || 'Intermediate'}
             </span>
-            {!isEnrolled && (
-              <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
-                <Lock size={10} /> Preview Mode
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
-            {!isEnrolled && (
-              <button
-                onClick={() => navigate(`/courses/${id || course._id}`)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              >
-                <Sparkles size={13} />
-                <span>Enroll in Course</span>
-              </button>
-            )}
             <button
               onClick={handleShare}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition cursor-pointer"
@@ -387,35 +322,6 @@ export default function CourseInfoPage() {
             </button>
           </div>
         </div>
-
-        {/* Unenrolled Visitor Notice Banner */}
-        {!isEnrolled && (
-          <div className="mb-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-5 rounded-3xl border border-blue-500/20 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-400/30 text-blue-300 flex items-center justify-center shrink-0">
-                <Lock className="w-5 h-5 text-blue-300" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-blue-500/30 text-blue-200 border border-blue-400/30 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Unenrolled Visitor
-                  </span>
-                  <span className="text-xs text-blue-200/70">• Syllabus &amp; Public Previews Only</span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-white mt-0.5">
-                  You can explore course topics and lesson titles. Full video lectures are locked for enrolled students, except videos accepted for everyone by admin.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate(`/courses/${id || course._id}`)}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition whitespace-nowrap cursor-pointer flex items-center gap-2 shrink-0"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Unlock Full Course</span>
-            </button>
-          </div>
-        )}
 
         {/* Classroom Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -469,80 +375,44 @@ export default function CourseInfoPage() {
                       {materials.map((mat) => {
                         const isSelected = selectedMaterial?._id === mat._id;
                         const isDone = completedItemIds.includes(mat._id);
-                        const isLocked = !isEnrolled && !mat.isPreview;
 
                         return (
                           <div 
                             key={mat._id}
-                            onClick={() => {
-                              setSelectedMaterial({
-                                ...mat,
-                                isLocked,
-                              });
-                            }}
+                            onClick={() => setSelectedMaterial(mat)}
                             className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs transition-all cursor-pointer group ${
                               isSelected
-                                ? isLocked
-                                  ? 'bg-amber-50 text-amber-900 font-bold border-l-4 border-l-amber-500 shadow-2xs'
-                                  : 'bg-blue-50 text-blue-700 font-bold border-l-4 border-l-blue-600 shadow-2xs' 
-                                : isLocked
-                                  ? 'text-gray-500 hover:bg-gray-100/60 opacity-80'
-                                  : 'text-gray-700 hover:bg-gray-50'
+                                ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-l-blue-600 shadow-2xs' 
+                                : 'text-gray-700 hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              {isLocked ? (
-                                <div className="shrink-0 text-gray-400" title="Locked - Enrolled Only">
-                                  <Lock className="w-3.5 h-3.5" />
-                                </div>
-                              ) : (
-                                <button 
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); toggleComplete(mat._id); }}
-                                  className="shrink-0 text-gray-400 hover:text-emerald-600 transition"
-                                  title={isDone ? 'Mark Incomplete' : 'Mark Completed'}
-                                >
-                                  {isDone ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                  ) : (
-                                    <Circle className="w-4 h-4" />
-                                  )}
-                                </button>
-                              )}
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(mat._id); }}
+                                className="shrink-0 text-gray-400 hover:text-emerald-600 transition"
+                                title={isDone ? 'Mark Incomplete' : 'Mark Completed'}
+                              >
+                                {isDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Circle className="w-4 h-4" />
+                                )}
+                              </button>
 
                               <div className="shrink-0">
-                                {isLocked ? (
-                                  <Video className="w-3.5 h-3.5 text-gray-400" />
-                                ) : (
-                                  <>
-                                    {mat.type === 'video' && <Video className={`w-3.5 h-3.5 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />}
-                                    {mat.type === 'pdf' && <FileText className={`w-3.5 h-3.5 ${isSelected ? 'text-red-600' : 'text-gray-400'}`} />}
-                                    {mat.type === 'image' && <ImageIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-600' : 'text-gray-400'}`} />}
-                                    {mat.type === 'link' && <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
-                                  </>
-                                )}
+                                {mat.type === 'video' && <Video className={`w-3.5 h-3.5 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'pdf' && <FileText className={`w-3.5 h-3.5 ${isSelected ? 'text-red-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'image' && <ImageIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'link' && <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
                               </div>
 
                               <span className="truncate">{mat.title}</span>
                             </div>
 
-                            <div className="shrink-0 flex items-center gap-1">
-                              {mat.isPreview && !isEnrolled && (
-                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase">
-                                  Preview
-                                </span>
-                              )}
-                              {isLocked && (
-                                <span className="text-[9px] font-bold text-gray-500 bg-gray-200/80 px-1.5 py-0.5 rounded-full uppercase">
-                                  Locked
-                                </span>
-                              )}
-                              {!isLocked && (
-                                <span className="text-[10px] font-mono text-gray-400 uppercase">
-                                  {mat.type}
-                                </span>
-                              )}
-                            </div>
+                            <span className="text-[10px] font-mono text-gray-400 shrink-0 uppercase">
+                              {mat.type}
+                            </span>
                           </div>
                         );
                       })}
@@ -560,31 +430,15 @@ export default function CourseInfoPage() {
                       {assignments.map((assign) => (
                         <div 
                           key={assign._id}
-                          onClick={() => {
-                            if (!isEnrolled) {
-                              toast('🔒 Course assignments are reserved for enrolled students.', { icon: '📝' });
-                              return;
-                            }
-                            handleOpenAssignmentModal(assign);
-                          }}
-                          className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs border transition-all cursor-pointer font-medium ${
-                            isEnrolled
-                              ? 'bg-amber-50/40 hover:bg-amber-50 border-amber-200/50 text-amber-900'
-                              : 'bg-gray-50/60 hover:bg-gray-100/70 border-gray-200 text-gray-500'
-                          }`}
+                          onClick={() => handleOpenAssignmentModal(assign)}
+                          className="w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs bg-amber-50/40 hover:bg-amber-50 border border-amber-200/50 text-amber-900 transition-all cursor-pointer font-medium"
                         >
                           <div className="flex items-center gap-2 truncate">
-                            {isEnrolled ? (
-                              <ClipboardList className="w-4 h-4 text-amber-600 shrink-0" />
-                            ) : (
-                              <Lock className="w-4 h-4 text-gray-400 shrink-0" />
-                            )}
+                            <ClipboardList className="w-4 h-4 text-amber-600 shrink-0" />
                             <span className="truncate">{assign.title}</span>
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
-                            isEnrolled ? 'text-amber-700 bg-amber-100' : 'text-gray-500 bg-gray-200/70'
-                          }`}>
-                            {isEnrolled ? 'Submit 📤' : 'Locked'}
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md shrink-0">
+                            Submit 📤
                           </span>
                         </div>
                       ))}
@@ -603,7 +457,6 @@ export default function CourseInfoPage() {
                         const lessonKey = `curriculum-${widx}-${lidx}`;
                         const isSelected = selectedMaterial?._id === lessonKey;
                         const isDone = completedItemIds.includes(lessonKey);
-                        const isLocked = !isEnrolled && !lesson.isFreePreview;
 
                         return (
                           <div 
@@ -614,63 +467,33 @@ export default function CourseInfoPage() {
                               type: lesson.type || 'video',
                               lessonTitle: week.title,
                               weekNumber: widx + 1,
-                              description: isLocked ? null : (lesson.content || course.description),
-                              embedUrl: isLocked ? null : (lesson.content || course.thumbnail),
-                              viewUrl: isLocked ? null : (lesson.content || course.thumbnail),
-                              isFreePreview: Boolean(lesson.isFreePreview),
-                              isPreview: Boolean(lesson.isFreePreview),
-                              isLocked,
+                              description: lesson.content || course.description,
+                              embedUrl: course.thumbnail,
                             })}
                             className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs transition-all cursor-pointer ${
                               isSelected
-                                ? isLocked
-                                  ? 'bg-amber-50 text-amber-900 font-bold border-l-4 border-l-amber-500'
-                                  : 'bg-blue-50 text-blue-700 font-bold border-l-4 border-l-blue-600'
-                                : isLocked
-                                  ? 'text-gray-500 hover:bg-gray-100/60 opacity-80'
-                                  : 'text-gray-700 hover:bg-gray-50'
+                                ? 'bg-blue-50 text-blue-700 font-bold border-l-4 border-l-blue-600'
+                                : 'text-gray-700 hover:bg-gray-50'
                             }`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              {isLocked ? (
-                                <div className="shrink-0 text-gray-400" title="Locked - Enrolled Only">
-                                  <Lock className="w-3.5 h-3.5" />
-                                </div>
-                              ) : (
-                                <button 
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); toggleComplete(lessonKey); }}
-                                  className="shrink-0 text-gray-400 hover:text-emerald-600"
-                                >
-                                  {isDone ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                  ) : (
-                                    <Circle className="w-4 h-4" />
-                                  )}
-                                </button>
-                              )}
-                              {isLocked ? (
-                                <Lock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                              ) : (
-                                <PlayCircle className={`w-3.5 h-3.5 shrink-0 ${lesson.isFreePreview ? 'text-emerald-600' : 'text-blue-600'}`} />
-                              )}
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(lessonKey); }}
+                                className="shrink-0 text-gray-400 hover:text-emerald-600"
+                              >
+                                {isDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Circle className="w-4 h-4" />
+                                )}
+                              </button>
+                              <PlayCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                               <span className="truncate">{lesson.title}</span>
                             </div>
-                            <div className="shrink-0 flex items-center gap-1">
-                              {lesson.isFreePreview && !isEnrolled && (
-                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase">
-                                  Preview
-                                </span>
-                              )}
-                              {isLocked && (
-                                <span className="text-[9px] font-bold text-gray-500 bg-gray-200/80 px-1.5 py-0.5 rounded-full uppercase">
-                                  Locked
-                                </span>
-                              )}
-                              <span className="text-[10px] text-gray-400 font-mono">
-                                {lesson.duration ? `${lesson.duration}m` : '15m'}
-                              </span>
-                            </div>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              {lesson.duration ? `${lesson.duration}m` : '15m'}
+                            </span>
                           </div>
                         );
                       })}
@@ -685,24 +508,16 @@ export default function CourseInfoPage() {
             <div className="pt-4 mt-4 border-t border-gray-100">
               <button 
                 onClick={() => {
-                  if (!isEnrolled) {
-                    toast('🔒 Course assignments are reserved for enrolled students.', { icon: '📝' });
-                    return;
-                  }
                   if (assignments.length > 0) {
                     handleOpenAssignmentModal(assignments[0]);
                   } else {
                     alert('No assignments have been assigned for this course yet.');
                   }
                 }}
-                className={`w-full py-3 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isEnrolled
-                    ? 'text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 active:scale-[0.99]'
-                    : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
-                }`}
+                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
               >
-                {isEnrolled ? <ClipboardList size={14} /> : <Lock size={14} />}
-                <span>{isEnrolled ? 'Submit Course Assignment' : 'Assignments (Enrolled Only)'}</span>
+                <ClipboardList size={14} />
+                <span>Submit Course Assignment</span>
               </button>
             </div>
           </aside>
@@ -713,167 +528,119 @@ export default function CourseInfoPage() {
             {/* Main Media Player / Viewer */}
             <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
               
-              {/* If item is locked for unenrolled user */}
-              {isLockedItem ? (
-                <div className="relative aspect-video w-full bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 rounded-t-3xl overflow-hidden flex flex-col items-center justify-center p-6 sm:p-10 text-center border-b border-gray-800">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-4 shadow-lg shadow-blue-500/20">
-                    <Lock className="w-8 h-8 sm:w-10 sm:h-10 text-blue-400 animate-pulse" />
-                  </div>
-                  <span className="text-[11px] font-extrabold uppercase tracking-widest text-blue-400 mb-1">
-                    {selectedMaterial?.lessonTitle ? `Topic: ${selectedMaterial.lessonTitle}` : 'Course Topic'}
-                  </span>
-                  <h3 className="text-lg sm:text-2xl font-bold text-white max-w-lg mb-2">
-                    {selectedMaterial?.title || 'Enrolled Students Video Lesson'}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-300 max-w-md mb-6 leading-relaxed">
-                    This video has not been published for everyone by the admin. Unenrolled visitors can view course topics and syllabus titles, but full video lessons are restricted to enrolled students.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <button
-                      onClick={() => navigate(`/courses/${id || course._id}`)}
-                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/30 transition transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      <span>Enroll to Unlock All Lessons</span>
-                    </button>
-                    {materials.some(m => m.isPreview) && (
-                      <button
-                        onClick={() => {
-                          const previewMat = materials.find(m => m.isPreview);
-                          if (previewMat) setSelectedMaterial(previewMat);
-                        }}
-                        className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition border border-white/10 cursor-pointer flex items-center gap-1.5"
+              {/* If Video: Native HTML5 Player for Supabase Videos or YouTube/Vimeo Embed */}
+              {selectedMaterial?.type === 'video' || selectedMaterial?.type === 'link' ? (
+                <div className="relative aspect-video w-full bg-black rounded-t-3xl overflow-hidden flex items-center justify-center">
+                  {selectedMaterial?.embedUrl || selectedMaterial?.viewUrl ? (
+                    (() => {
+                      const videoUrl = selectedMaterial.embedUrl || selectedMaterial.viewUrl;
+                      const isExternalEmbed = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') || videoUrl.includes('vimeo.com');
+
+                      if (!isExternalEmbed && (selectedMaterial.type === 'video' || videoUrl.includes('supabase.co') || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(videoUrl))) {
+                        return (
+                          <video
+                            key={videoUrl}
+                            controls
+                            playsInline
+                            controlsList="nodownload"
+                            preload="metadata"
+                            className="w-full h-full max-h-[600px] object-contain bg-black"
+                            src={videoUrl}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        );
+                      }
+
+                      return (
+                        <iframe
+                          src={videoUrl}
+                          title={selectedMaterial.title}
+                          className="w-full h-full border-0"
+                          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                        />
+                      );
+                    })()
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
+                      <PlayCircle className="w-16 h-16 text-blue-400 mb-3" />
+                      <p className="text-sm font-bold">Video Lesson Preview</p>
+                      <p className="text-xs text-gray-400 mt-1 max-w-sm">
+                        {selectedMaterial?.title}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : selectedMaterial?.type === 'pdf' ? (
+                /* If PDF: Google Drive Embedded PDF Viewer */
+                <div className="w-full flex flex-col bg-gray-900 rounded-t-3xl">
+                  <div className="p-3 bg-gray-950 text-white flex items-center justify-between px-5 text-xs font-semibold">
+                    <span className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-red-400" />
+                      {selectedMaterial.title}
+                    </span>
+                    {selectedMaterial.downloadUrl && (
+                      <a 
+                        href={selectedMaterial.downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-xs font-bold transition"
                       >
-                        <Play size={13} />
-                        <span>Watch Free Preview</span>
-                      </button>
+                        <Download size={13} /> Download PDF
+                      </a>
                     )}
                   </div>
+                  <iframe
+                    src={selectedMaterial.embedUrl}
+                    title={selectedMaterial.title}
+                    className="w-full h-[600px] border-0 bg-white"
+                  />
+                </div>
+              ) : selectedMaterial?.type === 'image' ? (
+                /* If Image: Google Drive Direct Image */
+                <div className="w-full p-4 bg-gray-950 flex flex-col items-center justify-center rounded-t-3xl min-h-[450px]">
+                  <img 
+                    src={selectedMaterial.embedUrl || selectedMaterial.viewUrl} 
+                    alt={selectedMaterial.title}
+                    className="max-h-[550px] w-auto object-contain rounded-xl shadow-lg"
+                  />
+                  {selectedMaterial.downloadUrl && (
+                    <div className="mt-3">
+                      <a 
+                        href={selectedMaterial.downloadUrl}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-blue-700 transition"
+                      >
+                        <Download size={13} /> Save Image
+                      </a>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <>
-                  {/* Public preview notice banner for unenrolled users */}
-                  {!isEnrolled && (selectedMaterial?.isPreview || selectedMaterial?.isFreePreview) && (
-                    <div className="bg-emerald-600 text-white px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-200 shrink-0" />
-                        <span>Free Preview Video — Accepted for everyone by Admin</span>
-                      </div>
-                      <button
-                        onClick={() => navigate(`/courses/${id || course._id}`)}
-                        className="bg-white text-emerald-800 hover:bg-emerald-50 px-3 py-1 rounded-lg font-bold text-[11px] transition shadow-xs cursor-pointer"
-                      >
-                        Enroll to Unlock All Lessons →
-                      </button>
-                    </div>
-                  )}
-
-                  {/* If Video: Native HTML5 Player for Supabase Videos or YouTube/Vimeo Embed */}
-                  {selectedMaterial?.type === 'video' || selectedMaterial?.type === 'link' ? (
-                    <div className="relative aspect-video w-full bg-black rounded-t-3xl overflow-hidden flex items-center justify-center">
-                      {selectedMaterial?.embedUrl || selectedMaterial?.viewUrl ? (
-                        (() => {
-                          const videoUrl = selectedMaterial.embedUrl || selectedMaterial.viewUrl;
-                          const isExternalEmbed = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') || videoUrl.includes('vimeo.com');
-
-                          if (!isExternalEmbed && (selectedMaterial.type === 'video' || videoUrl.includes('supabase.co') || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(videoUrl))) {
-                            return (
-                              <video
-                                key={videoUrl}
-                                controls
-                                playsInline
-                                controlsList="nodownload"
-                                preload="metadata"
-                                className="w-full h-full max-h-[600px] object-contain bg-black"
-                                src={videoUrl}
-                              >
-                                Your browser does not support the video tag.
-                              </video>
-                            );
-                          }
-
-                          return (
-                            <iframe
-                              src={videoUrl}
-                              title={selectedMaterial.title}
-                              className="w-full h-full border-0"
-                              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                              allowFullScreen
-                            />
-                          );
-                        })()
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
-                          <PlayCircle className="w-16 h-16 text-blue-400 mb-3" />
-                          <p className="text-sm font-bold">Video Lesson Preview</p>
-                          <p className="text-xs text-gray-400 mt-1 max-w-sm">
-                            {selectedMaterial?.title}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : selectedMaterial?.type === 'pdf' ? (
-                    /* If PDF: Google Drive Embedded PDF Viewer */
-                    <div className="w-full flex flex-col bg-gray-900 rounded-t-3xl">
-                      <div className="p-3 bg-gray-950 text-white flex items-center justify-between px-5 text-xs font-semibold">
-                        <span className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-red-400" />
-                          {selectedMaterial.title}
-                        </span>
-                        {selectedMaterial.downloadUrl && (
-                          <a 
-                            href={selectedMaterial.downloadUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-xs font-bold transition"
-                          >
-                            <Download size={13} /> Download PDF
-                          </a>
-                        )}
-                      </div>
-                      <iframe
-                        src={selectedMaterial.embedUrl}
-                        title={selectedMaterial.title}
-                        className="w-full h-[600px] border-0 bg-white"
+                /* Default Course Thumbnail preview */
+                <div className="relative aspect-video w-full bg-gray-950 flex items-center justify-center">
+                  {course.thumbnail ? (
+                    isVideoUrl(course.thumbnail) ? (
+                      <video
+                        src={course.thumbnail}
+                        controls
+                        className="w-full h-full object-contain"
+                        preload="metadata"
                       />
-                    </div>
-                  ) : selectedMaterial?.type === 'image' ? (
-                    /* If Image: Google Drive Direct Image */
-                    <div className="w-full p-4 bg-gray-950 flex flex-col items-center justify-center rounded-t-3xl min-h-[450px]">
+                    ) : (
                       <img 
-                        src={selectedMaterial.embedUrl || selectedMaterial.viewUrl} 
-                        alt={selectedMaterial.title}
-                        className="max-h-[550px] w-auto object-contain rounded-xl shadow-lg"
+                        src={course.thumbnail} 
+                        alt={course.title}
+                        className="w-full h-full object-cover opacity-80" 
                       />
-                      {selectedMaterial.downloadUrl && (
-                        <div className="mt-3">
-                          <a 
-                            href={selectedMaterial.downloadUrl}
-                            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-blue-700 transition"
-                          >
-                            <Download size={13} /> Save Image
-                          </a>
-                        </div>
-                      )}
-                    </div>
+                    )
                   ) : (
-                    /* Default Course Thumbnail preview */
-                    <div className="relative aspect-video w-full bg-gray-950 flex items-center justify-center">
-                      {course.thumbnail ? (
-                        <img 
-                          src={course.thumbnail} 
-                          alt={course.title}
-                          className="w-full h-full object-cover opacity-80" 
-                        />
-                      ) : (
-                        <div className="text-center text-white p-6">
-                          <BookOpen className="w-16 h-16 text-blue-500 mx-auto mb-2" />
-                          <p className="text-sm font-bold">{course.title}</p>
-                        </div>
-                      )}
+                    <div className="text-center text-white p-6">
+                      <BookOpen className="w-16 h-16 text-blue-500 mx-auto mb-2" />
+                      <p className="text-sm font-bold">{course.title}</p>
                     </div>
                   )}
-                </>
+                </div>
               )}
 
               {/* Lesson Title & Controls Bar */}
@@ -881,19 +648,14 @@ export default function CourseInfoPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full inline-block mb-1.5">
-                      {isLockedItem ? 'LOCKED CONTENT' : selectedMaterial?.type ? `Material: ${selectedMaterial.type.toUpperCase()}` : 'Lesson Material'}
+                      {selectedMaterial?.type ? `Material: ${selectedMaterial.type.toUpperCase()}` : 'Lesson Material'}
                     </span>
                     <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 leading-snug">
                       {selectedMaterial?.title || course.title}
                     </h1>
                   </div>
 
-                  {isLockedItem ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold shrink-0">
-                      <Lock size={13} />
-                      <span>Reserved for Enrolled Students</span>
-                    </span>
-                  ) : selectedMaterial?._id ? (
+                  {selectedMaterial?._id && (
                     <button
                       onClick={() => toggleComplete(selectedMaterial._id)}
                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
@@ -905,7 +667,7 @@ export default function CourseInfoPage() {
                       <CheckCircle2 size={15} />
                       <span>{completedItemIds.includes(selectedMaterial._id) ? 'Completed' : 'Mark as Complete'}</span>
                     </button>
-                  ) : null}
+                  )}
                 </div>
 
                 {selectedMaterial?.description && (
@@ -988,11 +750,7 @@ export default function CourseInfoPage() {
                           </div>
                         </div>
 
-                        {!isEnrolled && !mat.isPreview ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200/80 rounded-xl text-xs font-bold text-amber-700">
-                            <Lock size={12} /> Enrolled only
-                          </span>
-                        ) : mat.downloadUrl ? (
+                        {mat.downloadUrl ? (
                           <a 
                             href={mat.downloadUrl}
                             target="_blank"
@@ -1001,7 +759,7 @@ export default function CourseInfoPage() {
                           >
                             <Download size={13} /> Download
                           </a>
-                        ) : mat.viewUrl ? (
+                        ) : (
                           <a 
                             href={mat.viewUrl}
                             target="_blank"
@@ -1010,8 +768,6 @@ export default function CourseInfoPage() {
                           >
                             <ExternalLink size={13} /> Open
                           </a>
-                        ) : (
-                          <span className="text-xs text-gray-400 font-medium">Not available</span>
                         )}
                       </div>
                     ))
@@ -1022,46 +778,34 @@ export default function CourseInfoPage() {
               {/* Tab: Notes */}
               {activeTab === 'Notes' && (
                 <div className="space-y-4">
-                  {!isEnrolled ? (
-                    <div className="p-5 bg-amber-50/60 border border-amber-200 rounded-2xl text-center">
-                      <Lock size={20} className="mx-auto text-amber-600 mb-2" />
-                      <p className="text-xs font-bold text-amber-900 mb-1">Study notes are reserved for enrolled students</p>
-                      <p className="text-[11px] text-amber-700 max-w-md mx-auto">
-                        Enroll in this course to save personal timestamped notes, lecture bookmarks, and study insights.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          value={noteInput}
-                          onChange={(e) => setNoteInput(e.target.value)}
-                          placeholder="Add a timestamped learning note..."
-                          className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-2 text-xs focus:bg-white focus:outline-none"
-                        />
-                        <button 
-                          onClick={handleAddNote}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-                        >
-                          Save Note
-                        </button>
-                      </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      placeholder="Add a timestamped learning note..."
+                      className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-xl px-4 py-2 text-xs focus:bg-white focus:outline-none"
+                    />
+                    <button 
+                      onClick={handleAddNote}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                    >
+                      Save Note
+                    </button>
+                  </div>
 
-                      <div className="space-y-2.5">
-                        {notes.map((n) => (
-                          <div key={n.id} className="p-3 bg-[#f8fafc] rounded-xl border border-gray-100 flex items-start justify-between gap-3 text-xs">
-                            <div>
-                              <span className="font-mono text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-2">
-                                {n.time}
-                              </span>
-                              <span className="text-gray-800">{n.text}</span>
-                            </div>
-                          </div>
-                        ))}
+                  <div className="space-y-2.5">
+                    {notes.map((n) => (
+                      <div key={n.id} className="p-3 bg-[#f8fafc] rounded-xl border border-gray-100 flex items-start justify-between gap-3 text-xs">
+                        <div>
+                          <span className="font-mono text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mr-2">
+                            {n.time}
+                          </span>
+                          <span className="text-gray-800">{n.text}</span>
+                        </div>
                       </div>
-                    </>
-                  )}
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1090,21 +834,12 @@ export default function CourseInfoPage() {
                           )}
                         </div>
 
-                        {!isEnrolled ? (
-                          <button
-                            onClick={() => toast.error('🔒 Please enroll in this course to submit assignments.')}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
-                          >
-                            <Lock size={13} /> Enrolled only
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleOpenAssignmentModal(assign)}
-                            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
-                          >
-                            Submit Assignment 📤
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleOpenAssignmentModal(assign)}
+                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
+                        >
+                          Submit Assignment 📤
+                        </button>
                       </div>
                     ))
                   )}
@@ -1124,42 +859,30 @@ export default function CourseInfoPage() {
                 <span className="text-[10px] text-gray-400 font-mono">Syncs live</span>
               </div>
 
-              {!isEnrolled ? (
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                  <Lock size={18} className="mx-auto text-gray-400 mb-2" />
-                  <p className="text-xs font-bold text-gray-700 mb-1">Enrolled Access Only</p>
-                  <p className="text-[11px] text-gray-500">
-                    Notepad is enabled once you enroll in this course.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {notes.slice(0, 3).map((n) => (
-                      <div key={n.id} className="p-3 bg-[#f8fafc] rounded-2xl border border-gray-100 text-xs">
-                        <span className="text-[10px] font-bold text-blue-600 block mb-1">{n.time}</span>
-                        <p className="text-gray-700">{n.text}</p>
-                      </div>
-                    ))}
+              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                {notes.slice(0, 3).map((n) => (
+                  <div key={n.id} className="p-3 bg-[#f8fafc] rounded-2xl border border-gray-100 text-xs">
+                    <span className="text-[10px] font-bold text-blue-600 block mb-1">{n.time}</span>
+                    <p className="text-gray-700">{n.text}</p>
                   </div>
+                ))}
+              </div>
 
-                  <form onSubmit={handleAddNote} className="mt-4 pt-3 border-t border-gray-100 flex gap-2">
-                    <input 
-                      type="text"
-                      value={noteInput}
-                      onChange={(e) => setNoteInput(e.target.value)}
-                      placeholder="Quick note..."
-                      className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:bg-white focus:outline-none"
-                    />
-                    <button 
-                      type="submit" 
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition cursor-pointer"
-                    >
-                      Add
-                    </button>
-                  </form>
-                </>
-              )}
+              <form onSubmit={handleAddNote} className="mt-4 pt-3 border-t border-gray-100 flex gap-2">
+                <input 
+                  type="text"
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="Quick note..."
+                  className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:bg-white focus:outline-none"
+                />
+                <button 
+                  type="submit" 
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition cursor-pointer"
+                >
+                  Add
+                </button>
+              </form>
             </div>
 
             {/* Korean Scholar Study Tip */}

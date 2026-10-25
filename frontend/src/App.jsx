@@ -97,9 +97,30 @@ function App() {
 
           <Route path="/course-details" element={<CourseDetails />} />
           <Route path="/courses/:id" element={<CourseDetails />} />
-          <Route path="/course-info" element={<CourseInfoPage />} />
-          <Route path="/course-info/:id" element={<CourseInfoPage />} />
-          <Route path="/courses/:id/learn" element={<CourseInfoPage />} />
+          <Route
+            path="/course-info"
+            element={
+              <ProtectedRoute>
+                <CourseInfoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/course-info/:id"
+            element={
+              <ProtectedRoute>
+                <CourseInfoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/courses/:id/learn"
+            element={
+              <ProtectedRoute>
+                <CourseInfoPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected student routes */}
           <Route

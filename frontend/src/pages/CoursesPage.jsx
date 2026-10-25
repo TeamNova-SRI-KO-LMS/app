@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   Search, Clock, Users,
-  Star, GraduationCap, ChevronDown, Loader2, AlertCircle
+  Star, GraduationCap, ChevronDown, Loader2, AlertCircle, Play
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import apiService from '../services/apiService';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 const LEVEL_COLORS = {
   beginner:     { bg: 'bg-[#cbf4c9]', text: 'text-[#166534]' },
@@ -256,12 +257,28 @@ export default function Courses() {
                   className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col hover:shadow-lg hover:-translate-y-1 transition-all group"
                 >
                   {/* Thumbnail */}
-                  <div className="relative h-48 bg-gray-200">
-                    <img
-                      src={course.thumbnail || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800'}
-                      alt={course.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                  <div className="relative h-48 bg-gray-900 overflow-hidden">
+                    {isVideoUrl(course.thumbnail) ? (
+                      <>
+                        <video
+                          src={course.thumbnail}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                        {/* Play badge strictly for video thumbnails */}
+                        <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-xs text-white p-2 rounded-full shadow-md pointer-events-none">
+                          <Play size={12} className="fill-current translate-x-0.5" />
+                        </div>
+                      </>
+                    ) : (
+                      <img
+                        src={course.thumbnail || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800'}
+                        alt={course.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    )}
                     {course.level && (
                       <div className={`absolute top-4 left-4 ${lvl.bg} ${lvl.text} text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider`}>
                         {course.level}

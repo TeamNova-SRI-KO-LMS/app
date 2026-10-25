@@ -4,7 +4,6 @@ import {
   Users,
   FileEdit,
   Plus,
-  Award,
   ArrowUpDown,
   FileText,
   Edit3,
@@ -567,10 +566,6 @@ const CourseManagement = () => {
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
-          </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
-            <Award size={16} />
-            <span>Certificates</span>
           </button>
           <button
             onClick={() => { setEditingCourse(null); setViewMode('create'); }}
