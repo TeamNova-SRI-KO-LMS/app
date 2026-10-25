@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const JoinUsSubmission = require('../models/JoinUsSubmission');
 const { protect, authorize } = require('../middleware/auth');
 const escapeRegex = require('../utils/escapeRegex');
@@ -96,21 +97,6 @@ router.get('/', protect, authorize('admin', 'instructor'), async (req, res) => {
   }
 });
 
-// ─── Admin: Get single application by ID ───────────────────────────────────────
-// GET /api/join-us/:id
-router.get('/:id', protect, authorize('admin', 'instructor'), async (req, res) => {
-  try {
-    const submission = await JoinUsSubmission.findById(req.params.id).lean();
-    if (!submission) {
-      return res.status(404).json({ success: false, message: 'Application not found.' });
-    }
-    return res.json({ success: true, data: submission });
-  } catch (error) {
-    console.error('Join-Us get error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
 // ─── Admin: Get recent applications (for dashboard widget) ─────────────────────
 // GET /api/join-us/recent?limit=5
 router.get('/recent', protect, authorize('admin', 'instructor'), async (req, res) => {
@@ -128,6 +114,24 @@ router.get('/recent', protect, authorize('admin', 'instructor'), async (req, res
     return res.json({ success: true, data: submissions, total, pending });
   } catch (error) {
     console.error('Join-Us recent error:', error);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// ─── Admin: Get single application by ID ───────────────────────────────────────
+// GET /api/join-us/:id
+router.get('/:id', protect, authorize('admin', 'instructor'), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+    const submission = await JoinUsSubmission.findById(req.params.id).lean();
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+    return res.json({ success: true, data: submission });
+  } catch (error) {
+    console.error('Join-Us get error:', error);
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
