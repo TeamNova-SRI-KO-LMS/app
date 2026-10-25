@@ -16,6 +16,7 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 
 import apiUrl from "../config/apiConfig";
 import toast from "react-hot-toast";
@@ -180,21 +181,21 @@ const JoinUsPage = () => {
               </div>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-              Join Our <span className="text-yellow-300">Korean Language</span>{" "}
-              Journey
+              Contact Us &{" "}
+              <span className="text-yellow-300">Join Our Korean</span> Journey
             </h1>
             <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">
-              Discover the beauty of Korean language and culture with expert
-              instructors. Start your journey to fluency today!
+              Have questions about our online courses or learning platform? We're
+              here to help you start your Korean language journey!
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href="#join-form"
+              <Link
+                to="/register"
                 className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-lg text-blue-600 bg-white hover:bg-gray-50 transition-colors"
               >
                 Join Us Today
                 <ArrowRightIcon className="ml-2 h-5 w-5" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -206,7 +207,7 @@ const JoinUsPage = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                Join Our Korean Language Program
+                Contact & Course Inquiries
               </h2>
               <p className="text-lg text-gray-600">
                 Fill out the form below and we'll get back to you with course
@@ -421,7 +422,7 @@ const JoinUsPage = () => {
                     </>
                   ) : (
                     <>
-                      Submit Application
+                      Send Message
                       <ArrowRightIcon className="ml-2 h-5 w-5" />
                     </>
                   )}

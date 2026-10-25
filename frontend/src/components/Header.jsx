@@ -54,7 +54,7 @@ export default function Header() {
 
   const isActive = (path) =>
     location.pathname === path ||
-    (path === '/join' && (location.pathname === '/join-us' || location.pathname === '/contact'));
+    (path === '/contact' && (location.pathname === '/join' || location.pathname === '/join-us'));
 
   const handleMobileLogout = () => {
     setMobileMenuOpen(false);
@@ -69,7 +69,7 @@ export default function Header() {
     { to: '/courses',       label: 'Courses' },
     { to: '/announcements', label: 'Announcements', requiresAuth: true },
     { to: '/events',        label: 'Events' },
-    { to: '/join',          label: 'Join Us' },
+    { to: '/contact',       label: 'Contact Us' },
     { to: '/about',         label: 'About Us' },
   ];
 

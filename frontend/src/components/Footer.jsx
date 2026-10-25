@@ -62,7 +62,7 @@ export default function Footer() {
                 </li>
                 <li>
                   <Link to="/join" className="hover:text-white transition-colors duration-150 whitespace-nowrap block">
-                    Join Us
+                    Contact Us
                   </Link>
                 </li>
               </ul>

@@ -15,6 +15,7 @@ const courseService = {
     if (params.level    && params.level    !== 'All Levels')     query.append('level', params.level);
     if (params.status   && params.status   !== 'Status')         query.append('status', params.status);
     if (params.search)   query.append('search', params.search);
+    if (params.sort)     query.append('sort', params.sort);
     const response = await apiClient.get('/courses/admin/all?' + query.toString());
     return response.data;
   },

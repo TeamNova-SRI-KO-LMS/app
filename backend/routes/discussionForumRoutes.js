@@ -24,63 +24,63 @@ const seedDefaultForumsIfEmpty = async () => {
     if (count === 0) {
       const defaultForums = [
         {
-          title: 'Common Honorifics & Politeness Levels in Korean',
-          description: 'Master 존댓말 (Jondaetmal) and 반말 (Banmal) rules, everyday formal expressions, and proper address terms for different social contexts.',
+          title: 'Common Honorifics and Politeness Levels in Korean',
+          description: 'Master formal (Jondaetmal) and informal (Banmal) rules, everyday formal expressions, and proper address terms for different social contexts.',
           category: 'grammar',
           level: 'intermediate',
           isActive: true,
           isPinned: true,
           isLocked: false,
-          postCount: 42,
-          viewCount: 1250,
+          postCount: 0,
+          viewCount: 0,
           tags: ['honorifics', 'politeness', 'grammar']
         },
         {
-          title: 'Korean Basics: Hangul Pronunciation & Batchim Rules',
-          description: 'Official instructor thread for clearing doubts regarding double final consonants (겹받침) and liaison pronunciation rules in Korean.',
+          title: 'Korean Basics: Hangul Pronunciation and Batchim Rules',
+          description: 'Official instructor thread for clearing doubts regarding double final consonants (Batchim) and liaison pronunciation rules in Korean.',
           category: 'korean-basics',
           level: 'beginner',
           isActive: true,
           isPinned: true,
           isLocked: false,
-          postCount: 28,
-          viewCount: 890,
+          postCount: 0,
+          viewCount: 0,
           tags: ['hangul', 'batchim', 'pronunciation']
         },
         {
-          title: 'Korean Culture & Workplace Etiquette Discussion',
+          title: 'Korean Culture and Workplace Etiquette Discussion',
           description: 'Learn about Korean dining etiquette, business greeting norms, gift-giving practices, and corporate culture insights.',
           category: 'culture',
           level: 'all',
           isActive: true,
           isPinned: false,
           isLocked: false,
-          postCount: 19,
-          viewCount: 640,
+          postCount: 0,
+          viewCount: 0,
           tags: ['culture', 'etiquette', 'business']
         },
         {
-          title: 'TOPIK II Examination Preparation & Writing Tips',
+          title: 'TOPIK II Examination Preparation and Writing Tips',
           description: 'Share study plans, essay writing structures for Question 54, sample test papers, and time management strategies.',
           category: 'study-tips',
           level: 'advanced',
           isActive: true,
           isPinned: false,
           isLocked: false,
-          postCount: 35,
-          viewCount: 1120,
+          postCount: 0,
+          viewCount: 0,
           tags: ['topik', 'exam', 'writing']
         },
         {
-          title: 'Joseon Dynasty Poetry & Classical Literature',
+          title: 'Joseon Dynasty Poetry and Classical Literature',
           description: 'Advanced literary analysis of classic Sijo poems, poetic meters, and historical contexts from the Joseon era.',
           category: 'literature',
           level: 'advanced',
           isActive: true,
           isPinned: false,
           isLocked: true,
-          postCount: 15,
-          viewCount: 312,
+          postCount: 0,
+          viewCount: 0,
           tags: ['poetry', 'literature', 'history']
         }
       ];
@@ -423,6 +423,9 @@ router.patch('/:id/lock', protect, async (req, res) => {
 // @access  Public
 router.get('/:id/posts', async (req, res) => {
   try {
+    // Increment genuine view count when a user or admin views the forum messages
+    await DiscussionForum.findByIdAndUpdate(req.params.id, { $inc: { viewCount: 1 } });
+
     const posts = await DiscussionPost.find({ forum: req.params.id })
       .populate('author', 'name email role avatar')
       .populate('replies.author', 'name email role avatar')
