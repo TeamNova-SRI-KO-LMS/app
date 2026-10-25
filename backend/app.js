@@ -23,13 +23,14 @@ const joinUsRoutes = require('./routes/joinUsRoutes');
 const lectureRoutes = require('./routes/lectureRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const { globalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
 app.disable('x-powered-by');
 
-// On Vercel the platform proxy sets X-Forwarded-For, so req.ip is the client IP.
-if (process.env.VERCEL) {
+// Trust proxy headers on Vercel or behind reverse proxies so req.ip is the client IP.
+if (process.env.VERCEL || process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
@@ -37,6 +38,22 @@ app.use(cors({
   origin: parseAllowedOrigins(),
   credentials: true,
 }));
+
+// Apply global rate limiting to protect against abuse and DoS attacks
+app.use(globalLimiter);
+
+// Stricter limits on authentication routes to prevent brute-force attacks
+const authRateLimitedRoutes = [
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/verify-reset-otp',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/verify-reset-otp',
+];
+app.use(authRateLimitedRoutes, authLimiter);
 
 // 50 MB locally for base64 uploads; Vercel itself caps request bodies at 4.5 MB.
 app.use(express.json({ limit: '50mb' }));
