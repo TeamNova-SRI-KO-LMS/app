@@ -4,7 +4,6 @@ const Progress = require('../models/Progress');
 const User = require('../models/User');
 const { protect, authorize, checkCourseAccess, optionalAuth, hasCourseAccess } = require('../middleware/auth');
 const Payment = require('../models/Payment');
-const { protect, authorize, checkCourseAccess } = require('../middleware/auth');
 const {
   validateCourseCreation,
   validateReview,
