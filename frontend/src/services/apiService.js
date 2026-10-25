@@ -12,10 +12,20 @@ export const getAuthToken = () => {
 
 	for (const key of AUTH_TOKEN_KEYS) {
 		const token = localStorage.getItem(key);
-		if (token) {
+		if (token && token !== 'undefined' && token !== 'null') {
 			return token;
 		}
 	}
+
+	try {
+		const sessionStr = localStorage.getItem('auth-session');
+		if (sessionStr) {
+			const parsed = JSON.parse(sessionStr);
+			if (parsed?.token && parsed.token !== 'undefined' && parsed.token !== 'null') {
+				return parsed.token;
+			}
+		}
+	} catch {}
 
 	return null;
 };

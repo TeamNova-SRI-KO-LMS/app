@@ -686,7 +686,10 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
       ];
     }
 
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
+    const users = await User.find(query)
+      .select('-password')
+      .populate('enrolledCourses', 'title category level thumbnail')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -745,6 +748,7 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        avatar: user.avatar,
         enrolledCourses: user.enrolledCourses || []
       }
     });
@@ -800,6 +804,7 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        avatar: user.avatar,
         enrolledCourses: user.enrolledCourses || []
       }
     });
@@ -855,6 +860,7 @@ router.patch('/:id', protect, authorize('admin'), async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        avatar: user.avatar,
         enrolledCourses: user.enrolledCourses || []
       }
     });
