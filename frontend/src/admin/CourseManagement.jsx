@@ -692,9 +692,7 @@ const CourseManagement = () => {
     setTogglingId(course._id);
     try {
       const res = await courseService.togglePublish(course._id);
-      const nextPublished = res?.isPublished !== undefined 
-        ? res.isPublished 
-        : (res?.course?.isPublished !== undefined ? res.course.isPublished : !course.isPublished);
+      const nextPublished = res.isPublished;
       setCourses(prev => prev.map(c => c._id === course._id ? { ...c, isPublished: nextPublished } : c));
       setStats(prev => {
         const diff = nextPublished ? 1 : -1;
@@ -1079,35 +1077,30 @@ const CourseManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-2.5">
                         <button
-                          type="button"
                           onClick={() => setViewingCourse(course)}
                           title="View Details"
                           aria-label="View Details"
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                          className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
                         >
                           <FileText size={15} />
                         </button>
                         <button
-                          type="button"
                           onClick={() => openEdit(course)}
                           title="Edit Course"
                           aria-label="Edit Course"
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer transition-colors"
+                          className="text-gray-400 hover:text-indigo-600 cursor-pointer transition-colors"
                         >
                           <Edit3 size={15} />
                         </button>
                         <button
-                          type="button"
                           onClick={() => handleTogglePublish(course)}
                           disabled={togglingId === course._id}
                           title={course.isPublished ? 'Unpublish Course' : 'Publish Course'}
                           aria-label={course.isPublished ? 'Unpublish Course' : 'Publish Course'}
-                          className={`p-1.5 rounded-lg cursor-pointer transition-colors disabled:opacity-50 ${
-                            course.isPublished
-                              ? 'text-gray-400 hover:text-amber-500 hover:bg-amber-50'
-                              : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
+                          className={`cursor-pointer transition-colors disabled:opacity-50 ${
+                            course.isPublished ? 'text-gray-400 hover:text-amber-500' : 'text-gray-400 hover:text-emerald-600'
                           }`}
                         >
                           {togglingId === course._id ? (
@@ -1119,11 +1112,10 @@ const CourseManagement = () => {
                           )}
                         </button>
                         <button
-                          type="button"
                           onClick={() => setDeleteTarget(course)}
                           title="Delete Course"
                           aria-label="Delete Course"
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                          className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>
