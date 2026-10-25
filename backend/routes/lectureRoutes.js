@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, optionalAuth, hasCourseAccess } = require('../middleware/auth');
 const LectureMaterial = require('../models/LectureMaterial');
 const Course = require('../models/Course');
 const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
@@ -124,7 +124,7 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
 router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thumbnail'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Please select an image file.' });
+      return res.status(400).json({ success: false, message: 'Please select an image or video file.' });
     }
 
     const storageResult = await uploadToStorage(
@@ -210,10 +210,10 @@ router.post('/link', protect, authorize('admin'), async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 4. GET: Materials for a Course (Enrolled students or admin, or preview items)
+// 4. GET: Materials for a Course (Enrolled students or admin get full URLs, unenrolled get curriculum text + public previews)
 // GET /api/lectures/course/:courseId
 // ─────────────────────────────────────────────────────────────
-router.get('/course/:courseId', async (req, res) => {
+router.get('/course/:courseId', optionalAuth, async (req, res) => {
   try {
     const { courseId } = req.params;
 
@@ -223,14 +223,72 @@ router.get('/course/:courseId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
+    const hasAccess = await hasCourseAccess(req.user, course);
+
     const materials = await LectureMaterial.find({ course: courseId })
       .sort({ weekNumber: 1, order: 1, createdAt: 1 })
       .populate('uploadedBy', 'name');
 
+    // Enrolled students, course instructors, and admins get all materials with full playback & download URLs
+    if (hasAccess) {
+      return res.status(200).json({
+        success: true,
+        count: materials.length,
+        hasFullAccess: true,
+        materials,
+      });
+    }
+
+    // Unenrolled users can only view curriculum text (titles, topics, week numbers)
+    // and video playback strictly for videos explicitly marked as preview/public (isPreview: true).
+    const sanitizedMaterials = materials.map((m) => {
+      const isPublic = Boolean(m.isPreview);
+
+      if (isPublic) {
+        // Public preview: playback URLs are permitted
+        return {
+          _id: m._id,
+          course: m.course,
+          weekNumber: m.weekNumber,
+          lessonIndex: m.lessonIndex,
+          lessonTitle: m.lessonTitle,
+          title: m.title,
+          description: m.description,
+          type: m.type,
+          isPreview: true,
+          isLocked: false,
+          viewUrl: m.viewUrl,
+          embedUrl: m.embedUrl,
+          externalUrl: m.externalUrl,
+          fileName: m.fileName,
+          mimeType: m.mimeType,
+          order: m.order,
+          createdAt: m.createdAt,
+        };
+      }
+
+      // Restricted material: ONLY curriculum text and topics, NO playback/download URLs
+      return {
+        _id: m._id,
+        course: m.course,
+        weekNumber: m.weekNumber,
+        lessonIndex: m.lessonIndex,
+        lessonTitle: m.lessonTitle,
+        title: m.title,
+        description: m.description,
+        type: m.type,
+        isPreview: false,
+        isLocked: true,
+        order: m.order,
+        createdAt: m.createdAt,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: materials.length,
-      materials,
+      count: sanitizedMaterials.length,
+      hasFullAccess: false,
+      materials: sanitizedMaterials,
     });
   } catch (error) {
     console.error('[lectureRoutes] Get materials error:', error);
@@ -239,23 +297,67 @@ router.get('/course/:courseId', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 5. GET: Single Material by ID
+// 5. GET: Single Material by ID (Guarded for restricted content)
 // GET /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const material = await LectureMaterial.findById(req.params.id);
     if (!material) {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
+
+    // Public preview videos/materials are accessible to everyone
+    if (material.isPreview) {
+      return res.status(200).json({ success: true, material });
+    }
+
+    // Restricted materials require enrollment, instructor, or admin access
+    const course = await Course.findById(material.course);
+    const hasAccess = await hasCourseAccess(req.user, course);
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You must be enrolled in this course to view this restricted content.',
+      });
+    }
+
     res.status(200).json({ success: true, material });
   } catch (error) {
+    console.error('[lectureRoutes] Get single material error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
 // ─────────────────────────────────────────────────────────────
-// 6. ADMIN: Delete a material (deletes from Supabase Storage & MongoDB)
+// 6. ADMIN: Toggle preview / public status of lecture material
+// PATCH /api/lectures/:id/toggle-preview
+// ─────────────────────────────────────────────────────────────
+router.patch('/:id/toggle-preview', protect, authorize('admin'), async (req, res) => {
+  try {
+    const material = await LectureMaterial.findById(req.params.id);
+    if (!material) {
+      return res.status(404).json({ success: false, message: 'Material not found.' });
+    }
+
+    material.isPreview = !material.isPreview;
+    await material.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Material is now ${material.isPreview ? 'published for everyone (Free Preview)' : 'restricted to enrolled students only'}`,
+      isPreview: material.isPreview,
+      material,
+    });
+  } catch (error) {
+    console.error('[lectureRoutes] Toggle preview error:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle preview status.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 7. ADMIN: Delete a material (deletes from Supabase Storage & MongoDB)
 // DELETE /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
 router.delete('/:id', protect, authorize('admin'), async (req, res) => {

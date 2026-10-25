@@ -1,13 +1,61 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Helper: Check if user is enrolled in course or is instructor/admin
+exports.hasCourseAccess = async (user, course) => {
+  if (!user || !course) return false;
+
+  // Admin always has access
+  if (user.role === 'admin') return true;
+
+  // Instructor of the course has access
+  const instructorId = course.instructor?._id || course.instructor;
+  if (instructorId && instructorId.toString() === user._id.toString()) {
+    return true;
+  }
+
+  const userIdStr = user._id.toString();
+  const courseIdStr = (course._id || course).toString();
+
+  // Check enrolledStudents array on the course
+  if (Array.isArray(course.enrolledStudents)) {
+    const isEnrolled = course.enrolledStudents.some(
+      s => (s?._id || s).toString() === userIdStr
+    );
+    if (isEnrolled) return true;
+  }
+
+  // Check enrolledCourses array on the user
+  if (Array.isArray(user.enrolledCourses)) {
+    const hasCourse = user.enrolledCourses.some(
+      c => (c?._id || c).toString() === courseIdStr
+    );
+    if (hasCourse) return true;
+  }
+
+  // Check if progress document exists for this student and course
+  try {
+    const Progress = require('../models/Progress');
+    const hasProgress = await Progress.exists({
+      student: user._id,
+      course: course._id || course,
+    });
+    if (hasProgress) return true;
+  } catch (err) {
+    console.warn('[hasCourseAccess] Progress check warning:', err.message);
+  }
+
+  return false;
+};
+
 // Check if user is enrolled in course or is instructor/admin
 exports.checkCourseAccess = async (req, res, next) => {
   try {
     const Course = require('../models/Course');
     const Progress = require('../models/Progress');
 
-    const course = await Course.findById(req.params.id || req.params.courseId);
+    const courseId = req.params.id || req.params.courseId;
+    const course = await Course.findById(courseId);
 
     if (!course) {
       return res.status(404).json({
@@ -16,35 +64,31 @@ exports.checkCourseAccess = async (req, res, next) => {
       });
     }
 
-    // Admin and instructors have access
-    if (
-      req.user.role === 'admin' ||
-      course.instructor.toString() === req.user._id.toString()
-    ) {
-      req.course = course;
-      return next();
-    }
-
-    // Check if student is enrolled
-    if (req.user.role === 'student') {
-      const progress = await Progress.findOne({
-        student: req.user._id,
-        course: course._id,
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to access this course',
       });
-
-      if (!progress) {
-        return res.status(403).json({
-          success: false,
-          message: 'You are not enrolled in this course',
-        });
-      }
-
-      req.progress = progress;
     }
+
+    const hasAccess = await exports.hasCourseAccess(req.user, course);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not enrolled in this course',
+      });
+    }
+
+    const progress = await Progress.findOne({
+      student: req.user._id,
+      course: course._id,
+    });
 
     req.course = course;
+    if (progress) req.progress = progress;
     next();
   } catch (error) {
+    console.error('[checkCourseAccess] Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

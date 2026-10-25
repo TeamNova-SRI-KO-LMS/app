@@ -2,6 +2,7 @@ const express = require('express');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const User = require('../models/User');
+const { protect, authorize, checkCourseAccess, optionalAuth, hasCourseAccess } = require('../middleware/auth');
 const Payment = require('../models/Payment');
 const { protect, authorize, checkCourseAccess } = require('../middleware/auth');
 const {
@@ -356,10 +357,21 @@ router.patch('/admin/:id/toggle-publish', protect, authorize('admin'), async (re
 // SINGLE-COURSE ROUTES (/:id wildcard — must stay AFTER admin routes)
 // ─────────────────────────────────────────────────────────────
 
-// @desc    Get course by ID (public)
+// @desc    Verify if user is authorized to access course info / classroom
+// @route   GET /api/courses/:id/verify-access
+// @access  Private
+router.get('/:id/verify-access', protect, checkCourseAccess, async (req, res) => {
+  res.status(200).json({
+    success: true,
+    hasAccess: true,
+    courseId: req.params.id,
+  });
+});
+
+// @desc    Get course by ID (public with role/enrollment awareness)
 // @route   GET /api/courses/:id
 // @access  Public
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id)
       .populate('instructor', 'name avatar bio')
@@ -370,8 +382,40 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
 
-    res.status(200).json({ success: true, course });
+    const hasAccess = await hasCourseAccess(req.user, course);
+    const courseObj = course.toObject();
+
+    // If unenrolled, sanitize curriculum lessons: topics and titles remain visible,
+    // but restricted lesson content/video streams are omitted
+    if (!hasAccess && Array.isArray(courseObj.curriculum)) {
+      courseObj.curriculum = courseObj.curriculum.map((week) => ({
+        ...week,
+        lessons: Array.isArray(week.lessons)
+          ? week.lessons.map((lesson) => {
+              if (lesson.isFreePreview) {
+                return lesson;
+              }
+              return {
+                _id: lesson._id,
+                title: lesson.title,
+                duration: lesson.duration,
+                type: lesson.type,
+                isFreePreview: false,
+                isLocked: true,
+                // Omit lesson.content for restricted lessons
+              };
+            })
+          : [],
+      }));
+    }
+
+    res.status(200).json({
+      success: true,
+      course: courseObj,
+      isEnrolled: hasAccess,
+    });
   } catch (error) {
+    console.error('[courseRoutes] Get course error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

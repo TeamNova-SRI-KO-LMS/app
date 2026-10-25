@@ -4,31 +4,34 @@ import {
   User, ArrowLeft, Clock, Users, Star, Calendar,
   CheckCircle2, AlertTriangle, Tag, ChevronDown, PlayCircle,
   CreditCard, FileText, ChevronUp, GraduationCap, Loader2, AlertCircle, ShieldCheck,
-  Video, ClipboardList, Image as ImageIcon, Play, Download, Sparkles, ChevronRight, ExternalLink
+  Video, ClipboardList, Image as ImageIcon, Play, Download, Sparkles, ChevronRight, ExternalLink,
+  Lock, X
 } from 'lucide-react';
 import apiService from '../services/apiService';
 import useAuth from '../context/useAuth';
 import toast from 'react-hot-toast';
 import lectureService from '../services/lectureService';
 import assignmentService from '../services/assignmentService';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 export default function CourseDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
 
-  const [course,         setCourse]         = useState(null);
-  const [loading,        setLoading]        = useState(true);
-  const [error,          setError]          = useState(null);
-  const [activeTab,      setActiveTab]      = useState('Overview');
-  const [openModules,    setOpenModules]    = useState({ 0: true });
-  const [selectedRating, setSelectedRating] = useState(0);
-  const [hoverRating,    setHoverRating]    = useState(0);
-  const [feedbackText,   setFeedbackText]   = useState('');
-  const [enrolling,      setEnrolling]      = useState(false);
-  const [enrollMsg,      setEnrollMsg]      = useState(null);
-  const [materials,      setMaterials]      = useState([]);
-  const [assignments,    setAssignments]    = useState([]);
+  const [course,            setCourse]            = useState(null);
+  const [loading,           setLoading]           = useState(true);
+  const [error,             setError]             = useState(null);
+  const [activeTab,         setActiveTab]         = useState('Overview');
+  const [openModules,       setOpenModules]       = useState({ 0: true });
+  const [selectedRating,    setSelectedRating]    = useState(0);
+  const [hoverRating,       setHoverRating]       = useState(0);
+  const [feedbackText,      setFeedbackText]      = useState('');
+  const [enrolling,         setEnrolling]         = useState(false);
+  const [enrollMsg,         setEnrollMsg]         = useState(null);
+  const [materials,         setMaterials]         = useState([]);
+  const [assignments,       setAssignments]       = useState([]);
+  const [previewVideoModal, setPreviewVideoModal] = useState({ isOpen: false, video: null });
 
   /* ── Fetch course & materials ─────────────────────────────────────────── */
   useEffect(() => {
@@ -113,6 +116,8 @@ export default function CourseDetails() {
 
   /* ── Enrolled status ─────────────────────────────────────────────────── */
   const isEnrolled = Boolean(
+    user?.role === 'admin' ||
+    (course?.instructor && (String(course.instructor._id || course.instructor) === String(user?._id || user?.id))) ||
     course?.enrolledStudents?.some((student) => {
       const studentId = typeof student === 'object' ? (student?._id || student?.id) : student;
       const currentUserId = user?._id || user?.id;
@@ -123,6 +128,117 @@ export default function CourseDetails() {
       return cId && id && String(cId) === String(id);
     })
   );
+
+  /* ── Public Preview Videos (admin explicitly marked as isPreview: true) ── */
+  const publicPreviewVideos = materials.filter(m => m.isPreview && (m.type === 'video' || m.type === 'link'));
+  const firstPreviewVideo = publicPreviewVideos[0] || null;
+
+  const handlePlayFirstPreview = () => {
+    if (firstPreviewVideo) {
+      setPreviewVideoModal({
+        isOpen: true,
+        video: {
+          title: firstPreviewVideo.title,
+          url: firstPreviewVideo.embedUrl || firstPreviewVideo.viewUrl || firstPreviewVideo.externalUrl,
+          lessonTitle: firstPreviewVideo.lessonTitle,
+        },
+      });
+      return;
+    }
+
+    const freeLesson = course?.curriculum
+      ?.flatMap(w => w.lessons || [])
+      ?.find(l => l.isFreePreview && l.content);
+
+    if (freeLesson) {
+      setPreviewVideoModal({
+        isOpen: true,
+        video: {
+          title: freeLesson.title,
+          url: freeLesson.content,
+          lessonTitle: freeLesson.title,
+        },
+      });
+      return;
+    }
+
+    toast.error('No public preview video is available for this course. Please enroll to watch full lectures.');
+  };
+
+  const handleMaterialClick = (mat) => {
+    if (isEnrolled) {
+      navigate(`/course-info/${id}`);
+      return;
+    }
+
+    if (mat.isPreview) {
+      const previewUrl = mat.embedUrl || mat.viewUrl || mat.externalUrl;
+      if (previewUrl && (mat.type === 'video' || mat.type === 'link')) {
+        setPreviewVideoModal({
+          isOpen: true,
+          video: {
+            title: mat.title,
+            url: previewUrl,
+            lessonTitle: mat.lessonTitle,
+          },
+        });
+      } else if (mat.viewUrl) {
+        window.open(mat.viewUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        toast.success(`Previewing: ${mat.title}`);
+      }
+      return;
+    }
+
+    toast.error('This video is restricted to enrolled students. Please purchase or enroll in this course to watch.');
+  };
+
+  const handleLessonClick = (lesson) => {
+    if (isEnrolled) {
+      navigate(`/course-info/${id}`);
+      return;
+    }
+
+    if (lesson.isFreePreview) {
+      if (lesson.content) {
+        setPreviewVideoModal({
+          isOpen: true,
+          video: {
+            title: lesson.title,
+            url: lesson.content,
+            lessonTitle: lesson.title,
+          },
+        });
+        return;
+      }
+
+      const matchMat = materials.find(m => m.isPreview && (m.title === lesson.title || m.lessonTitle === lesson.title));
+      if (matchMat && (matchMat.embedUrl || matchMat.viewUrl || matchMat.externalUrl)) {
+        setPreviewVideoModal({
+          isOpen: true,
+          video: {
+            title: matchMat.title,
+            url: matchMat.embedUrl || matchMat.viewUrl || matchMat.externalUrl,
+            lessonTitle: matchMat.lessonTitle,
+          },
+        });
+        return;
+      }
+
+      toast.success(`Lesson "${lesson.title}" is in the free preview curriculum.`);
+      return;
+    }
+
+    toast.error('This lesson is locked. Enroll in the course to unlock full access.');
+  };
+
+  const handleAssignmentClick = () => {
+    if (isEnrolled) {
+      navigate(`/course-info/${id}`);
+      return;
+    }
+    toast.error('Course assignments are restricted to enrolled students. Please enroll to access.');
+  };
 
   /* ── Enroll or Buy ─────────────────────────────────────────────────────── */
   const handleEnrollOrBuy = async () => {
@@ -380,11 +496,33 @@ export default function CourseDetails() {
                     </div>
 
                     <button
-                      onClick={() => navigate(`/course-info/${id}`)}
+                      onClick={() => {
+                        if (isEnrolled) {
+                          navigate(`/course-info/${id}`);
+                        } else if (firstPreviewVideo) {
+                          handlePlayFirstPreview();
+                        } else {
+                          handleEnrollOrBuy();
+                        }
+                      }}
                       className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition cursor-pointer self-start sm:self-center shrink-0 active:scale-95"
                     >
-                      <Play className="w-3.5 h-3.5 fill-white" />
-                      <span>Access Materials</span>
+                      {isEnrolled ? (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Go to Classroom</span>
+                        </>
+                      ) : firstPreviewVideo ? (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Watch Free Preview</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3.5 h-3.5 text-white" />
+                          <span>Enroll to Access</span>
+                        </>
+                      )}
                     </button>
                   </div>
 
@@ -399,7 +537,7 @@ export default function CourseDetails() {
                       {materials.slice(0, 6).map((mat) => (
                         <div
                           key={mat._id}
-                          onClick={() => navigate(`/course-info/${id}`)}
+                          onClick={() => handleMaterialClick(mat)}
                           className="flex items-center justify-between p-3.5 rounded-2xl border border-gray-200/80 bg-[#f8fafc] hover:bg-blue-50/50 hover:border-blue-300 transition cursor-pointer group"
                         >
                           <div className="flex items-center gap-3 min-w-0">
@@ -425,12 +563,12 @@ export default function CourseDetails() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0 ml-2">
                             {mat.isPreview ? (
-                              <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
-                                Preview
+                              <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide flex items-center gap-1">
+                                <PlayCircle className="w-3 h-3" /> Preview
                               </span>
                             ) : (
-                              <span className="text-[10px] text-gray-400 font-medium hidden sm:inline">
-                                Enrolled
+                              <span className="bg-gray-100 text-gray-500 text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <Lock className="w-3 h-3 text-gray-400" /> {isEnrolled ? 'Enrolled' : 'Locked'}
                               </span>
                             )}
                             <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-600 transition" />
@@ -550,7 +688,7 @@ export default function CourseDetails() {
                         {materials.map((mat, mi) => (
                           <div
                             key={mat._id || mi}
-                            onClick={() => navigate(`/course-info/${id}`)}
+                            onClick={() => handleMaterialClick(mat)}
                             className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 hover:border-blue-300 hover:shadow-md transition cursor-pointer group"
                           >
                             <div className="flex items-center gap-4 min-w-0">
@@ -589,16 +727,35 @@ export default function CourseDetails() {
 
                             <div className="flex items-center gap-3 shrink-0">
                               {mat.isPreview ? (
-                                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
-                                  Free Preview
+                                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                  <PlayCircle className="w-3 h-3" /> Free Preview
+                                </span>
+                              ) : isEnrolled ? (
+                                <span className="text-xs text-blue-600 font-medium hidden sm:inline">
+                                  Enrolled
                                 </span>
                               ) : (
-                                <span className="text-xs text-gray-400 font-medium hidden sm:inline">
-                                  Enrolled Only
+                                <span className="text-xs text-gray-400 font-medium hidden sm:flex items-center gap-1">
+                                  <Lock className="w-3.5 h-3.5" /> Enrolled Only
                                 </span>
                               )}
-                              <button className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition shadow-xs">
-                                <Play className="w-4 h-4 fill-current translate-x-0.5" />
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMaterialClick(mat);
+                                }}
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center transition shadow-xs ${
+                                  mat.isPreview || isEnrolled 
+                                    ? 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white' 
+                                    : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'
+                                }`}
+                                title={mat.isPreview ? 'Play preview' : isEnrolled ? 'Access lecture' : 'Locked - Enrolled only'}
+                              >
+                                {mat.isPreview || isEnrolled ? (
+                                  <Play className="w-4 h-4 fill-current translate-x-0.5" />
+                                ) : (
+                                  <Lock className="w-4 h-4" />
+                                )}
                               </button>
                             </div>
                           </div>
@@ -608,7 +765,7 @@ export default function CourseDetails() {
                         {assignments.map((assign) => (
                           <div
                             key={assign._id}
-                            onClick={() => navigate(`/course-info/${id}`)}
+                            onClick={() => handleAssignmentClick(assign)}
                             className="bg-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 hover:border-amber-400 hover:shadow-md transition cursor-pointer group"
                           >
                             <div className="flex items-center gap-4 min-w-0">
@@ -631,7 +788,11 @@ export default function CourseDetails() {
                               <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
                                 {assign.maxScore} pts
                               </span>
-                              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-600 transition" />
+                              {isEnrolled ? (
+                                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-600 transition" />
+                              ) : (
+                                <Lock className="w-4 h-4 text-gray-400" />
+                              )}
                             </div>
                           </div>
                         ))}
@@ -679,15 +840,24 @@ export default function CourseDetails() {
                               {(week.lessons ?? []).map((lesson, li) => (
                                 <div
                                   key={li}
-                                  onClick={() => navigate(`/course-info/${id}`)}
+                                  onClick={() => handleLessonClick(lesson)}
                                   className="flex items-center justify-between p-4 px-6 hover:bg-blue-50/40 transition cursor-pointer"
                                 >
                                   <div className="flex items-center gap-3">
-                                    <PlayCircle className={`w-4 h-4 ${lesson.isFreePreview ? 'text-blue-600' : 'text-gray-400'}`} />
+                                    {lesson.isFreePreview || isEnrolled ? (
+                                      <PlayCircle className={`w-4 h-4 ${lesson.isFreePreview ? 'text-emerald-600' : 'text-blue-600'}`} />
+                                    ) : (
+                                      <Lock className="w-4 h-4 text-gray-400" />
+                                    )}
                                     <span className="text-xs sm:text-sm font-medium text-gray-800">{lesson.title}</span>
                                     {lesson.isFreePreview && (
                                       <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
                                         Preview
+                                      </span>
+                                    )}
+                                    {!lesson.isFreePreview && !isEnrolled && (
+                                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                                        Enrolled only
                                       </span>
                                     )}
                                   </div>
@@ -701,7 +871,7 @@ export default function CourseDetails() {
                               {weekMaterials.map((mat) => (
                                 <div
                                   key={mat._id}
-                                  onClick={() => navigate(`/course-info/${id}`)}
+                                  onClick={() => handleMaterialClick(mat)}
                                   className="flex items-center justify-between p-4 px-6 hover:bg-blue-50/40 transition cursor-pointer bg-blue-50/15"
                                 >
                                   <div className="flex items-center gap-3">
@@ -714,9 +884,21 @@ export default function CourseDetails() {
                                       {mat.type}
                                     </span>
                                   </div>
-                                  <span className="text-xs text-gray-400">
-                                    {mat.isPreview ? 'Free Preview' : 'Enrolled only'}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-400">
+                                      {mat.isPreview ? (
+                                        <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                          <PlayCircle className="w-3.5 h-3.5" /> Free Preview
+                                        </span>
+                                      ) : isEnrolled ? (
+                                        'Enrolled'
+                                      ) : (
+                                        <span className="flex items-center gap-1 text-gray-400">
+                                          <Lock className="w-3.5 h-3.5" /> Enrolled only
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
                               ))}
 
@@ -724,11 +906,15 @@ export default function CourseDetails() {
                               {weekAssignments.map((assign) => (
                                 <div
                                   key={assign._id}
-                                  onClick={() => navigate(`/course-info/${id}`)}
+                                  onClick={() => handleAssignmentClick(assign)}
                                   className="flex items-center justify-between p-4 px-6 hover:bg-amber-50/40 transition cursor-pointer bg-amber-50/10"
                                 >
                                   <div className="flex items-center gap-3">
-                                    <ClipboardList className="w-4 h-4 text-amber-600" />
+                                    {isEnrolled ? (
+                                      <ClipboardList className="w-4 h-4 text-amber-600" />
+                                    ) : (
+                                      <Lock className="w-4 h-4 text-amber-700/60" />
+                                    )}
                                     <span className="text-xs sm:text-sm font-medium text-gray-900">{assign.title}</span>
                                     <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase">
                                       Assignment
@@ -768,7 +954,7 @@ export default function CourseDetails() {
                             {additionalMaterials.map((mat) => (
                               <div
                                 key={mat._id}
-                                onClick={() => navigate(`/course-info/${id}`)}
+                                onClick={() => handleMaterialClick(mat)}
                                 className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between hover:border-blue-300 hover:shadow-xs transition cursor-pointer"
                               >
                                 <div className="flex items-center gap-3">
@@ -790,8 +976,12 @@ export default function CourseDetails() {
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-xs text-blue-600 font-bold hover:underline">
-                                  Open →
+                                <span className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
+                                  {mat.isPreview || isEnrolled ? 'Open →' : (
+                                    <span className="flex items-center gap-1 text-gray-400 font-normal">
+                                      <Lock className="w-3 h-3" /> Locked
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                             ))}
@@ -799,7 +989,7 @@ export default function CourseDetails() {
                             {additionalAssignments.map((assign) => (
                               <div
                                 key={assign._id}
-                                onClick={() => navigate(`/course-info/${id}`)}
+                                onClick={() => handleAssignmentClick(assign)}
                                 className="bg-white border border-amber-200 rounded-2xl p-4 flex items-center justify-between hover:border-amber-300 transition cursor-pointer"
                               >
                                 <div className="flex items-center gap-3">
@@ -811,8 +1001,12 @@ export default function CourseDetails() {
                                     <p className="text-[10px] text-amber-600">Assignment • {assign.maxScore} pts</p>
                                   </div>
                                 </div>
-                                <span className="text-xs text-amber-700 font-bold hover:underline">
-                                  View Assignment →
+                                <span className="text-xs text-amber-700 font-bold hover:underline flex items-center gap-1">
+                                  {isEnrolled ? 'View Assignment →' : (
+                                    <span className="flex items-center gap-1 text-gray-400 font-normal">
+                                      <Lock className="w-3 h-3" /> Locked
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                             ))}
@@ -974,26 +1168,49 @@ export default function CourseDetails() {
         {/* ── Right column: Sticky pricing card ───────────────────────────── */}
         <div className="w-full lg:w-[360px] xl:w-[400px] shrink-0">
           <div className="sticky top-24 bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
-            {/* Course Photo / Thumbnail from Google Drive */}
-            <div className="relative aspect-video rounded-2xl overflow-hidden mb-6 shadow-md border border-gray-100 group">
-              <img 
-                src={course.thumbnail || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800'} 
-                alt={course.title} 
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-              />
-              <div className="absolute inset-0 bg-black/20 flex items-center justify-center transition">
-                <button 
-                  onClick={() => navigate(`/course-info/${id}`)}
-                  className="w-12 h-12 rounded-full bg-white text-blue-600 flex items-center justify-center shadow-xl hover:scale-110 transition active:scale-95 cursor-pointer"
-                  title="Preview Course"
-                >
-                  <Play className="w-5 h-5 fill-blue-600 translate-x-0.5" />
-                </button>
-              </div>
-              <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-bold text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-lg">
-                <span>Course Preview</span>
-                <span className="text-blue-300">Supabase Cloud Storage</span>
-              </div>
+            {/* Course Photo / Video Thumbnail */}
+            <div className="relative aspect-video rounded-2xl overflow-hidden mb-6 shadow-md border border-gray-100 group bg-slate-900">
+              {isVideoUrl(course.thumbnail) ? (
+                <>
+                  <video 
+                    src={course.thumbnail} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                    muted 
+                    playsInline 
+                    preload="metadata" 
+                  />
+                  {/* Play button overlay: strictly for thumbnail videos */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewVideoModal({
+                        isOpen: true,
+                        video: {
+                          title: `${course.title} - Video Preview`,
+                          url: course.thumbnail,
+                          lessonTitle: 'Course Overview Video',
+                        },
+                      });
+                    }}
+                    aria-label="Play course thumbnail video"
+                    className="absolute inset-0 bg-black/25 hover:bg-black/40 transition-colors flex items-center justify-center cursor-pointer group/btn"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-blue-600/95 hover:bg-blue-600 text-white flex items-center justify-center shadow-xl transition-all duration-300 group-hover/btn:scale-110 active:scale-95">
+                      <Play className="w-7 h-7 fill-current translate-x-0.5" />
+                    </div>
+                    <div className="absolute bottom-3 left-3 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg text-[11px] font-semibold text-white flex items-center gap-1.5 pointer-events-none">
+                      <Video className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Video Preview</span>
+                    </div>
+                  </button>
+                </>
+              ) : (
+                <img 
+                  src={course.thumbnail || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800'} 
+                  alt={course.title} 
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                />
+              )}
             </div>
 
             <div className="text-center mb-6">
@@ -1073,6 +1290,78 @@ export default function CourseDetails() {
         </div>
 
       </div>
+
+      {/* ── Preview Video Modal for Public Previews ───────────────────────── */}
+      {previewVideoModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-4xl bg-[#0f172a] rounded-3xl overflow-hidden shadow-2xl border border-white/10 text-white flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/5">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full tracking-wider shrink-0">
+                  Public Free Preview
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-white truncate">
+                  {previewVideoModal.video?.title || 'Course Preview Video'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setPreviewVideoModal({ isOpen: false, video: null })}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-300 hover:text-white transition cursor-pointer shrink-0 ml-4"
+                title="Close Preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Video Content */}
+            <div className="p-4 sm:p-6 bg-black flex items-center justify-center">
+              {previewVideoModal.video?.url ? (
+                (previewVideoModal.video.url.includes('youtube.com') || previewVideoModal.video.url.includes('youtu.be') || previewVideoModal.video.url.includes('/embed/')) ? (
+                  <iframe
+                    src={previewVideoModal.video.url}
+                    title={previewVideoModal.video.title}
+                    className="w-full aspect-video rounded-2xl shadow-lg border border-white/10"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    controls
+                    autoPlay
+                    controlsList="nodownload"
+                    src={previewVideoModal.video.url}
+                    className="w-full aspect-video rounded-2xl shadow-lg bg-black object-contain"
+                  />
+                )
+              ) : (
+                <div className="py-16 text-center text-gray-400">
+                  <AlertCircle className="w-10 h-10 mx-auto mb-2 text-amber-400" />
+                  <p className="text-sm font-medium">Video preview stream is currently unavailable.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-white/5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <p className="text-xs text-gray-300">
+                  Enjoying this preview? Enroll now to unlock all {totalLessons} lectures, assignments, and certificates.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setPreviewVideoModal({ isOpen: false, video: null });
+                  handleEnrollOrBuy();
+                }}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/30 transition cursor-pointer active:scale-95 shrink-0"
+              >
+                {course.price === 0 ? 'Enroll for Free' : `Buy Course (${formatPrice(course.price)})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

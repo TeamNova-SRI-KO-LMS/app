@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, BookOpen, GraduationCap, Award, Globe, Clock,
-  Lightbulb, ShieldCheck, Heart, FileText, CheckCircle2, Star, CreditCard
+  Lightbulb, ShieldCheck, Heart, FileText, CheckCircle2, Star, CreditCard, Play
 } from 'lucide-react';
 import apiService from '../services/apiService';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 const FALLBACK_PROGRAMS = [
   {
@@ -255,15 +256,30 @@ const LandingPage = () => {
                     className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 flex flex-col h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
                   >
                     {/* Course Thumbnail */}
-                    <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-gray-200">
-                      <img
-                        src={thumbnailSrc}
-                        alt={course.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => {
-                          e.currentTarget.src = DEFAULT_THUMBNAILS[idx % DEFAULT_THUMBNAILS.length];
-                        }}
-                      />
+                    <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-gray-900">
+                      {isVideoUrl(thumbnailSrc) ? (
+                        <>
+                          <video
+                            src={thumbnailSrc}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                          <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-xs text-white p-2 rounded-full shadow pointer-events-none">
+                            <Play size={12} className="fill-current translate-x-0.5" />
+                          </div>
+                        </>
+                      ) : (
+                        <img
+                          src={thumbnailSrc}
+                          alt={course.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_THUMBNAILS[idx % DEFAULT_THUMBNAILS.length];
+                          }}
+                        />
+                      )}
                       <div className="absolute top-4 left-4">
                         <span className={`${badge.bg} text-xs font-bold px-3 py-1 rounded-full uppercase shadow-sm`}>
                           {badge.label}

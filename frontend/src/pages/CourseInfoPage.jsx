@@ -15,6 +15,7 @@ import apiService from '../services/apiService';
 import lectureService from '../services/lectureService';
 import assignmentService from '../services/assignmentService';
 import useAuth from '../context/useAuth';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 export default function CourseInfoPage() {
   const { id } = useParams();
@@ -68,16 +69,16 @@ export default function CourseInfoPage() {
       // If no ID in route, try to find an enrolled course or redirect
       (async () => {
         try {
-          const res = await apiService.get('/courses');
+          const res = await apiService.get('/courses/my-courses');
           if (res.data?.courses?.length > 0) {
             navigate(`/course-info/${res.data.courses[0]._id}`, { replace: true });
           } else {
-            setError('No courses available yet.');
-            setLoading(false);
+            toast.error('You are not enrolled in any courses yet.');
+            navigate('/courses', { replace: true });
           }
         } catch {
-          setError('Failed to load courses.');
-          setLoading(false);
+          toast.error('Failed to load courses.');
+          navigate('/courses', { replace: true });
         }
       })();
       return;
@@ -86,17 +87,43 @@ export default function CourseInfoPage() {
     const loadClassroomData = async () => {
       try {
         setLoading(true);
-        const [courseRes, matsRes, assignRes] = await Promise.allSettled([
-          apiService.get(`/courses/${courseId}`),
+        setError(null);
+
+        // Fetch course details with access status
+        const courseRes = await apiService.get(`/courses/${courseId}`);
+        const courseData = courseRes.data?.course ?? null;
+
+        if (!courseData) {
+          setError('Course not found.');
+          setLoading(false);
+          return;
+        }
+
+        // Access check: Admin, course instructor, or enrolled student
+        const currentUserId = user?._id || user?.id;
+        const isAdmin = user?.role === 'admin';
+        const isInstructor = courseData?.instructor &&
+          (String(courseData.instructor._id || courseData.instructor) === String(currentUserId));
+        const isEnrolledInCourseDoc = Array.isArray(courseData?.enrolledStudents) &&
+          courseData.enrolledStudents.some(s => String(s._id || s.id || s) === String(currentUserId));
+        const isEnrolledInUserDoc = Array.isArray(user?.enrolledCourses) &&
+          user.enrolledCourses.some(c => String(c._id || c.id || c) === String(courseId));
+        const serverConfirmed = Boolean(courseRes.data?.isEnrolled);
+
+        const hasAccess = isAdmin || isInstructor || isEnrolledInCourseDoc || isEnrolledInUserDoc || serverConfirmed;
+
+        if (!hasAccess) {
+          toast.error('Access restricted: You must be enrolled in this course to access the classroom.');
+          navigate(`/courses/${courseId}`, { replace: true });
+          return;
+        }
+
+        setCourse(courseData);
+
+        const [matsRes, assignRes] = await Promise.allSettled([
           lectureService.getCourseMaterials(courseId),
           assignmentService.getCourseAssignments(courseId),
         ]);
-
-        let courseData = null;
-        if (courseRes.status === 'fulfilled') {
-          courseData = courseRes.value.data?.course ?? null;
-          setCourse(courseData);
-        }
 
         let matsData = [];
         if (matsRes.status === 'fulfilled') {
@@ -127,14 +154,19 @@ export default function CourseInfoPage() {
         }
       } catch (err) {
         console.error('Failed to load classroom data:', err);
-        setError('Failed to load classroom content.');
+        if (err?.response?.status === 403) {
+          toast.error('Access restricted: You must be enrolled in this course to access the classroom.');
+          navigate(`/courses/${courseId}`, { replace: true });
+        } else {
+          setError('Failed to load classroom content.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadClassroomData();
-  }, [id, navigate]);
+  }, [id, navigate, user]);
 
   // Handle lesson / material toggle completion
   const toggleComplete = (itemId) => {
@@ -248,10 +280,10 @@ export default function CourseInfoPage() {
           <h2 className="text-lg font-bold text-gray-900 mb-1">Classroom Unavailable</h2>
           <p className="text-xs text-gray-500 mb-6">{error || 'Course not found.'}</p>
           <Link 
-            to="/courses" 
+            to={id ? `/courses/${id}` : "/courses"} 
             className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition"
           >
-            ← Back to Courses
+            ← View Course &amp; Enroll
           </Link>
         </div>
       </div>
@@ -588,11 +620,20 @@ export default function CourseInfoPage() {
                 /* Default Course Thumbnail preview */
                 <div className="relative aspect-video w-full bg-gray-950 flex items-center justify-center">
                   {course.thumbnail ? (
-                    <img 
-                      src={course.thumbnail} 
-                      alt={course.title}
-                      className="w-full h-full object-cover opacity-80" 
-                    />
+                    isVideoUrl(course.thumbnail) ? (
+                      <video
+                        src={course.thumbnail}
+                        controls
+                        className="w-full h-full object-contain"
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img 
+                        src={course.thumbnail} 
+                        alt={course.title}
+                        className="w-full h-full object-cover opacity-80" 
+                      />
+                    )
                   ) : (
                     <div className="text-center text-white p-6">
                       <BookOpen className="w-16 h-16 text-blue-500 mx-auto mb-2" />
