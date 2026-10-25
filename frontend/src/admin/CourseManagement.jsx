@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   Users,
@@ -18,6 +19,10 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
+  ExternalLink,
+  Star,
+  User,
+  Clock,
 } from 'lucide-react';
 import courseService from '../services/courseService';
 import CreateCourseView from './components/CreateCourseView';
@@ -107,6 +112,193 @@ const DeleteModal = ({ course, onConfirm, onCancel, loading }) => (
     </div>
   </div>
 );
+
+/* ─────────────────────────── CourseDetailsModal ─────────────────────────── */
+const CourseDetailsModal = ({ course, onClose, onEdit, onTogglePublish, isPublishing }) => {
+  if (!course) return null;
+
+  const studentCount = Array.isArray(course.enrolledStudents)
+    ? course.enrolledStudents.length
+    : (typeof course.enrolledCount === 'number'
+        ? course.enrolledCount
+        : (typeof course.buyersCount === 'number' ? course.buyersCount : 0));
+
+  const instructorName = course.instructorName || course.instructor?.name || 'SRI-KO Instructor';
+  const instructorAvatar = course.instructorImage || course.instructor?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(instructorName)}`;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-150">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur-md z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <BookOpen size={18} />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-gray-900 text-lg leading-tight">Course Details</h3>
+              <p className="text-xs text-gray-400 font-mono mt-0.5">ID: {course._id}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-800 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body Content */}
+        <div className="p-6 space-y-6">
+          {/* Top Banner & Info */}
+          <div className="flex flex-col sm:flex-row gap-5 items-start">
+            {course.thumbnail ? (
+              <div className="w-full sm:w-44 h-28 rounded-2xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100 shadow-xs">
+                <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-full sm:w-44 h-28 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+                <BookOpen size={36} className="opacity-80" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider ${getLevelStyle(course.level)}`}>
+                  {course.level?.toUpperCase() || 'BEGINNER'}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700">
+                  {course.category || 'Language'}
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  course.isPublished ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${course.isPublished ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  {course.isPublished ? 'PUBLISHED' : 'DRAFT'}
+                </span>
+              </div>
+              <h2 className="text-xl font-extrabold text-gray-900 leading-snug">{course.title}</h2>
+              <p className="text-lg font-black text-blue-600 mt-1">{formatPrice(course.price)}</p>
+            </div>
+          </div>
+
+          {/* Key Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase block">Duration</span>
+              <span className="text-sm font-bold text-gray-900 mt-0.5 block">{course.duration || 4} Weeks</span>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase block">Enrolled</span>
+              <span className="text-sm font-bold text-gray-900 mt-0.5 block">{studentCount} Students</span>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase block">Average Rating</span>
+              <span className="text-sm font-bold text-gray-900 mt-0.5 block flex items-center gap-1">
+                <Star size={13} className="fill-amber-400 text-amber-400" />
+                {course.averageRating ? Number(course.averageRating).toFixed(1) : '5.0'}
+              </span>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100">
+              <span className="text-[10px] font-bold text-gray-400 uppercase block">Curriculum</span>
+              <span className="text-sm font-bold text-gray-900 mt-0.5 block">
+                {Array.isArray(course.curriculum) ? course.curriculum.length : 0} Modules
+              </span>
+            </div>
+          </div>
+
+          {/* Instructor Profile Card */}
+          <div className="bg-gradient-to-br from-indigo-50/50 to-blue-50/30 rounded-2xl p-4 border border-indigo-100/60 flex items-start gap-3.5">
+            <img
+              src={instructorAvatar}
+              alt={instructorName}
+              className="w-12 h-12 rounded-xl object-cover shrink-0 border border-white shadow-xs"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-gray-900 text-sm">{instructorName}</h4>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded-md">
+                  {course.instructorRole || 'Lead Instructor'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                {course.instructorBio || course.instructor?.bio || 'Certified Korean language expert dedicated to student fluency and success.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Description</h4>
+            <p className="text-xs text-gray-600 leading-relaxed bg-gray-50/80 p-4 rounded-2xl border border-gray-100 whitespace-pre-line">
+              {course.description || 'No description provided.'}
+            </p>
+          </div>
+
+          {/* Tags */}
+          {Array.isArray(course.tags) && course.tags.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Tags</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {course.tags.map((tag, i) => (
+                  <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer Actions */}
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3 mt-auto">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onTogglePublish(course)}
+              disabled={isPublishing}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                course.isPublished
+                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+              }`}
+            >
+              {isPublishing ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : course.isPublished ? (
+                <EyeOff size={13} />
+              ) : (
+                <Eye size={13} />
+              )}
+              <span>{course.isPublished ? 'Unpublish Course' : 'Publish Course'}</span>
+            </button>
+            <button
+              onClick={() => window.open(`/courses/${course._id}`, '_blank')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+            >
+              <ExternalLink size={13} />
+              <span>Public Page</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onEdit(course)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+            >
+              <Edit3 size={13} />
+              <span>Edit Course</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-200 hover:bg-gray-100 text-gray-600 text-xs font-semibold rounded-xl transition cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ─────────────────────────── CourseModal ─────────────────────────── */
 const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
@@ -348,9 +540,11 @@ const CourseManagement = () => {
   const LIMIT = 10;
 
   // Modals
-  const [modal,         setModal]         = useState(null);
-  const [editingCourse, setEditingCourse] = useState(null);
-  const [deleteTarget,  setDeleteTarget]  = useState(null);
+  const [modal,               setModal]               = useState(null);
+  const [editingCourse,       setEditingCourse]       = useState(null);
+  const [deleteTarget,        setDeleteTarget]        = useState(null);
+  const [viewingCourse,       setViewingCourse]       = useState(null);
+  const [togglePublishingId,  setTogglePublishingId]  = useState(null);
 
   // Toasts
   const [toasts, setToasts] = useState([]);
@@ -452,12 +646,22 @@ const CourseManagement = () => {
   };
 
   const handleTogglePublish = async (course) => {
+    setTogglePublishingId(course._id);
     try {
       const res = await courseService.togglePublish(course._id);
-      setCourses(prev => prev.map(c => c._id === course._id ? { ...c, isPublished: res.isPublished } : c));
-      addToast(`Course ${res.isPublished ? 'published' : 'unpublished'} successfully!`);
+      const newPublished = res.isPublished;
+      setCourses(prev => prev.map(c => c._id === course._id ? { ...c, isPublished: newPublished } : c));
+      setViewingCourse(prev => prev && prev._id === course._id ? { ...prev, isPublished: newPublished } : prev);
+      setStats(prev => ({
+        ...prev,
+        totalPublished: newPublished ? prev.totalPublished + 1 : Math.max(0, prev.totalPublished - 1),
+        totalDraft:     newPublished ? Math.max(0, prev.totalDraft - 1) : prev.totalDraft + 1,
+      }));
+      addToast(`Course ${newPublished ? 'published' : 'unpublished (moved to draft)'} successfully!`);
     } catch (err) {
       addToast(err?.response?.data?.message || 'Failed to toggle status.', 'error');
+    } finally {
+      setTogglePublishingId(null);
     }
   };
 
@@ -538,6 +742,15 @@ const CourseManagement = () => {
       <Toast toasts={toasts} remove={removeToast} />
 
       {/* Modals */}
+      {viewingCourse && (
+        <CourseDetailsModal
+          course={viewingCourse}
+          onClose={() => setViewingCourse(null)}
+          onEdit={(c) => { setViewingCourse(null); openEdit(c); }}
+          onTogglePublish={handleTogglePublish}
+          isPublishing={togglePublishingId === viewingCourse._id}
+        />
+      )}
       {(modal === 'add' || modal === 'edit') && (
         <CourseModal
           mode={modal}
@@ -584,9 +797,16 @@ const CourseManagement = () => {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Interactive Filters) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setSelectedStatus('Status')}
+          className={`bg-white p-5 rounded-2xl border text-left shadow-xs flex items-center justify-between transition-all cursor-pointer ${
+            selectedStatus === 'Status' ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/20' : 'border-gray-100 hover:border-gray-300'
+          }`}
+          title="Click to view all courses"
+        >
           <div>
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
               <BookOpen size={20} />
@@ -599,7 +819,7 @@ const CourseManagement = () => {
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-blue-600 bg-blue-50 self-start">
             {loading ? '…' : `${stats.totalPublished} live`}
           </span>
-        </div>
+        </button>
 
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between">
           <div>
@@ -617,7 +837,14 @@ const CourseManagement = () => {
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-emerald-600 bg-emerald-50 self-start">Live</span>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setSelectedStatus('PUBLISHED')}
+          className={`bg-white p-5 rounded-2xl border text-left shadow-xs flex items-center justify-between transition-all cursor-pointer ${
+            selectedStatus === 'PUBLISHED' ? 'border-emerald-500 ring-2 ring-emerald-100 bg-emerald-50/20' : 'border-gray-100 hover:border-gray-300'
+          }`}
+          title="Click to view published courses"
+        >
           <div>
             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
               <CheckCircle size={20} />
@@ -628,9 +855,16 @@ const CourseManagement = () => {
             </span>
           </div>
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-emerald-600 bg-emerald-50 self-start">Active</span>
-        </div>
+        </button>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setSelectedStatus('DRAFT')}
+          className={`bg-white p-5 rounded-2xl border text-left shadow-xs flex items-center justify-between transition-all cursor-pointer ${
+            selectedStatus === 'DRAFT' ? 'border-red-500 ring-2 ring-red-100 bg-red-50/20' : 'border-gray-100 hover:border-gray-300'
+          }`}
+          title="Click to view unpublished (draft) courses"
+        >
           <div>
             <div className="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center mb-3">
               <FileEdit size={20} />
@@ -641,7 +875,7 @@ const CourseManagement = () => {
             </span>
           </div>
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-red-500 bg-red-50 self-start">Unpublished</span>
-        </div>
+        </button>
       </div>
 
       {/* Filter Bar */}
@@ -676,7 +910,9 @@ const CourseManagement = () => {
             onChange={e => setSelectedStatus(e.target.value)}
             className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-transparent rounded-xl text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer"
           >
-            {STATUSES.map(s => <option key={s}>{s}</option>)}
+            <option value="Status">All Statuses</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="DRAFT">Unpublished (Draft)</option>
           </select>
           <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500">
             <ArrowUpDown size={12} />
@@ -768,16 +1004,29 @@ const CourseManagement = () => {
                   <tr key={course._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
-                          <BookOpen size={17} />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate">
+                        {course.thumbnail ? (
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100">
+                            <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                            <BookOpen size={17} />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate" title={course.title}>
                             {course.title}
                           </h4>
-                          <span className="text-[10px] font-mono text-gray-400 block mt-0.5 truncate max-w-[180px]">
-                            ID: {course._id}
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <img
+                              src={course.instructorImage || course.instructor?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(course.instructorName || course.instructor?.name || 'Instructor')}`}
+                              alt={course.instructorName || 'Instructor'}
+                              className="w-3.5 h-3.5 rounded-full object-cover shrink-0 border border-gray-200"
+                            />
+                            <span className="text-[11px] text-gray-500 font-medium truncate max-w-[150px]">
+                              {course.instructorName || course.instructor?.name || 'SRI-KO Instructor'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -823,34 +1072,67 @@ const CourseManagement = () => {
                       })()}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-extrabold ${course.isPublished ? 'text-emerald-600' : 'text-amber-500'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${course.isPublished ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                        {course.isPublished ? 'PUBLISHED' : 'DRAFT'}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePublish(course)}
+                        disabled={togglePublishingId === course._id}
+                        title={course.isPublished ? 'Click to unpublish course (move to draft)' : 'Click to publish course'}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
+                          course.isPublished
+                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 shadow-2xs'
+                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 shadow-2xs'
+                        } ${togglePublishingId === course._id ? 'opacity-50 pointer-events-none' : ''}`}
+                      >
+                        {togglePublishingId === course._id ? (
+                          <Loader2 size={12} className="animate-spin text-current" />
+                        ) : (
+                          <span className={`w-1.5 h-1.5 rounded-full ${course.isPublished ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                        )}
+                        <span>{course.isPublished ? 'PUBLISHED' : 'DRAFT'}</span>
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button title="View Details" className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setViewingCourse(course)}
+                          title="View Course Details"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                        >
                           <FileText size={15} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => openEdit(course)}
                           title="Edit Course"
-                          className="text-gray-400 hover:text-indigo-600 cursor-pointer transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer transition-colors"
                         >
                           <Edit3 size={15} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleTogglePublish(course)}
-                          title={course.isPublished ? 'Unpublish' : 'Publish'}
-                          className={`cursor-pointer transition-colors ${course.isPublished ? 'text-gray-400 hover:text-amber-500' : 'text-gray-400 hover:text-emerald-600'}`}
+                          disabled={togglePublishingId === course._id}
+                          title={course.isPublished ? 'Unpublish Course (move to draft)' : 'Publish Course'}
+                          className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                            course.isPublished
+                              ? 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'
+                              : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
+                          } ${togglePublishingId === course._id ? 'opacity-50 pointer-events-none' : ''}`}
                         >
-                          {course.isPublished ? <EyeOff size={15} /> : <Eye size={15} />}
+                          {togglePublishingId === course._id ? (
+                            <Loader2 size={15} className="animate-spin text-blue-600" />
+                          ) : course.isPublished ? (
+                            <EyeOff size={15} />
+                          ) : (
+                            <Eye size={15} />
+                          )}
                         </button>
                         <button
+                          type="button"
                           onClick={() => setDeleteTarget(course)}
                           title="Delete Course"
-                          className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>

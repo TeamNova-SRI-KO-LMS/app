@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { 
   ArrowLeft, Edit2, PlusCircle, CheckCircle2, 
   AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload,
-  Play, Video
+  Play, Video, User, Camera
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import CourseResourceModal from './CourseResourceModal';
 import lectureService from '../../services/lectureService';
 import { uploadToSupabase } from '../../services/uploadService';
@@ -22,6 +23,13 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
   const [thumbnail, setThumbnail] = useState(course?.thumbnail || '');
   const [isThumbnailVideo, setIsThumbnailVideo] = useState(() => isVideoUrl(course?.thumbnail));
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+
+  // Instructor profile state
+  const [instructorName, setInstructorName] = useState(course?.instructorName || course?.instructor?.name || '');
+  const [instructorRole, setInstructorRole] = useState(course?.instructorRole || 'Lead Korean Language Instructor');
+  const [instructorBio, setInstructorBio] = useState(course?.instructorBio || course?.instructor?.bio || '');
+  const [instructorImage, setInstructorImage] = useState(course?.instructorImage || course?.instructor?.avatar || '');
+  const [uploadingInstructorImage, setUploadingInstructorImage] = useState(false);
 
   // Quick settings toggles
   const [openEnrollment, setOpenEnrollment] = useState(true);
@@ -61,6 +69,10 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
       openEnrollment,
       certificatesEnabled,
       featuredOnHome,
+      instructorName: instructorName.trim(),
+      instructorRole: instructorRole.trim(),
+      instructorBio: instructorBio.trim(),
+      instructorImage: instructorImage.trim(),
     };
     if (onSave) onSave(payload);
   };
@@ -364,6 +376,188 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
             <p className="text-[10px] text-gray-400 text-center mt-2.5">
               Click thumbnail area to replace photo or video. Saved directly to your Supabase Cloud Storage.
             </p>
+          </div>
+
+          {/* Card: Instructor Profile */}
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <User size={15} />
+                </div>
+                <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider">
+                  Instructor Profile
+                </h4>
+              </div>
+              {instructorImage && (
+                <button
+                  type="button"
+                  onClick={() => setInstructorImage('')}
+                  className="text-[11px] text-red-500 hover:text-red-700 font-semibold cursor-pointer"
+                >
+                  Remove Photo
+                </button>
+              )}
+            </div>
+
+            {/* Avatar Upload / Preview */}
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 group">
+                {instructorImage ? (
+                  <img
+                    src={instructorImage}
+                    alt={instructorName || 'Instructor'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-50">
+                    <User size={24} />
+                  </div>
+                )}
+                {uploadingInstructorImage && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white z-10">
+                    <Loader2 size={16} className="animate-spin text-blue-400" />
+                  </div>
+                )}
+                <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white cursor-pointer transition-opacity">
+                  <Camera size={16} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingInstructorImage}
+                    className="sr-only"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingInstructorImage(true);
+                      try {
+                        const res = await lectureService.uploadThumbnail(file);
+                        if (res?.url) {
+                          setInstructorImage(res.url);
+                          toast.success('Instructor photo updated!');
+                        }
+                      } catch (err) {
+                        try {
+                          const url = await uploadToSupabase(file, 'courses', 'instructors');
+                          setInstructorImage(url);
+                          toast.success('Instructor photo updated!');
+                        } catch (subErr) {
+                          toast.error('Failed to upload image. You can also paste an image URL below.');
+                        }
+                      } finally {
+                        setUploadingInstructorImage(false);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <label className="block text-[11px] font-bold text-gray-700 uppercase mb-1">
+                  Profile Photo
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl cursor-pointer transition-colors">
+                    <Upload size={12} />
+                    <span>Upload Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingInstructorImage}
+                      className="sr-only"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadingInstructorImage(true);
+                        try {
+                          const res = await lectureService.uploadThumbnail(file);
+                          if (res?.url) {
+                            setInstructorImage(res.url);
+                            toast.success('Instructor photo updated!');
+                          }
+                        } catch (err) {
+                          try {
+                            const url = await uploadToSupabase(file, 'courses', 'instructors');
+                            setInstructorImage(url);
+                            toast.success('Instructor photo updated!');
+                          } catch (subErr) {
+                            toast.error('Failed to upload image. You can also paste an image URL below.');
+                          }
+                        } finally {
+                          setUploadingInstructorImage(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  {instructorName && !instructorImage && (
+                    <button
+                      type="button"
+                      onClick={() => setInstructorImage(`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(instructorName)}`)}
+                      className="text-[11px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                    >
+                      Use Avatar
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">PNG, JPG or WebP (square recommended)</p>
+              </div>
+            </div>
+
+            {/* Direct Image URL input */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                Photo URL (optional)
+              </label>
+              <input
+                type="url"
+                value={instructorImage}
+                onChange={(e) => setInstructorImage(e.target.value)}
+                placeholder="https://example.com/instructor.jpg"
+                className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition"
+              />
+            </div>
+
+            {/* Instructor Name */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                Instructor Name
+              </label>
+              <input
+                type="text"
+                value={instructorName}
+                onChange={(e) => setInstructorName(e.target.value)}
+                placeholder="e.g. Dr. Ji-Won Kim"
+                className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition"
+              />
+            </div>
+
+            {/* Instructor Role */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                Title / Role
+              </label>
+              <input
+                type="text"
+                value={instructorRole}
+                onChange={(e) => setInstructorRole(e.target.value)}
+                placeholder="e.g. Lead Korean Language Instructor"
+                className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition"
+              />
+            </div>
+
+            {/* Instructor Bio */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                Short Bio
+              </label>
+              <textarea
+                rows={2}
+                value={instructorBio}
+                onChange={(e) => setInstructorBio(e.target.value)}
+                placeholder="e.g. Certified native instructor with 8+ years teaching Korean."
+                className="w-full bg-[#f1f5f9] border border-transparent rounded-xl px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition resize-none"
+              />
+            </div>
           </div>
 
           {/* Card 2: Course Readiness */}

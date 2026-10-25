@@ -16,6 +16,22 @@ const courseSchema = new mongoose.Schema({
     ref: 'User',
     required: false
   },
+  instructorName: {
+    type: String,
+    default: ''
+  },
+  instructorImage: {
+    type: String,
+    default: ''
+  },
+  instructorBio: {
+    type: String,
+    default: ''
+  },
+  instructorRole: {
+    type: String,
+    default: 'Lead Instructor'
+  },
   category: {
     type: String,
     enum: ['Literature', 'Business', 'Language', 'Culture', 'Grammar', 'Conversation', 'Other'],
