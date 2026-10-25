@@ -67,6 +67,12 @@ const lectureService = {
     const res = await apiClient.delete(`/lectures/${id}`);
     return res.data;
   },
+
+  // Toggle preview status (admin: publish for everyone vs enrolled-only)
+  togglePreview: async (id) => {
+    const res = await apiClient.patch(`/lectures/${id}/toggle-preview`);
+    return res.data;
+  },
 };
 
 export default lectureService;

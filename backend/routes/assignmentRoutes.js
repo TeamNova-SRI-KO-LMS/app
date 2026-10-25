@@ -1,8 +1,9 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, hasCourseAccess } = require('../middleware/auth');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
+const Course = require('../models/Course');
 const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
 
 const router = express.Router();
@@ -110,6 +111,14 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
+    }
+
+    const course = await Course.findById(assignment.course);
+    if (!course || !hasCourseAccess(req.user, course)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must be enrolled in this course to submit assignments.',
+      });
     }
 
     if (!req.files || req.files.length === 0) {

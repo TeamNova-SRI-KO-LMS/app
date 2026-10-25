@@ -2,7 +2,7 @@ const express = require('express');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const User = require('../models/User');
-const { protect, authorize, checkCourseAccess } = require('../middleware/auth');
+const { protect, authorize, checkCourseAccess, optionalAuth, hasCourseAccess } = require('../middleware/auth');
 const {
   validateCourseCreation,
   validateReview,
@@ -175,7 +175,7 @@ router.put('/admin/:id', protect, authorize('admin'), async (req, res) => {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
 
-    const allowed = ['title','description','category','level','duration','price','isPublished','isFeatured','features','tags','thumbnail','prerequisites'];
+    const allowed = ['title','description','category','level','duration','price','isPublished','isFeatured','features','tags','thumbnail','prerequisites','curriculum'];
     const updateData = {};
     allowed.forEach(field => { if (req.body[field] !== undefined) updateData[field] = req.body[field]; });
     if (updateData.level)              updateData.level  = updateData.level.toLowerCase();
@@ -229,10 +229,10 @@ router.patch('/admin/:id/toggle-publish', protect, authorize('admin'), async (re
 // SINGLE-COURSE ROUTES (/:id wildcard — must stay AFTER admin routes)
 // ─────────────────────────────────────────────────────────────
 
-// @desc    Get course by ID (public)
+// @desc    Get course by ID (public view for unenrolled; full view for enrolled)
 // @route   GET /api/courses/:id
 // @access  Public
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id)
       .populate('instructor', 'name avatar bio')
@@ -243,7 +243,39 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
 
-    res.status(200).json({ success: true, course });
+    const isAuthorized = hasCourseAccess(req.user, course);
+    const courseObj = course.toObject();
+    courseObj.isEnrolled = isAuthorized;
+
+    if (!isAuthorized && Array.isArray(courseObj.curriculum)) {
+      // Unenrolled users: only topics and titles, and can ONLY watch videos admin accepted for everyone (isFreePreview: true)
+      courseObj.curriculum = courseObj.curriculum.map((week) => ({
+        _id: week._id,
+        week: week.week,
+        title: week.title,
+        description: week.description,
+        lessons: (week.lessons || []).map((lesson) => {
+          if (lesson.isFreePreview) {
+            return {
+              ...lesson,
+              isLocked: false,
+            };
+          }
+          return {
+            _id: lesson._id,
+            title: lesson.title,
+            duration: lesson.duration,
+            type: lesson.type,
+            isFreePreview: false,
+            isLocked: true,
+            // Sensitive video or reading content stripped for unenrolled users
+            content: null,
+          };
+        }),
+      }));
+    }
+
+    res.status(200).json({ success: true, course: courseObj });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
   }

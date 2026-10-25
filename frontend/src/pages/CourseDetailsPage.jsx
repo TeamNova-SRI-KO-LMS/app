@@ -4,7 +4,7 @@ import {
   User, ArrowLeft, Clock, Users, Star, Calendar,
   CheckCircle2, AlertTriangle, Tag, ChevronDown, PlayCircle,
   CreditCard, FileText, ChevronUp, GraduationCap, Loader2, AlertCircle, ShieldCheck,
-  Video, ClipboardList, Image as ImageIcon, Play, Download, Sparkles, ChevronRight, ExternalLink
+  Video, ClipboardList, Image as ImageIcon, Play, Download, Sparkles, ChevronRight, ExternalLink, Lock
 } from 'lucide-react';
 import apiService from '../services/apiService';
 import useAuth from '../context/useAuth';
@@ -113,6 +113,8 @@ export default function CourseDetails() {
 
   /* ── Enrolled status ─────────────────────────────────────────────────── */
   const isEnrolled = Boolean(
+    user?.role === 'admin' ||
+    (course?.instructor && (String(course.instructor?._id || course.instructor) === String(user?._id || user?.id))) ||
     course?.enrolledStudents?.some((student) => {
       const studentId = typeof student === 'object' ? (student?._id || student?.id) : student;
       const currentUserId = user?._id || user?.id;
@@ -121,7 +123,8 @@ export default function CourseDetails() {
     user?.enrolledCourses?.some((c) => {
       const cId = typeof c === 'object' ? (c?._id || c?.id) : c;
       return cId && id && String(cId) === String(id);
-    })
+    }) ||
+    course?.isEnrolled
   );
 
   /* ── Enroll or Buy ─────────────────────────────────────────────────────── */
@@ -547,79 +550,132 @@ export default function CourseDetails() {
                       </div>
 
                       <div className="grid grid-cols-1 gap-3">
-                        {materials.map((mat, mi) => (
-                          <div
-                            key={mat._id || mi}
-                            onClick={() => navigate(`/course-info/${id}`)}
-                            className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 hover:border-blue-300 hover:shadow-md transition cursor-pointer group"
-                          >
-                            <div className="flex items-center gap-4 min-w-0">
-                              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                                mat.type === 'video' ? 'bg-purple-100 text-purple-700' :
-                                mat.type === 'pdf' ? 'bg-red-100 text-red-700' :
-                                mat.type === 'image' ? 'bg-amber-100 text-amber-700' :
-                                'bg-blue-100 text-blue-700'
-                              }`}>
-                                {mat.type === 'video' && <Video className="w-5 h-5" />}
-                                {mat.type === 'pdf' && <FileText className="w-5 h-5" />}
-                                {mat.type === 'image' && <ImageIcon className="w-5 h-5" />}
-                                {mat.type === 'link' && <PlayCircle className="w-5 h-5" />}
-                              </div>
-                              <div className="truncate">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">
-                                    {mat.type}
-                                  </span>
-                                  {mat.lessonTitle && (
-                                    <span className="text-xs text-gray-400 font-medium truncate">
-                                      {mat.lessonTitle}
-                                    </span>
+                        {materials.map((mat, mi) => {
+                          const isMatPreview = Boolean(mat.isPreview);
+                          const canWatch = isEnrolled || isMatPreview;
+
+                          return (
+                            <div
+                              key={mat._id || mi}
+                              onClick={() => {
+                                if (canWatch) {
+                                  navigate(`/course-info/${id}`);
+                                } else {
+                                  toast('🔒 This video is reserved for enrolled students. Enroll now to watch all lessons!', {
+                                    icon: '🎓',
+                                    duration: 4000,
+                                  });
+                                }
+                              }}
+                              className={`bg-white border rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 transition cursor-pointer group ${
+                                canWatch
+                                  ? 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                                  : 'border-gray-200/70 bg-gray-50/40 hover:bg-gray-100/60'
+                              }`}
+                            >
+                              <div className="flex items-center gap-4 min-w-0">
+                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                                  !canWatch
+                                    ? 'bg-gray-100 text-gray-400'
+                                    : mat.type === 'video' ? 'bg-purple-100 text-purple-700'
+                                    : mat.type === 'pdf' ? 'bg-red-100 text-red-700'
+                                    : mat.type === 'image' ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {!canWatch ? (
+                                    <Lock className="w-5 h-5 text-gray-400" />
+                                  ) : (
+                                    <>
+                                      {mat.type === 'video' && <Video className="w-5 h-5" />}
+                                      {mat.type === 'pdf' && <FileText className="w-5 h-5" />}
+                                      {mat.type === 'image' && <ImageIcon className="w-5 h-5" />}
+                                      {mat.type === 'link' && <PlayCircle className="w-5 h-5" />}
+                                    </>
                                   )}
                                 </div>
-                                <h5 className="font-bold text-gray-900 text-sm sm:text-base group-hover:text-blue-600 transition truncate">
-                                  {mat.title}
-                                </h5>
-                                {mat.description && (
-                                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
-                                    {mat.description}
-                                  </p>
+                                <div className="truncate">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">
+                                      {mat.type}
+                                    </span>
+                                    {mat.lessonTitle && (
+                                      <span className="text-xs text-gray-400 font-medium truncate">
+                                        {mat.lessonTitle}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h5 className={`font-bold text-sm sm:text-base transition truncate ${
+                                    canWatch ? 'text-gray-900 group-hover:text-blue-600' : 'text-gray-600'
+                                  }`}>
+                                    {mat.title}
+                                  </h5>
+                                  {mat.description && (
+                                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+                                      {mat.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 shrink-0">
+                                {isMatPreview ? (
+                                  <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5" /> Free Preview
+                                  </span>
+                                ) : (
+                                  <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-1 rounded-md flex items-center gap-1">
+                                    <Lock className="w-3 h-3 text-gray-400" /> Enrolled Only
+                                  </span>
                                 )}
+                                <button className={`w-9 h-9 rounded-xl flex items-center justify-center transition shadow-xs ${
+                                  canWatch
+                                    ? 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
+                                    : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                  {canWatch ? (
+                                    <Play className="w-4 h-4 fill-current translate-x-0.5" />
+                                  ) : (
+                                    <Lock className="w-4 h-4" />
+                                  )}
+                                </button>
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-3 shrink-0">
-                              {mat.isPreview ? (
-                                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
-                                  Free Preview
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-400 font-medium hidden sm:inline">
-                                  Enrolled Only
-                                </span>
-                              )}
-                              <button className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition shadow-xs">
-                                <Play className="w-4 h-4 fill-current translate-x-0.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
 
                         {/* Assignments if any */}
                         {assignments.map((assign) => (
                           <div
                             key={assign._id}
-                            onClick={() => navigate(`/course-info/${id}`)}
-                            className="bg-white border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 hover:border-amber-400 hover:shadow-md transition cursor-pointer group"
+                            onClick={() => {
+                              if (isEnrolled) {
+                                navigate(`/course-info/${id}`);
+                              } else {
+                                toast('🔒 Course assignments are reserved for enrolled students.', {
+                                  icon: '📝',
+                                  duration: 3500,
+                                });
+                              }
+                            }}
+                            className={`border rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 transition cursor-pointer group ${
+                              isEnrolled
+                                ? 'bg-white border-amber-200/80 hover:border-amber-400 hover:shadow-md'
+                                : 'bg-gray-50/50 border-gray-200/70 hover:bg-gray-100/50'
+                            }`}
                           >
                             <div className="flex items-center gap-4 min-w-0">
-                              <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 shadow-xs">
+                              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                                isEnrolled ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-400'
+                              }`}>
                                 <ClipboardList className="w-5 h-5" />
                               </div>
                               <div className="truncate">
                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/60 inline-block mb-0.5">
                                   Course Assignment
                                 </span>
-                                <h5 className="font-bold text-gray-900 text-sm sm:text-base group-hover:text-amber-700 transition truncate">
+                                <h5 className={`font-bold text-sm sm:text-base transition truncate ${
+                                  isEnrolled ? 'text-gray-900 group-hover:text-amber-700' : 'text-gray-600'
+                                }`}>
                                   {assign.title}
                                 </h5>
                                 {assign.description && (
@@ -631,7 +687,11 @@ export default function CourseDetails() {
                               <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
                                 {assign.maxScore} pts
                               </span>
-                              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-600 transition" />
+                              {isEnrolled ? (
+                                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-600 transition" />
+                              ) : (
+                                <Lock className="w-4 h-4 text-gray-400" />
+                              )}
                             </div>
                           </div>
                         ))}
@@ -676,55 +736,135 @@ export default function CourseDetails() {
 
                           {openModules[idx] && (
                             <div className="border-t border-gray-100 bg-gray-50/50 divide-y divide-gray-100">
-                              {(week.lessons ?? []).map((lesson, li) => (
-                                <div
-                                  key={li}
-                                  onClick={() => navigate(`/course-info/${id}`)}
-                                  className="flex items-center justify-between p-4 px-6 hover:bg-blue-50/40 transition cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <PlayCircle className={`w-4 h-4 ${lesson.isFreePreview ? 'text-blue-600' : 'text-gray-400'}`} />
-                                    <span className="text-xs sm:text-sm font-medium text-gray-800">{lesson.title}</span>
-                                    {lesson.isFreePreview && (
-                                      <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                                        Preview
+                              {(week.lessons ?? []).map((lesson, li) => {
+                                const isLessonPreview = Boolean(lesson.isFreePreview);
+                                const canWatch = isEnrolled || isLessonPreview;
+
+                                return (
+                                  <div
+                                    key={li}
+                                    onClick={() => {
+                                      if (canWatch) {
+                                        navigate(`/course-info/${id}`);
+                                      } else {
+                                        toast('🔒 This video is reserved for enrolled students. Enroll now to watch all lessons!', {
+                                          icon: '🎓',
+                                          duration: 4000,
+                                        });
+                                      }
+                                    }}
+                                    className={`flex items-center justify-between p-4 px-6 transition cursor-pointer ${
+                                      canWatch ? 'hover:bg-blue-50/40' : 'hover:bg-gray-100/70 bg-gray-50/20'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {canWatch ? (
+                                        <PlayCircle className={`w-4 h-4 ${isLessonPreview ? 'text-emerald-600' : 'text-blue-600'}`} />
+                                      ) : (
+                                        <Lock className="w-4 h-4 text-gray-400" />
+                                      )}
+                                      <span className={`text-xs sm:text-sm font-medium ${canWatch ? 'text-gray-800 font-semibold' : 'text-gray-600'}`}>
+                                        {lesson.title}
                                       </span>
-                                    )}
+                                      {isLessonPreview && (
+                                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                          <Sparkles className="w-2.5 h-2.5" /> Preview
+                                        </span>
+                                      )}
+                                      {!canWatch && (
+                                        <span className="bg-gray-200/70 text-gray-600 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
+                                          <Lock className="w-2.5 h-2.5" /> Enrolled only
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-gray-400 font-mono">
+                                        {lesson.duration ? `${lesson.duration}m` : '—'}
+                                      </span>
+                                      {isLessonPreview && !isEnrolled && (
+                                        <span className="text-xs font-bold text-emerald-600 hidden sm:inline-block">
+                                          Watch Preview →
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <span className="text-xs text-gray-400 font-mono">
-                                    {lesson.duration ? `${lesson.duration}m` : '—'}
-                                  </span>
-                                </div>
-                              ))}
+                                );
+                              })}
 
                               {/* Live Supabase Storage Lecture Materials for this week */}
-                              {weekMaterials.map((mat) => (
-                                <div
-                                  key={mat._id}
-                                  onClick={() => navigate(`/course-info/${id}`)}
-                                  className="flex items-center justify-between p-4 px-6 hover:bg-blue-50/40 transition cursor-pointer bg-blue-50/15"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    {mat.type === 'video' && <Video className="w-4 h-4 text-purple-600" />}
-                                    {mat.type === 'pdf' && <FileText className="w-4 h-4 text-red-600" />}
-                                    {mat.type === 'image' && <ImageIcon className="w-4 h-4 text-amber-600" />}
-                                    {mat.type === 'link' && <PlayCircle className="w-4 h-4 text-blue-600" />}
-                                    <span className="text-xs sm:text-sm font-medium text-gray-900">{mat.title}</span>
-                                    <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
-                                      {mat.type}
-                                    </span>
+                              {weekMaterials.map((mat) => {
+                                const isMatPreview = Boolean(mat.isPreview);
+                                const canWatch = isEnrolled || isMatPreview;
+
+                                return (
+                                  <div
+                                    key={mat._id}
+                                    onClick={() => {
+                                      if (canWatch) {
+                                        navigate(`/course-info/${id}`);
+                                      } else {
+                                        toast('🔒 This video is reserved for enrolled students. Enroll now to watch all lessons!', {
+                                          icon: '🎓',
+                                          duration: 4000,
+                                        });
+                                      }
+                                    }}
+                                    className={`flex items-center justify-between p-4 px-6 transition cursor-pointer ${
+                                      canWatch ? 'hover:bg-blue-50/40 bg-blue-50/15' : 'hover:bg-gray-100/70 bg-gray-50/30'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {canWatch ? (
+                                        <>
+                                          {mat.type === 'video' && <Video className="w-4 h-4 text-purple-600" />}
+                                          {mat.type === 'pdf' && <FileText className="w-4 h-4 text-red-600" />}
+                                          {mat.type === 'image' && <ImageIcon className="w-4 h-4 text-amber-600" />}
+                                          {mat.type === 'link' && <PlayCircle className="w-4 h-4 text-blue-600" />}
+                                        </>
+                                      ) : (
+                                        <Lock className="w-4 h-4 text-gray-400" />
+                                      )}
+                                      <span className={`text-xs sm:text-sm font-medium ${canWatch ? 'text-gray-900 font-semibold' : 'text-gray-600'}`}>
+                                        {mat.title}
+                                      </span>
+                                      <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
+                                        {mat.type}
+                                      </span>
+                                      {isMatPreview && (
+                                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1">
+                                          <Sparkles className="w-2.5 h-2.5" /> Preview
+                                        </span>
+                                      )}
+                                      {!canWatch && (
+                                        <span className="bg-gray-200/70 text-gray-600 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
+                                          <Lock className="w-2.5 h-2.5" /> Enrolled only
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-gray-400">
+                                        {isMatPreview ? (
+                                          <span className="text-xs font-bold text-emerald-600">Free Preview</span>
+                                        ) : (
+                                          'Enrolled only'
+                                        )}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <span className="text-xs text-gray-400">
-                                    {mat.isPreview ? 'Free Preview' : 'Enrolled only'}
-                                  </span>
-                                </div>
-                              ))}
+                                );
+                              })}
 
                               {/* Assignments for this week */}
                               {weekAssignments.map((assign) => (
                                 <div
                                   key={assign._id}
-                                  onClick={() => navigate(`/course-info/${id}`)}
+                                  onClick={() => {
+                                    if (isEnrolled) {
+                                      navigate(`/course-info/${id}`);
+                                    } else {
+                                      toast('🔒 Course assignments are reserved for enrolled students.', { icon: '📝' });
+                                    }
+                                  }}
                                   className="flex items-center justify-between p-4 px-6 hover:bg-amber-50/40 transition cursor-pointer bg-amber-50/10"
                                 >
                                   <div className="flex items-center gap-3">
@@ -765,41 +905,74 @@ export default function CourseDetails() {
                           </div>
 
                           <div className="space-y-2.5">
-                            {additionalMaterials.map((mat) => (
-                              <div
-                                key={mat._id}
-                                onClick={() => navigate(`/course-info/${id}`)}
-                                className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between hover:border-blue-300 hover:shadow-xs transition cursor-pointer"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                    mat.type === 'video' ? 'bg-purple-100 text-purple-700' :
-                                    mat.type === 'pdf' ? 'bg-red-100 text-red-700' :
-                                    mat.type === 'image' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-blue-100 text-blue-700'
-                                  }`}>
-                                    {mat.type === 'video' && <Video className="w-4 h-4" />}
-                                    {mat.type === 'pdf' && <FileText className="w-4 h-4" />}
-                                    {mat.type === 'image' && <ImageIcon className="w-4 h-4" />}
-                                    {mat.type === 'link' && <PlayCircle className="w-4 h-4" />}
+                            {additionalMaterials.map((mat) => {
+                              const isMatPreview = Boolean(mat.isPreview);
+                              const canWatch = isEnrolled || isMatPreview;
+
+                              return (
+                                <div
+                                  key={mat._id}
+                                  onClick={() => {
+                                    if (canWatch) {
+                                      navigate(`/course-info/${id}`);
+                                    } else {
+                                      toast('🔒 This video is reserved for enrolled students. Enroll now to watch all lessons!', {
+                                        icon: '🎓',
+                                        duration: 4000,
+                                      });
+                                    }
+                                  }}
+                                  className={`bg-white border rounded-2xl p-4 flex items-center justify-between transition cursor-pointer ${
+                                    canWatch ? 'border-gray-200 hover:border-blue-300 hover:shadow-xs' : 'border-gray-200/60 bg-gray-50/50 hover:bg-gray-100/60'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                      !canWatch ? 'bg-gray-100 text-gray-500' :
+                                      mat.type === 'video' ? 'bg-purple-100 text-purple-700' :
+                                      mat.type === 'pdf' ? 'bg-red-100 text-red-700' :
+                                      mat.type === 'image' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {!canWatch ? (
+                                        <Lock className="w-4 h-4 text-gray-400" />
+                                      ) : (
+                                        <>
+                                          {mat.type === 'video' && <Video className="w-4 h-4" />}
+                                          {mat.type === 'pdf' && <FileText className="w-4 h-4" />}
+                                          {mat.type === 'image' && <ImageIcon className="w-4 h-4" />}
+                                          {mat.type === 'link' && <PlayCircle className="w-4 h-4" />}
+                                        </>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className={`text-xs sm:text-sm font-bold ${canWatch ? 'text-gray-900' : 'text-gray-600'}`}>
+                                        {mat.title}
+                                      </p>
+                                      <p className="text-[10px] text-gray-400">
+                                        {mat.lessonTitle || 'Supplementary Resource'} • {mat.type.toUpperCase()}
+                                        {isMatPreview && ' • Free Preview'}
+                                        {!canWatch && ' • Enrolled only'}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-xs sm:text-sm font-bold text-gray-900">{mat.title}</p>
-                                    <p className="text-[10px] text-gray-400">
-                                      {mat.lessonTitle || 'Supplementary Resource'} • {mat.type.toUpperCase()}
-                                    </p>
-                                  </div>
+                                  <span className={`text-xs font-bold ${canWatch ? 'text-blue-600 hover:underline' : 'text-gray-400 flex items-center gap-1'}`}>
+                                    {canWatch ? (isMatPreview && !isEnrolled ? 'Watch Preview →' : 'Open →') : <><Lock className="w-3 h-3" /> Locked</>}
+                                  </span>
                                 </div>
-                                <span className="text-xs text-blue-600 font-bold hover:underline">
-                                  Open →
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {additionalAssignments.map((assign) => (
                               <div
                                 key={assign._id}
-                                onClick={() => navigate(`/course-info/${id}`)}
+                                onClick={() => {
+                                  if (isEnrolled) {
+                                    navigate(`/course-info/${id}`);
+                                  } else {
+                                    toast('🔒 Course assignments are reserved for enrolled students.', { icon: '📝' });
+                                  }
+                                }}
                                 className="bg-white border border-amber-200 rounded-2xl p-4 flex items-center justify-between hover:border-amber-300 transition cursor-pointer"
                               >
                                 <div className="flex items-center gap-3">
@@ -812,7 +985,7 @@ export default function CourseDetails() {
                                   </div>
                                 </div>
                                 <span className="text-xs text-amber-700 font-bold hover:underline">
-                                  View Assignment →
+                                  {isEnrolled ? 'View Assignment →' : 'Enrolled only'}
                                 </span>
                               </div>
                             ))}

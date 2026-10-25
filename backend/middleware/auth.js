@@ -145,3 +145,39 @@ exports.authorize = (...roles) => {
   };
 };
 
+// Helper: check if a user has full access to a course (admin, course instructor, or enrolled student)
+exports.hasCourseAccess = (user, course) => {
+  if (!user || !course) return false;
+  if (user.role === 'admin') return true;
+
+  const userId = (user._id || user.id)?.toString();
+  if (!userId) return false;
+
+  // Course instructor
+  if (course.instructor) {
+    const instructorId = (course.instructor._id || course.instructor)?.toString();
+    if (instructorId === userId) return true;
+  }
+
+  // Course enrolledStudents array
+  if (Array.isArray(course.enrolledStudents)) {
+    const isEnrolled = course.enrolledStudents.some((student) => {
+      const studentId = (student?._id || student)?.toString();
+      return studentId === userId;
+    });
+    if (isEnrolled) return true;
+  }
+
+  // User enrolledCourses array
+  if (Array.isArray(user.enrolledCourses)) {
+    const courseId = (course._id || course)?.toString();
+    const hasCourse = user.enrolledCourses.some((c) => {
+      const cId = (c?._id || c)?.toString();
+      return cId === courseId;
+    });
+    if (hasCourse) return true;
+  }
+
+  return false;
+};
+

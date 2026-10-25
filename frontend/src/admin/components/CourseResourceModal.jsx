@@ -3,7 +3,7 @@ import {
   X, BookOpen, ChevronDown, ClipboardList, Video, 
   FileText, Calendar, UploadCloud, CheckCircle2, 
   Film, File, ArrowRight, Image as ImageIcon, Link as LinkIcon,
-  Trash2, Loader2, ExternalLink
+  Trash2, Loader2, ExternalLink, Lock, Globe, Sparkles
 } from 'lucide-react';
 import lectureService from '../../services/lectureService';
 import assignmentService from '../../services/assignmentService';
@@ -176,6 +176,22 @@ export default function CourseResourceModal({
         text: err?.response?.data?.message || err.message || 'Upload failed. Check your connection or Supabase config.',
       });
       setIsUploading(false);
+    }
+  };
+
+  const handleTogglePreview = async (materialId) => {
+    try {
+      const res = await lectureService.togglePreview(materialId);
+      setRecentMaterials(prev => prev.map(m => m._id === materialId ? { ...m, isPreview: res.isPreview } : m));
+      setStatusMessage({
+        type: 'success',
+        text: res.message || 'Updated material visibility.',
+      });
+    } catch (err) {
+      setStatusMessage({
+        type: 'error',
+        text: err?.response?.data?.message || 'Failed to toggle preview status.',
+      });
     }
   };
 
@@ -542,13 +558,47 @@ export default function CourseResourceModal({
                           </div>
                           <div className="truncate">
                             <p className="text-xs font-bold text-gray-800 truncate">{mat.title}</p>
-                            <p className="text-[10px] text-gray-400 truncate">
-                              W{mat.weekNumber} • {mat.lessonTitle} {mat.isPreview && '• Free Preview'}
-                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-gray-400 truncate">
+                                W{mat.weekNumber} • {mat.lessonTitle}
+                              </span>
+                              {mat.isPreview ? (
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                                  <Sparkles size={9} /> Free Preview
+                                </span>
+                              ) : (
+                                <span className="bg-gray-200/80 text-gray-600 text-[9px] font-medium px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                                  <Lock size={9} /> Enrolled Only
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePreview(mat._id)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              mat.isPreview
+                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                : 'bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
+                            }`}
+                            title={mat.isPreview ? 'Currently published for everyone. Click to make enrolled-only.' : 'Currently enrolled-only. Click to publish for everyone.'}
+                          >
+                            {mat.isPreview ? (
+                              <>
+                                <Globe size={11} className="text-emerald-600" />
+                                <span>Published</span>
+                              </>
+                            ) : (
+                              <>
+                                <Lock size={11} className="text-gray-400" />
+                                <span>Publish</span>
+                              </>
+                            )}
+                          </button>
+
                           {mat.embedUrl && (
                             <a 
                               href={mat.viewUrl || mat.embedUrl}

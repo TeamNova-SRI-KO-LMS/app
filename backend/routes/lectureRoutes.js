@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, optionalAuth, hasCourseAccess } = require('../middleware/auth');
 const LectureMaterial = require('../models/LectureMaterial');
 const Course = require('../models/Course');
 const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
@@ -210,10 +210,10 @@ router.post('/link', protect, authorize('admin'), async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 4. GET: Materials for a Course (Enrolled students or admin, or preview items)
+// 4. GET: Materials for a Course (Enrolled students or admin get full access; unenrolled only see titles and public preview videos)
 // GET /api/lectures/course/:courseId
 // ─────────────────────────────────────────────────────────────
-router.get('/course/:courseId', async (req, res) => {
+router.get('/course/:courseId', optionalAuth, async (req, res) => {
   try {
     const { courseId } = req.params;
 
@@ -223,14 +223,57 @@ router.get('/course/:courseId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
+    const isAuthorized = hasCourseAccess(req.user, course);
+
     const materials = await LectureMaterial.find({ course: courseId })
       .sort({ weekNumber: 1, order: 1, createdAt: 1 })
       .populate('uploadedBy', 'name');
 
+    // If enrolled student, instructor, or admin: return all materials with full streaming/download URLs
+    if (isAuthorized) {
+      return res.status(200).json({
+        success: true,
+        count: materials.length,
+        isEnrolled: true,
+        materials: materials.map((m) => {
+          const doc = m.toObject ? m.toObject() : { ...m };
+          doc.isLocked = false;
+          return doc;
+        }),
+      });
+    }
+
+    // Unenrolled visitors/students: can only see topics & titles, and can ONLY watch videos admin accepted for everyone (isPreview: true)
+    const sanitizedMaterials = materials.map((m) => {
+      const doc = m.toObject ? m.toObject() : { ...m };
+      if (doc.isPreview) {
+        // Free preview video published for everyone by admin -> full playback URLs included
+        doc.isLocked = false;
+        return doc;
+      }
+
+      // Not published for everyone -> strip streaming URLs, download URLs, and Drive file IDs
+      return {
+        _id: doc._id,
+        course: doc.course,
+        weekNumber: doc.weekNumber,
+        lessonIndex: doc.lessonIndex,
+        lessonTitle: doc.lessonTitle,
+        title: doc.title,
+        description: doc.description,
+        type: doc.type,
+        isPreview: false,
+        isLocked: true,
+        fileSizeBytes: doc.fileSizeBytes,
+        createdAt: doc.createdAt,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: materials.length,
-      materials,
+      count: sanitizedMaterials.length,
+      isEnrolled: false,
+      materials: sanitizedMaterials,
     });
   } catch (error) {
     console.error('[lectureRoutes] Get materials error:', error);
@@ -242,15 +285,56 @@ router.get('/course/:courseId', async (req, res) => {
 // 5. GET: Single Material by ID
 // GET /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const material = await LectureMaterial.findById(req.params.id);
     if (!material) {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
+
+    // If admin accepted for everyone (isPreview: true), allow anyone to view/watch
+    if (material.isPreview) {
+      return res.status(200).json({ success: true, material });
+    }
+
+    // Otherwise, user must be enrolled in the course or be admin/instructor
+    const course = await Course.findById(material.course);
+    if (!course || !hasCourseAccess(req.user, course)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This video is only available to enrolled students. Please enroll to watch.',
+      });
+    }
+
     res.status(200).json({ success: true, material });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 6. ADMIN: Toggle preview / public status of lecture material
+// PATCH /api/lectures/:id/toggle-preview
+// ─────────────────────────────────────────────────────────────
+router.patch('/:id/toggle-preview', protect, authorize('admin'), async (req, res) => {
+  try {
+    const material = await LectureMaterial.findById(req.params.id);
+    if (!material) {
+      return res.status(404).json({ success: false, message: 'Material not found.' });
+    }
+
+    material.isPreview = !material.isPreview;
+    await material.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Material is now ${material.isPreview ? 'published for everyone (Free Preview)' : 'restricted to enrolled students only'}`,
+      isPreview: material.isPreview,
+      material,
+    });
+  } catch (error) {
+    console.error('[lectureRoutes] Toggle preview error:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle preview status.' });
   }
 });
 
