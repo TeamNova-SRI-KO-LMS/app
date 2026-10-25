@@ -171,10 +171,13 @@ const LandingPage = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <button className="bg-blue-600 text-white px-8 py-3 rounded-md font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2">
-              Join Us Today <span className="text-xl">→</span>
-              <Link to="/register" className="hover:text-blue-600 transition">Register</Link>
-            </button>
+            <Link
+              to="/register"
+              className="bg-blue-600 text-white px-8 py-3 rounded-md font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2"
+            >
+              <span>Join Us Today</span>
+              <span className="text-xl">→</span>
+            </Link>
             <Link
               to="/courses"
               className="bg-transparent border border-blue-600 text-blue-600 px-8 py-3 rounded-md font-medium hover:bg-blue-50 transition flex items-center justify-center gap-2"

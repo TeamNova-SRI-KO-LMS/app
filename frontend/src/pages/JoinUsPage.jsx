@@ -16,6 +16,7 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 
 import apiUrl from "../config/apiConfig";
 import toast from "react-hot-toast";
@@ -188,13 +189,13 @@ const JoinUsPage = () => {
               here to help you start your Korean language journey!
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href="#join-form"
+              <Link
+                to="/register"
                 className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-lg text-blue-600 bg-white hover:bg-gray-50 transition-colors"
               >
-                Contact Us Today
+                Join Us Today
                 <ArrowRightIcon className="ml-2 h-5 w-5" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>

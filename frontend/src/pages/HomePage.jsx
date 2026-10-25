@@ -366,9 +366,12 @@ const HomePage = () => {
             <p className="text-blue-100 text-lg mb-10 max-w-2xl mx-auto font-medium">
               Join thousands of students who have mastered Korean with SRI-KO.
             </p>
-            <button className="border-2 border-white text-white px-10 py-3.5 rounded-xl font-bold text-lg hover:bg-white hover:text-indigo-600 transition duration-300 shadow-lg">
+            <Link
+              to="/courses"
+              className="border-2 border-white text-white px-10 py-3.5 rounded-xl font-bold text-lg hover:bg-white hover:text-indigo-600 transition duration-300 shadow-lg inline-block"
+            >
               Explore Courses
-            </button>
+            </Link>
           </div>
         </div>
       </section>
