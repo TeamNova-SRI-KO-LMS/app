@@ -88,6 +88,7 @@ const AdminDashboard = () => {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalCourses, setTotalCourses] = useState(0);
   const [enrolledStudents, setEnrolledStudents] = useState(0);
+  const [registeredStudents, setRegisteredStudents] = useState(0);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [recentUsers, setRecentUsers] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -112,8 +113,12 @@ const AdminDashboard = () => {
         const total = usersRes.data.count !== undefined ? usersRes.data.count : usersList.length;
         setTotalUsers(total);
         setRecentUsers(usersList.slice(0, 4));
-        const studentsCount = usersList.filter(u => (u.role || '').toLowerCase() === 'student').length;
-        setEnrolledStudents(studentsCount);
+        const registeredCount = usersList.filter(u => (u.role || '').toLowerCase() === 'student').length;
+        const activeEnrolledCount = usersList.filter(
+          u => (u.role || '').toLowerCase() === 'student' && Array.isArray(u.enrolledCourses) && u.enrolledCourses.length > 0
+        ).length;
+        setRegisteredStudents(registeredCount);
+        setEnrolledStudents(activeEnrolledCount);
         usersList.slice(0, 5).forEach((u) => {
           if (!u.createdAt) return;
           activityItems.push({
@@ -125,9 +130,9 @@ const AdminDashboard = () => {
         });
       }
 
-      // Fetch courses from database (newest first, including drafts)
+      // Fetch courses from database (showing top enrolled courses with real student counts)
       try {
-        const coursesRes = await apiService.get('/courses/admin/all', { params: { limit: 4 } });
+        const coursesRes = await apiService.get('/courses/admin/all', { params: { limit: 4, sort: 'most-enrolled' } });
         if (coursesRes.data) {
           setTotalCourses(coursesRes.data.total ?? coursesRes.data.count ?? (coursesRes.data.courses?.length || 0));
           setRecentCourses(coursesRes.data.courses || []);
@@ -446,7 +451,7 @@ const AdminDashboard = () => {
                   <span className="text-[10px] text-gray-400 font-medium block mt-0.5">System Config</span>
                 </button>
 
-                {/* Join Us */}
+                {/* Contact Inquiries */}
                 <button
                   onClick={() => handleTabNavigation('applications')}
                   className="flex flex-col items-center justify-center p-4 rounded-2xl border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/40 hover:shadow-xs transition-all cursor-pointer text-center group"
@@ -454,15 +459,15 @@ const AdminDashboard = () => {
                   <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform mb-2.5">
                     <UserPlus size={20} />
                   </div>
-                  <span className="text-xs font-bold text-gray-900 block leading-snug">Join Us</span>
-                  <span className="text-[10px] text-gray-400 font-medium block mt-0.5">Program Applications</span>
+                  <span className="text-xs font-bold text-gray-900 block leading-snug">Inquiries</span>
+                  <span className="text-[10px] text-gray-400 font-medium block mt-0.5">Contact Messages</span>
                 </button>
               </div>
             </div>
 
-            {/* Secondary 3 KPI Cards (Korean Program) */}
+            {/* Secondary 3 KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
-              {/* Korean Program Applications */}
+              {/* Contact Inquiries */}
               <div 
                 onClick={() => handleTabNavigation('applications')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
@@ -472,7 +477,7 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
-                    Korean Program Applications
+                    Contact Inquiries
                   </span>
                   <span className="text-2xl font-bold text-gray-900 mt-1 block">
                     {loadingStats ? (
@@ -482,7 +487,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Pending Applications */}
+              {/* Pending Inquiries */}
               <div 
                 onClick={() => handleTabNavigation('applications')}
                 className="bg-white rounded-2xl p-5 border border-gray-100 shadow-xs flex items-center gap-4 hover:shadow-md transition-all cursor-pointer"
@@ -492,7 +497,7 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-xs font-medium text-gray-500 block leading-tight">
-                    Pending Applications
+                    Pending Inquiries
                   </span>
                   <span className="text-2xl font-bold text-gray-900 mt-1 block">
                     {loadingStats ? (
@@ -520,6 +525,9 @@ const AdminDashboard = () => {
                     ) : (
                       enrolledStudents.toLocaleString()
                     )}
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-medium block mt-0.5">
+                    {registeredStudents} registered students
                   </span>
                 </div>
               </div>
@@ -663,11 +671,11 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Recent Korean Program Applications */}
+            {/* Recent Contact Inquiries */}
             <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                  Recent Korean Program Applications
+                  Recent Contact Inquiries
                 </h3>
                 <button
                   onClick={() => handleTabNavigation('applications')}
@@ -684,38 +692,38 @@ const AdminDashboard = () => {
                     <div className="h-16 bg-gray-100 animate-pulse rounded-xl" />
                   </div>
                 ) : recentApplications.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-3 text-center">No applications yet.</p>
+                  <p className="text-xs text-gray-400 py-3 text-center">No contact inquiries yet.</p>
                 ) : (
                   recentApplications.map((app) => {
                     const initials = (app.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-                    const status = (app.status || 'pending').toLowerCase();
+                    const status = (app.status || 'new').toLowerCase();
                     const statusClass =
-                      status === 'pending'   ? 'bg-amber-100 text-amber-800' :
-                      status === 'enrolled'  ? 'bg-emerald-100 text-emerald-800' :
-                      status === 'contacted' ? 'bg-blue-100 text-blue-800' :
-                                              'bg-red-100 text-red-800';
+                      status === 'resolved' || status === 'enrolled'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : status === 'in_progress' || status === 'contacted'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-amber-100 text-amber-800';
                     return (
                       <div
                         key={app._id}
                         className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3.5">
-                          <div className="w-10 h-10 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                          <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
                             {initials}
                           </div>
                           <div>
                             <h4 className="font-bold text-xs sm:text-sm text-gray-900">{app.name}</h4>
                             <p className="text-[11px] text-gray-500">{app.email}</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">
-                              {app.currentLevel ? `Level: ${app.currentLevel}` : ''}
-                              {app.interests?.length ? ` | Interests: ${app.interests.length}` : ''}
+                            <p className="text-[10px] text-blue-600 font-medium mt-0.5">
+                              {app.subject || app.category || (app.currentLevel ? `Level: ${app.currentLevel}` : 'General Inquiry')}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
                           <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase ${statusClass}`}>
-                            {status}
+                            {status === 'pending' || status === 'new' ? 'New' : status}
                           </span>
                           <span className="text-xs text-gray-400 whitespace-nowrap">
                             {app.submittedAt

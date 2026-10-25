@@ -100,28 +100,90 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
     if (req.query.status   && req.query.status   !== 'Status')         filter.isPublished = req.query.status === 'PUBLISHED';
     if (req.query.search)  filter.title = { $regex: escapeRegex(req.query.search), $options: 'i' };
 
-    const courses = await Course.find(filter)
-      .populate('instructor', 'name avatar')
-      .skip(skip).limit(limit).sort({ createdAt: -1 });
+    let sortObj = { createdAt: -1 };
+    if (req.query.sort === 'oldest') sortObj = { createdAt: 1 };
+    if (req.query.sort === 'price-asc') sortObj = { price: 1 };
+    if (req.query.sort === 'price-desc') sortObj = { price: -1 };
+
+    let coursesQuery = Course.find(filter)
+      .populate('instructor', 'name avatar');
+
+    if (req.query.sort === 'most-enrolled') {
+      // Sort by number of enrolled students descending
+      coursesQuery = Course.aggregate([
+        { $match: filter },
+        { $addFields: { enrolledCount: { $size: { $ifNull: ['$enrolledStudents', []] } } } },
+        { $sort: { enrolledCount: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ]);
+    } else {
+      coursesQuery = coursesQuery.skip(skip).limit(limit).sort(sortObj);
+    }
+
+    const rawCourses = await coursesQuery;
+    const courses = Array.isArray(rawCourses) ? rawCourses : [];
+
+    // Cross-reference with User collection to ensure students who registered and enrolled/bought courses are accurately included
+    const courseIds = courses.map((c) => c._id);
+    const usersWithCourses = await User.find({
+      role: 'student',
+      enrolledCourses: { $in: courseIds },
+    }).select('_id enrolledCourses');
+
+    const courseEnrollmentMap = new Map();
+    usersWithCourses.forEach((u) => {
+      (u.enrolledCourses || []).forEach((cId) => {
+        const idStr = cId.toString();
+        if (!courseEnrollmentMap.has(idStr)) {
+          courseEnrollmentMap.set(idStr, new Set());
+        }
+        courseEnrollmentMap.get(idStr).add(u._id.toString());
+      });
+    });
+
+    const coursesWithEnrolled = courses.map((course) => {
+      const courseObj = typeof course.toObject === 'function' ? course.toObject() : { ...course };
+      const existingIds = new Set(
+        (courseObj.enrolledStudents || []).map((id) => (id._id || id).toString())
+      );
+      const userIds = courseEnrollmentMap.get(course._id.toString()) || new Set();
+      userIds.forEach((id) => existingIds.add(id));
+      courseObj.enrolledStudents = Array.from(existingIds);
+      return courseObj;
+    });
 
     const total          = await Course.countDocuments(filter);
     const totalPublished = await Course.countDocuments({ isPublished: true });
     const totalDraft     = await Course.countDocuments({ isPublished: false });
-    const totalStudents  = await Course.aggregate([
-      { $project: { count: { $size: '$enrolledStudents' } } },
+    
+    // Total course enrollments across all courses
+    const totalEnrollmentsAgg = await Course.aggregate([
+      { $project: { count: { $size: { $ifNull: ['$enrolledStudents', []] } } } },
       { $group: { _id: null, total: { $sum: '$count' } } },
     ]);
 
+    // Unique students who have registered and enrolled/bought courses
+    const uniqueEnrolledStudents = await User.countDocuments({
+      role: 'student',
+      'enrolledCourses.0': { $exists: true },
+    });
+
+    // Total registered students in the system
+    const totalRegisteredStudents = await User.countDocuments({ role: 'student' });
+
     res.status(200).json({
       success: true,
-      count: courses.length,
+      count: coursesWithEnrolled.length,
       total,
       totalPublished,
       totalDraft,
-      totalStudents: totalStudents[0]?.total || 0,
+      totalStudents: totalEnrollmentsAgg[0]?.total || 0,
+      uniqueEnrolledStudents,
+      totalRegisteredStudents,
       page,
       pages: Math.ceil(total / limit),
-      courses,
+      courses: coursesWithEnrolled,
     });
   } catch (error) {
     console.error('Admin get courses error:', error);

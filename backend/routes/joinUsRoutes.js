@@ -10,7 +10,7 @@ const escapeRegex = require('../utils/escapeRegex');
 router.post('/submit', async (req, res) => {
   try {
     const {
-      name, email, phone, age, currentLevel,
+      name, email, phone, subject, category, age, currentLevel,
       preferredTime, interests, hearAboutUs, message,
     } = req.body;
 
@@ -18,11 +18,12 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name and email are required.' });
     }
 
-    // Optional selects left blank arrive as "", which the schema's enums reject
     const submission = new JoinUsSubmission({
       name,
       email,
       phone,
+      subject: subject || undefined,
+      category: category || undefined,
       age: age ? Number(age) : undefined,
       currentLevel: currentLevel || undefined,
       preferredTime: preferredTime || undefined,
@@ -37,7 +38,7 @@ router.post('/submit', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Thank you for your interest! We will contact you soon.',
+      message: 'Thank you for reaching out! We will get back to you shortly.',
       data: { id: submission._id },
     });
   } catch (error) {
@@ -143,7 +144,7 @@ const handleStatusUpdate = async (req, res) => {
     const { id } = req.params;
     const { status, notes } = req.body;
 
-    const allowed = ['pending', 'contacted', 'enrolled', 'rejected'];
+    const allowed = ['pending', 'contacted', 'enrolled', 'rejected', 'new', 'in_progress', 'resolved'];
     if (status && !allowed.includes(status)) {
       return res.status(400).json({
         success: false,

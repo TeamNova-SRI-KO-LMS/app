@@ -376,15 +376,18 @@ const CourseManagement = () => {
         level:    selectedLevel,
         status:   selectedStatus,
         search,
+        sort:     sortOrder,
       });
       setCourses(data.courses || []);
       setTotal(data.total || 0);
       setTotalPages(data.pages || 1);
       setStats({
-        total:          data.total          || 0,
-        totalPublished: data.totalPublished  || 0,
-        totalDraft:     data.totalDraft      || 0,
-        totalStudents:  data.totalStudents   || 0,
+        total:                   data.total                  || 0,
+        totalPublished:          data.totalPublished         || 0,
+        totalDraft:              data.totalDraft             || 0,
+        totalStudents:           data.totalStudents          || 0,
+        uniqueEnrolledStudents:  data.uniqueEnrolledStudents || 0,
+        totalRegisteredStudents: data.totalRegisteredStudents || 0,
       });
     } catch (err) {
       console.error('Fetch courses error:', err);
@@ -392,14 +395,14 @@ const CourseManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedCategory, selectedLevel, selectedStatus, search]);
+  }, [page, selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
-  useEffect(() => { setPage(1); }, [selectedCategory, selectedLevel, selectedStatus, search]);
+  useEffect(() => { setPage(1); }, [selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
   useEffect(() => {
     fetchCourses(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, selectedCategory, selectedLevel, selectedStatus, search]);
+  }, [page, selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
   // ── CRUD Handlers ──────────────────────────────────────────────────
   const handleCreate = async (formData) => {
@@ -608,6 +611,9 @@ const CourseManagement = () => {
             <span className="text-2xl font-extrabold text-gray-900 mt-1 block">
               {loading ? <span className="inline-block w-10 h-6 bg-gray-200 rounded animate-pulse" /> : stats.totalStudents.toLocaleString()}
             </span>
+            <span className="text-[11px] text-gray-400 font-medium block mt-0.5">
+              {stats.uniqueEnrolledStudents || 0} unique enrolled students
+            </span>
           </div>
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-emerald-600 bg-emerald-50 self-start">Live</span>
         </div>
@@ -681,6 +687,7 @@ const CourseManagement = () => {
               className="bg-transparent font-bold text-gray-900 focus:outline-none cursor-pointer text-xs"
             >
               <option value="newest">Newest First</option>
+              <option value="most-enrolled">Most Enrolled</option>
               <option value="oldest">Oldest First</option>
               <option value="price-asc">Price ↑</option>
               <option value="price-desc">Price ↓</option>
