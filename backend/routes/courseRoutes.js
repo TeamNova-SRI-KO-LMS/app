@@ -2,6 +2,7 @@ const express = require('express');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const User = require('../models/User');
+const Payment = require('../models/Payment');
 const { protect, authorize, checkCourseAccess } = require('../middleware/auth');
 const {
   validateCourseCreation,
@@ -105,6 +106,48 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
     if (req.query.sort === 'price-asc') sortObj = { price: 1 };
     if (req.query.sort === 'price-desc') sortObj = { price: -1 };
 
+    // Synchronize enrolled students into Course documents from Users, Payments, and Progress
+    // so Course.enrolledStudents in MongoDB is guaranteed to reflect real student purchases
+    try {
+      const [usersWithAnyCourses, paymentsWithCourses, progressWithCourses] = await Promise.all([
+        User.find({ 'enrolledCourses.0': { $exists: true } }).select('_id enrolledCourses').lean(),
+        Payment.find({ course: { $exists: true, $ne: null }, status: { $in: ['completed', 'processing', 'paid'] } }).select('user course').lean(),
+        Progress.find({ course: { $exists: true, $ne: null } }).select('student course').lean(),
+      ]);
+
+      const courseStudentMap = new Map();
+      const addStudentToCourse = (cId, uId) => {
+        if (!cId || !uId) return;
+        const key = (cId._id || cId).toString();
+        if (!courseStudentMap.has(key)) courseStudentMap.set(key, new Set());
+        courseStudentMap.get(key).add(uId.toString());
+      };
+
+      usersWithAnyCourses.forEach((u) => {
+        (u.enrolledCourses || []).forEach((cId) => addStudentToCourse(cId, u._id));
+      });
+      paymentsWithCourses.forEach((p) => addStudentToCourse(p.course, p.user));
+      progressWithCourses.forEach((pr) => addStudentToCourse(pr.course, pr.student));
+
+      const bulkOps = [];
+      for (const [courseIdStr, studentSet] of courseStudentMap.entries()) {
+        if (studentSet.size > 0) {
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: courseIdStr },
+              update: { $addToSet: { enrolledStudents: { $each: Array.from(studentSet) } } },
+            },
+          });
+        }
+      }
+
+      if (bulkOps.length > 0) {
+        await Course.bulkWrite(bulkOps, { ordered: false });
+      }
+    } catch (syncErr) {
+      console.warn('Course enrollment sync warning:', syncErr.message);
+    }
+
     let coursesQuery = Course.find(filter)
       .populate('instructor', 'name avatar');
 
@@ -124,32 +167,54 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
     const rawCourses = await coursesQuery;
     const courses = Array.isArray(rawCourses) ? rawCourses : [];
 
-    // Cross-reference with User collection to ensure students who registered and enrolled/bought courses are accurately included
+    // Cross-reference all sources where students buy or enroll in courses:
+    // 1. Users with course in enrolledCourses (regardless of role)
+    // 2. Payments completed for the course
+    // 3. Progress records for the course
     const courseIds = courses.map((c) => c._id);
-    const usersWithCourses = await User.find({
-      role: 'student',
-      enrolledCourses: { $in: courseIds },
-    }).select('_id enrolledCourses');
+    const [usersWithCourses, completedPayments, progressRecords] = await Promise.all([
+      User.find({ enrolledCourses: { $in: courseIds } }).select('_id enrolledCourses'),
+      Payment.find({ course: { $in: courseIds }, status: { $in: ['completed', 'processing', 'paid'] } }).select('user course'),
+      Progress.find({ course: { $in: courseIds } }).select('student course'),
+    ]);
 
     const courseEnrollmentMap = new Map();
+    const getSet = (id) => {
+      const k = id.toString();
+      if (!courseEnrollmentMap.has(k)) courseEnrollmentMap.set(k, new Set());
+      return courseEnrollmentMap.get(k);
+    };
+
     usersWithCourses.forEach((u) => {
       (u.enrolledCourses || []).forEach((cId) => {
-        const idStr = cId.toString();
-        if (!courseEnrollmentMap.has(idStr)) {
-          courseEnrollmentMap.set(idStr, new Set());
-        }
-        courseEnrollmentMap.get(idStr).add(u._id.toString());
+        getSet(cId).add(u._id.toString());
       });
+    });
+
+    completedPayments.forEach((p) => {
+      if (p.course && p.user) {
+        getSet(p.course).add(p.user.toString());
+      }
+    });
+
+    progressRecords.forEach((pr) => {
+      if (pr.course && pr.student) {
+        getSet(pr.course).add(pr.student.toString());
+      }
     });
 
     const coursesWithEnrolled = courses.map((course) => {
       const courseObj = typeof course.toObject === 'function' ? course.toObject() : { ...course };
       const existingIds = new Set(
-        (courseObj.enrolledStudents || []).map((id) => (id._id || id).toString())
+        (courseObj.enrolledStudents || []).map((id) => (id?._id || id).toString())
       );
       const userIds = courseEnrollmentMap.get(course._id.toString()) || new Set();
       userIds.forEach((id) => existingIds.add(id));
-      courseObj.enrolledStudents = Array.from(existingIds);
+      const enrolledArray = Array.from(existingIds);
+      courseObj.enrolledStudents = enrolledArray;
+      courseObj.enrolledCount = enrolledArray.length;
+      courseObj.buyersCount = enrolledArray.length;
+      courseObj.studentsCount = enrolledArray.length;
       return courseObj;
     });
 
