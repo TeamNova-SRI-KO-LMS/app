@@ -51,14 +51,16 @@ const joinUsSubmissionSchema = new mongoose.Schema({
       'Social Media', 'Friend/Family', 'Search Engine', 'Advertisement', 'Other'
     ]
   },
+  subject: String,
+  category: String,
   message: String,
   notes: String,
   ipAddress: String,
   userAgent: String,
   status: {
     type: String,
-    enum: ['pending', 'contacted', 'enrolled', 'rejected'],
-    default: 'pending'
+    enum: ['new', 'in_progress', 'resolved'],
+    default: 'new'
   },
   contactedAt: Date,
   contactedBy: {

@@ -742,7 +742,7 @@ const DocumentationPage = () => {
               description="Escalate complex inquiries to our academic and technical specialists."
               button="Submit Ticket"
               buttonClass="bg-purple-600 hover:bg-purple-700"
-              to="/join-us#get-in-touch"
+              to="/contact"
             />
 
 

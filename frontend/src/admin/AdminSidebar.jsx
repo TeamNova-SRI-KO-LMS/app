@@ -12,7 +12,8 @@ import {
   Settings, 
   LogOut,
   X,
-  CalendarCheck
+  CalendarCheck,
+  Mail
 } from 'lucide-react';
 import useAuth from '../context/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +22,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'users', label: 'User Management', icon: Users },
   { id: 'courses', label: 'Course Management', icon: GraduationCap },
+  { id: 'applications', label: 'Contact Inquiries', icon: Mail },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
   { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
   { id: 'payments', label: 'Payment Management', icon: CreditCard },

@@ -340,7 +340,7 @@ const CourseManagement = () => {
   const [selectedLevel,    setSelectedLevel]    = useState('All Levels');
   const [selectedStatus,   setSelectedStatus]   = useState('Status');
   const [search,           setSearch]           = useState('');
-  const [sortOrder,        setSortOrder]        = useState('newest');
+  const [sortOrder,        setSortOrder]        = useState('most-enrolled');
 
   // Pagination
   const [page,       setPage]       = useState(1);
@@ -376,15 +376,18 @@ const CourseManagement = () => {
         level:    selectedLevel,
         status:   selectedStatus,
         search,
+        sort:     sortOrder,
       });
       setCourses(data.courses || []);
       setTotal(data.total || 0);
       setTotalPages(data.pages || 1);
       setStats({
-        total:          data.total          || 0,
-        totalPublished: data.totalPublished  || 0,
-        totalDraft:     data.totalDraft      || 0,
-        totalStudents:  data.totalStudents   || 0,
+        total:                   data.total                  || 0,
+        totalPublished:          data.totalPublished         || 0,
+        totalDraft:              data.totalDraft             || 0,
+        totalStudents:           data.totalStudents          || 0,
+        uniqueEnrolledStudents:  data.uniqueEnrolledStudents || 0,
+        totalRegisteredStudents: data.totalRegisteredStudents || 0,
       });
     } catch (err) {
       console.error('Fetch courses error:', err);
@@ -392,14 +395,14 @@ const CourseManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedCategory, selectedLevel, selectedStatus, search]);
+  }, [page, selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
-  useEffect(() => { setPage(1); }, [selectedCategory, selectedLevel, selectedStatus, search]);
+  useEffect(() => { setPage(1); }, [selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
   useEffect(() => {
     fetchCourses(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, selectedCategory, selectedLevel, selectedStatus, search]);
+  }, [page, selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
   // ── CRUD Handlers ──────────────────────────────────────────────────
   const handleCreate = async (formData) => {
@@ -466,6 +469,10 @@ const CourseManagement = () => {
 
   // ── Sorted courses ─────────────────────────────────────────────────
   const displayedCourses = [...courses].sort((a, b) => {
+    if (sortOrder === 'most-enrolled') {
+      const getCount = (c) => Array.isArray(c.enrolledStudents) ? c.enrolledStudents.length : (c.enrolledCount || c.buyersCount || 0);
+      return getCount(b) - getCount(a);
+    }
     if (sortOrder === 'newest')     return new Date(b.createdAt) - new Date(a.createdAt);
     if (sortOrder === 'oldest')     return new Date(a.createdAt) - new Date(b.createdAt);
     if (sortOrder === 'price-asc')  return a.price - b.price;
@@ -608,6 +615,9 @@ const CourseManagement = () => {
             <span className="text-2xl font-extrabold text-gray-900 mt-1 block">
               {loading ? <span className="inline-block w-10 h-6 bg-gray-200 rounded animate-pulse" /> : stats.totalStudents.toLocaleString()}
             </span>
+            <span className="text-[11px] text-gray-400 font-medium block mt-0.5">
+              {stats.uniqueEnrolledStudents || 0} unique enrolled students
+            </span>
           </div>
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-emerald-600 bg-emerald-50 self-start">Live</span>
         </div>
@@ -680,6 +690,7 @@ const CourseManagement = () => {
               onChange={e => setSortOrder(e.target.value)}
               className="bg-transparent font-bold text-gray-900 focus:outline-none cursor-pointer text-xs"
             >
+              <option value="most-enrolled">Most Enrolled</option>
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="price-asc">Price ↑</option>
@@ -783,16 +794,38 @@ const CourseManagement = () => {
                     </td>
                     <td className="px-6 py-4 font-extrabold text-gray-900 text-sm">{formatPrice(course.price)}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-2 overflow-hidden">
-                          <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-300" />
-                          <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-blue-300" />
-                          <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-500" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-600">
-                          {course.enrolledStudents?.length?.toLocaleString() || 0}
-                        </span>
-                      </div>
+                      {(() => {
+                        const studentCount = Array.isArray(course.enrolledStudents)
+                          ? course.enrolledStudents.length
+                          : (typeof course.enrolledCount === 'number'
+                              ? course.enrolledCount
+                              : (typeof course.buyersCount === 'number' ? course.buyersCount : 0));
+
+                        return (
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                                studentCount > 0
+                                  ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                  : 'bg-gray-100 text-gray-400'
+                              }`}
+                            >
+                              <Users size={14} />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-gray-900 block leading-tight">
+                                {studentCount.toLocaleString()}{' '}
+                                <span className="font-medium text-gray-500">
+                                  {studentCount === 1 ? 'student' : 'students'}
+                                </span>
+                              </span>
+                              <span className="text-[10px] text-gray-400 block font-medium">
+                                {studentCount > 0 ? 'Enrolled / Bought' : 'No buyers yet'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-extrabold ${course.isPublished ? 'text-emerald-600' : 'text-amber-500'}`}>
