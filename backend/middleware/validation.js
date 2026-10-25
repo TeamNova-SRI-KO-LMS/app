@@ -145,7 +145,7 @@ exports.validateCourseCreation = [
 
   body('level')
     .optional()
-    .isIn(['beginner', 'intermediate', 'advanced'])
+    .isIn(['beginner', 'intermediate', 'advanced', 'all-levels', 'all levels'])
     .withMessage('Invalid level'),
 
   body('duration')
