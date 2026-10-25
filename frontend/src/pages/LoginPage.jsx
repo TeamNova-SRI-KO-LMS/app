@@ -50,6 +50,10 @@ const LoginPage = () => {
       [name]: type === 'checkbox' ? checked : value,
     }));
 
+    if (name === 'email' && typeof value === 'string') {
+      sessionStorage.setItem('lastLoginEmail', value.trim());
+    }
+
     if (localError) {
       setLocalError('');
     }
@@ -105,17 +109,10 @@ const LoginPage = () => {
     }
   };
 
-  // While auth is initializing, show a neutral spinner so the form doesn't flash
-  if (loading && !displayError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F4F6FB]">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
-  // If already logged in, redirect away
-  if (isAuthenticated) {
+  // Redirect already-authenticated users away from the login page.
+  // Guard with !loading so we don't redirect during the initial auth check.
+  if (isAuthenticated && !loading) {
     return <Navigate to={from} replace />;
   }
 
@@ -239,6 +236,7 @@ const LoginPage = () => {
               </label>
               <Link
                 to="/forgot-password"
+                state={{ email: formData.email }}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
               >
                 Forgot password?

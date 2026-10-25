@@ -432,7 +432,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
                 Course Thumbnail
               </h4>
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                Google Drive
+                Supabase Cloud Storage
               </span>
             </div>
             
@@ -447,7 +447,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
                   {uploadingThumbnail && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-2 text-white text-xs font-bold">
                       <Loader2 size={16} className="animate-spin text-blue-400" />
-                      <span>Uploading to Google Drive...</span>
+                      <span>Uploading to Supabase Cloud Storage...</span>
                     </div>
                   )}
                 </div>
@@ -460,7 +460,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
                     Click to upload thumbnail
                   </p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    1280×720px • Stored on Google Drive
+                    1280×720px • Stored on Supabase Cloud Storage
                   </p>
                 </div>
               )}
@@ -480,7 +480,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
                       }
                     } catch (err) {
                       console.error('Thumbnail upload error:', err);
-                      alert('Failed to upload thumbnail to Google Drive.');
+                      alert('Failed to upload thumbnail to Supabase Storage.');
                     } finally {
                       setUploadingThumbnail(false);
                     }
@@ -491,7 +491,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
             </div>
 
             <p className="text-[10px] text-gray-400 text-center mt-2.5">
-              Click thumbnail area to replace image. Saved directly to your Google Drive.
+              Click thumbnail area to replace image. Saved directly to your Supabase Cloud Storage.
             </p>
           </div>
 

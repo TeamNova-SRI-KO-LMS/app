@@ -3,7 +3,7 @@ const multer = require('multer');
 const { protect, authorize } = require('../middleware/auth');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
-const { uploadToDrive, deleteFromDrive } = require('../services/googleDriveService');
+const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
 
 const router = express.Router();
 
@@ -116,10 +116,10 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
       return res.status(400).json({ success: false, message: 'Please upload at least one file.' });
     }
 
-    // Upload each submitted file to Google Drive "assignment" folder
+    // Upload each submitted file to Supabase Storage "assignment" folder
     const uploadedFiles = [];
     for (const file of req.files) {
-      const driveResult = await uploadToDrive(
+      const storageResult = await uploadToStorage(
         file.buffer,
         file.originalname,
         file.mimetype,
@@ -128,9 +128,9 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
 
       uploadedFiles.push({
         fileName: file.originalname,
-        fileUrl: driveResult.viewUrl,
-        driveFileId: driveResult.fileId,
-        downloadUrl: driveResult.downloadUrl,
+        fileUrl: storageResult.viewUrl,
+        driveFileId: storageResult.fileId,
+        downloadUrl: storageResult.downloadUrl,
         fileSize: file.size,
         mimeType: file.mimetype,
         uploadedAt: new Date(),
@@ -167,7 +167,7 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
 
     res.status(200).json({
       success: true,
-      message: 'Assignment submitted to Google Drive successfully!',
+      message: 'Assignment submitted to Supabase Storage successfully!',
       submission,
     });
   } catch (error) {
@@ -261,6 +261,19 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     const assignment = await Assignment.findById(req.params.id);
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
+    }
+
+    const submissions = await AssignmentSubmission.find({ assignment: req.params.id });
+    for (const sub of submissions) {
+      for (const f of (sub.files || [])) {
+        if (f.driveFileId || f.fileUrl) {
+          try {
+            await deleteFromStorage(f.driveFileId || f.fileUrl);
+          } catch (storageErr) {
+            console.warn('[assignmentRoutes] Could not delete assignment file:', storageErr.message);
+          }
+        }
+      }
     }
 
     await AssignmentSubmission.deleteMany({ assignment: req.params.id });

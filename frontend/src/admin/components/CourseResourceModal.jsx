@@ -133,7 +133,7 @@ export default function CourseResourceModal({
         setStatusMessage({ type: 'success', text: 'External resource added successfully!' });
         if (onUploadSuccess) onUploadSuccess({ type: 'link', data: res.material });
       } else {
-        // Upload file to Google Drive (Video, PDF, Image)
+        // Upload file to Supabase Cloud Storage (Video, PDF, Image)
         if (!selectedFile) {
           alert('Please select a file to upload.');
           setIsUploading(false);
@@ -153,7 +153,7 @@ export default function CourseResourceModal({
           setUploadProgress(progress);
         });
 
-        setStatusMessage({ type: 'success', text: 'Uploaded to Google Drive successfully!' });
+        setStatusMessage({ type: 'success', text: 'Uploaded to Supabase Cloud Storage successfully!' });
         if (onUploadSuccess) onUploadSuccess({ type: activeTab, data: res.material });
       }
 
@@ -173,14 +173,14 @@ export default function CourseResourceModal({
       console.error('Resource upload error:', err);
       setStatusMessage({
         type: 'error',
-        text: err?.response?.data?.message || err.message || 'Upload failed. Check your connection or Google Drive config.',
+        text: err?.response?.data?.message || err.message || 'Upload failed. Check your connection or Supabase config.',
       });
       setIsUploading(false);
     }
   };
 
   const handleDeleteMaterial = async (materialId) => {
-    if (!window.confirm('Are you sure you want to delete this resource from Google Drive?')) return;
+    if (!window.confirm('Are you sure you want to delete this resource from Supabase Cloud Storage?')) return;
     try {
       await lectureService.deleteMaterial(materialId);
       setRecentMaterials(recentMaterials.filter(m => m._id !== materialId));
@@ -198,9 +198,9 @@ export default function CourseResourceModal({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase tracking-wider bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full">
-                Google Drive Storage
+                Supabase Cloud Storage
               </span>
-              <span className="text-xs text-gray-400">• Free & Unlimited for SRI-KO</span>
+              <span className="text-xs text-gray-400">• High-Speed CDN &amp; Streaming for SRI-KO</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mt-0.5">
               {courseTitle}
@@ -332,8 +332,8 @@ export default function CourseResourceModal({
             <form onSubmit={handleSubmit} className="lg:col-span-7 bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-4">
               <h3 className="font-bold text-gray-900 text-base">
                 {activeTab === 'assignment' && 'Create Course Assignment'}
-                {activeTab === 'video' && 'Upload Video Lesson to Google Drive'}
-                {activeTab === 'pdf' && 'Upload PDF / Slides to Google Drive'}
+                {activeTab === 'video' && 'Upload Video Lesson to Supabase Cloud Storage'}
+                {activeTab === 'pdf' && 'Upload PDF / Slides to Supabase Cloud Storage'}
                 {activeTab === 'image' && 'Upload Study Image / Diagram'}
                 {activeTab === 'link' && 'Embed YouTube / External Resource'}
               </h3>
@@ -453,7 +453,7 @@ export default function CourseResourceModal({
                   ) : (
                     <>
                       <p className="font-bold text-gray-900 text-sm">Choose {activeTab.toUpperCase()} File</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Click or drag & drop (Direct to Google Drive)</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Click or drag &amp; drop (Direct to Supabase Cloud Storage)</p>
                       <p className="text-[10px] text-gray-400 mt-1">Up to 500MB</p>
                     </>
                   )}
@@ -465,7 +465,7 @@ export default function CourseResourceModal({
                 <div className="space-y-1.5 pt-2">
                   <div className="flex items-center justify-between text-xs font-bold text-blue-700">
                     <span className="flex items-center gap-1.5">
-                      <Loader2 size={13} className="animate-spin" /> Uploading to Google Drive...
+                      <Loader2 size={13} className="animate-spin" /> Uploading to Supabase Cloud Storage...
                     </span>
                     <span>{uploadProgress}%</span>
                   </div>
@@ -496,7 +496,7 @@ export default function CourseResourceModal({
                   <span>
                     {isUploading 
                       ? `Uploading (${uploadProgress}%)` 
-                      : activeTab === 'assignment' ? 'Create Assignment' : 'Upload to Google Drive 🚀'}
+                      : activeTab === 'assignment' ? 'Create Assignment' : 'Upload to Supabase Storage 🚀'}
                   </span>
                 </button>
               </div>
@@ -555,7 +555,7 @@ export default function CourseResourceModal({
                               target="_blank"
                               rel="noreferrer"
                               className="p-1 text-gray-400 hover:text-blue-600 transition"
-                              title="Open in Google Drive"
+                              title="Open in Supabase Storage"
                             >
                               <ExternalLink size={14} />
                             </a>

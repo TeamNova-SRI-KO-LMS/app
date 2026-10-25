@@ -29,6 +29,7 @@ router.get('/', async (req, res) => {
     if (req.query.category) filter.category = req.query.category;
     if (req.query.level)    filter.level    = req.query.level;
     if (req.query.published) filter.isPublished = req.query.published === 'true';
+    if (req.query.featured) filter.isFeatured = req.query.featured === 'true';
     if (req.query.search)  filter.title = { $regex: escapeRegex(req.query.search), $options: 'i' };
 
     const courses = await Course.find(filter)
@@ -36,7 +37,7 @@ router.get('/', async (req, res) => {
       .populate('enrolledStudents', 'name')
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 });
+      .sort({ isFeatured: -1, createdAt: -1 });
 
     const total = await Course.countDocuments(filter);
 
@@ -133,11 +134,7 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
 // @access  Private/Admin
 router.post('/admin', protect, authorize('admin'), async (req, res) => {
   try {
-    const {
-      title, description, category, level, duration, price, isPublished,
-      tags, thumbnail, instructor, instructorName, instructorImage,
-      instructorRole, instructorBio, prerequisites, curriculum
-    } = req.body;
+    const { title, description, category, level, duration, price, isPublished, isFeatured, features, tags, thumbnail } = req.body;
 
     if (!title || title.trim().length < 3)
       return res.status(400).json({ success: false, message: 'Course title must be at least 3 characters' });
@@ -147,22 +144,18 @@ router.post('/admin', protect, authorize('admin'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'A valid price is required' });
 
     const courseData = {
-      title:           title.trim(),
-      description:     description.trim(),
-      category:        category    || 'Language',
-      level:           (level      || 'beginner').toLowerCase(),
-      duration:        duration    || 4,
-      price:           Number(price),
-      isPublished:     isPublished !== undefined ? isPublished : false,
-      tags:            tags        || [],
-      thumbnail:       thumbnail   || '',
-      instructor:      instructor  || req.user._id,
-      instructorName:  instructorName  ? String(instructorName).trim()  : '',
-      instructorImage: instructorImage ? String(instructorImage).trim() : '',
-      instructorRole:  instructorRole  ? String(instructorRole).trim()  : 'Lead Korean Instructor',
-      instructorBio:   instructorBio   ? String(instructorBio).trim()   : '',
-      prerequisites:   prerequisites   || [],
-      curriculum:      curriculum      || [],
+      title:       title.trim(),
+      description: description.trim(),
+      category:    category    || 'Language',
+      level:       (level      || 'beginner').toLowerCase(),
+      duration:    duration    || 4,
+      price:       Number(price),
+      isPublished: isPublished !== undefined ? isPublished : false,
+      isFeatured:  isFeatured !== undefined ? isFeatured : false,
+      features:    features    || [],
+      tags:        tags        || [],
+      thumbnail:   thumbnail   || '',
+      instructor:  req.user._id,
     };
 
     const course = await Course.create(courseData);
@@ -182,12 +175,7 @@ router.put('/admin/:id', protect, authorize('admin'), async (req, res) => {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
 
-    const allowed = [
-      'title', 'description', 'category', 'level', 'duration', 'price',
-      'isPublished', 'tags', 'thumbnail', 'prerequisites', 'instructor',
-      'instructorName', 'instructorImage', 'instructorRole', 'instructorBio',
-      'curriculum'
-    ];
+    const allowed = ['title','description','category','level','duration','price','isPublished','isFeatured','features','tags','thumbnail','prerequisites'];
     const updateData = {};
     allowed.forEach(field => {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];
