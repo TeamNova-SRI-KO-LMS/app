@@ -38,6 +38,7 @@ import { Toaster } from "react-hot-toast";
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
 const CreateCoursePage = lazy(() => import("./admin/CreateCoursePage"));
 const EditCoursePage = lazy(() => import("./admin/EditCoursePage"));
+const ViewCoursePage = lazy(() => import("./admin/ViewCoursePage"));
 const DiscussionForums = lazy(() => import("./admin/DiscussionForums"));
 
 const PageLoader = () => (
@@ -205,6 +206,24 @@ function App() {
           element={
             <ProtectedRoute roles={["admin"]}>
               <EditCoursePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/courses/view/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <ViewCoursePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/courses/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <ViewCoursePage />
             </ProtectedRoute>
           }
         />
