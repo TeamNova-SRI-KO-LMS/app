@@ -52,6 +52,12 @@ const assignmentService = {
     return res.data;
   },
 
+  // Admin: Get all assignments and submissions for a course
+  getCourseSubmissions: async (courseId) => {
+    const res = await apiClient.get(`/assignments/course/${courseId}/submissions`);
+    return res.data;
+  },
+
   // Admin: Grade a submission
   gradeSubmission: async (submissionId, gradeData) => {
     const res = await apiClient.patch(`/assignments/submissions/${submissionId}/grade`, gradeData);

@@ -112,6 +112,39 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// 2b. ADMIN: Get All Assignments & Submissions for a Course
+// GET /api/assignments/course/:courseId/submissions
+// ─────────────────────────────────────────────────────────────
+router.get('/course/:courseId/submissions', protect, authorize('admin'), async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const assignments = await Assignment.find({ course: req.params.courseId })
+      .sort({ weekNumber: 1, createdAt: 1 });
+
+    const assignmentIds = assignments.map((a) => a._id);
+    const submissions = await AssignmentSubmission.find({ assignment: { $in: assignmentIds } })
+      .populate('student', 'name email avatar')
+      .populate('assignment', 'title maxScore weekNumber dueDate')
+      .populate('gradedBy', 'name')
+      .sort({ submittedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: submissions.length,
+      assignments,
+      submissions,
+    });
+  } catch (error) {
+    console.error('[assignmentRoutes] Error fetching course submissions:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching course submissions.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // 3. GET: Single Assignment Details
 // GET /api/assignments/:id
 // ─────────────────────────────────────────────────────────────
