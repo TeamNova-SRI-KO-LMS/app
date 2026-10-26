@@ -1,10 +1,58 @@
 import { useState, useEffect } from 'react';
 import { Calendar, ArrowRight, MapPin, Video, Clock, ExternalLink } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import eventService from '../services/eventService';
+import EventDetailsModal from '../components/EventDetailsModal';
+import useAuth from '../context/useAuth';
+
+const FALLBACK_EVENT_1 = {
+  _id: 'fallback-seminar-1',
+  title: 'Foreigners Seminar: Bridging Cultures',
+  description: 'A special lecture series featuring international scholars discussing the global impact of Korean linguistics.\n\nKey Topics Covered:\n• Etymology and structural elegance of Hangul\n• Nuances of formal, polite, and casual speech in modern Korean\n• Cultural etiquette in professional and academic environments\n• Career and scholarship opportunities in South Korea\n• Live interactive Q&A session with Korean linguistics faculty',
+  eventDate: '2024-11-15T09:30:00.000Z',
+  duration: 90,
+  location: 'Online (Zoom Meeting)',
+  meetingLink: 'https://zoom.us/j/srikolms-seminar',
+  category: 'seminar',
+  capacity: 100,
+  attendees: ['user1', 'user2', 'user3', 'user4'],
+  photos: [
+    '/event1.png',
+    '/event2.png'
+  ],
+  coverImage: '/event1.png',
+  status: 'upcoming',
+  isPinned: true,
+  tags: ['Linguistics', 'Hangul', 'Culture', 'Webinar']
+};
+
+const FALLBACK_EVENT_2 = {
+  _id: 'fallback-ceremony-2',
+  title: 'Annual Prize Giving Ceremony',
+  description: 'Honoring our most dedicated scholars for their academic achievements and cultural contributions.\n\nCeremony Schedule:\n• Welcome address by the Board of Directors\n• Inspiring student speeches in fluent Korean\n• Special recognition awards and TOPIK certificates presentation\n• Traditional Korean instrumental and dance performances\n• Group photography and commemorative refreshments',
+  eventDate: '2024-12-20T14:00:00.000Z',
+  duration: 120,
+  location: 'Auditorium Hall, Colombo Center',
+  meetingLink: '',
+  category: 'ceremony',
+  capacity: 150,
+  attendees: ['user1', 'user2', 'user3'],
+  photos: [
+    '/event2.png',
+    '/event1.png'
+  ],
+  coverImage: '/event2.png',
+  status: 'upcoming',
+  isPinned: false,
+  tags: ['Ceremony', 'Awards', 'Culture', 'Students']
+};
 
 export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -22,6 +70,71 @@ export default function Events() {
     fetchEvents();
   }, []);
 
+  // Support direct URL opening (?id=...)
+  useEffect(() => {
+    const eventId = searchParams.get('id');
+    if (!eventId) return;
+
+    if (eventId === FALLBACK_EVENT_1._id) {
+      setSelectedEvent(FALLBACK_EVENT_1);
+      return;
+    }
+    if (eventId === FALLBACK_EVENT_2._id) {
+      setSelectedEvent(FALLBACK_EVENT_2);
+      return;
+    }
+
+    const found = events.find((e) => String(e._id) === String(eventId));
+    if (found) {
+      setSelectedEvent(found);
+    } else if (!loading) {
+      eventService
+        .getEventById(eventId)
+        .then((res) => {
+          if (res?.success && res.event) {
+            setSelectedEvent(res.event);
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not fetch single event:', err.message);
+        });
+    }
+  }, [searchParams, events, loading]);
+
+  const handleOpenEvent = (event) => {
+    setSelectedEvent(event);
+    setSearchParams({ id: event._id });
+  };
+
+  const handleCloseModal = () => {
+    setSelectedEvent(null);
+    if (searchParams.has('id')) {
+      searchParams.delete('id');
+      setSearchParams(searchParams, { replace: true });
+    }
+  };
+
+  const handleAttendanceChange = (eventId, isAttending) => {
+    const currentUserId = user?._id || 'user_attendee';
+    setEvents((prev) =>
+      prev.map((ev) => {
+        if (ev._id !== eventId) return ev;
+        const currentList = ev.attendees || [];
+        const updatedList = isAttending
+          ? [...currentList, currentUserId]
+          : currentList.filter((a) => {
+              const aId = typeof a === 'object' ? a._id : a;
+              return String(aId) !== String(currentUserId);
+            });
+        const updatedEv = { ...ev, attendees: updatedList };
+        if (selectedEvent && selectedEvent._id === eventId) {
+          setSelectedEvent(updatedEv);
+        }
+        return updatedEv;
+      })
+    );
+  };
+
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800 flex flex-col">
       {/* Main Content Area */}
@@ -38,12 +151,16 @@ export default function Events() {
                 const isOnline = event.location?.toLowerCase().includes('online');
 
                 return (
-                  <div key={event._id} className="bg-white rounded-[1.5rem] overflow-hidden shadow-xs hover:shadow-md transition-shadow duration-300 flex flex-col border border-gray-100">
+                  <div 
+                    key={event._id} 
+                    onClick={() => handleOpenEvent(event)}
+                    className="bg-white rounded-[1.5rem] overflow-hidden shadow-xs hover:shadow-md transition-shadow duration-300 flex flex-col border border-gray-100 cursor-pointer group"
+                  >
                     <div className="relative h-64 bg-gray-200 overflow-hidden">
                       <img 
                         src={cover} 
                         alt={event.title} 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                       />
                       <div className="absolute top-5 left-5 bg-[#e0e7ff] text-[#3730a3] text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-xs">
                         {cat}
@@ -83,15 +200,12 @@ export default function Events() {
                       
                       <div className="mt-auto border-t border-gray-100 pt-6 flex items-center justify-between">
                         {event.meetingLink ? (
-                          <a 
-                            href={event.meetingLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-blue-600 font-bold text-base hover:text-blue-800 transition-colors group"
+                          <span 
+                            className="inline-flex items-center text-blue-600 font-bold text-base hover:text-blue-800 transition-colors group cursor-pointer"
                           >
                             Join Online Event
                             <ExternalLink className="w-4 h-4 ml-1.5 group-hover:translate-x-0.5 transition-transform" />
-                          </a>
+                          </span>
                         ) : (
                           <span className="inline-flex items-center text-blue-600 font-bold text-base hover:text-blue-800 transition-colors group cursor-pointer">
                             Register Interest 
@@ -112,93 +226,112 @@ export default function Events() {
             ) : (
               <>
                 {/* Event Card 1 */}
-                <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-xs hover:shadow-md transition-shadow duration-300 flex flex-col border border-gray-100">
+                <div 
+                  onClick={() => handleOpenEvent(FALLBACK_EVENT_1)}
+                  className="bg-white rounded-[1.5rem] overflow-hidden shadow-xs hover:shadow-md transition-shadow duration-300 flex flex-col border border-gray-100 cursor-pointer group"
+                >
                   {/* Image Container */}
-                    <div className="relative h-64 bg-gray-200 overflow-hidden">
-                        {/* Replace src with your actual seminar image path */}
-                        <img 
-                            src="/event1.png" 
-                            alt="Foreigners Seminar" 
-                            className="w-full h-full object-cover"
-                        />
-                        {/* Badge */}
-                        <div className="absolute top-5 left-5 bg-[#e0e7ff] text-[#3730a3] text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-sm">
-                            SEMINAR
-                        </div>
+                  <div className="relative h-64 bg-gray-200 overflow-hidden">
+                    <img 
+                      src="/event1.png" 
+                      alt="Foreigners Seminar" 
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    />
+                    {/* Badge */}
+                    <div className="absolute top-5 left-5 bg-[#e0e7ff] text-[#3730a3] text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-sm">
+                      SEMINAR
+                    </div>
+                    {FALLBACK_EVENT_1.photos?.length > 1 && (
+                      <div className="absolute bottom-4 right-4 bg-black/75 backdrop-blur-xs text-white text-xs font-bold px-2.5 py-1 rounded-lg">
+                        +{FALLBACK_EVENT_1.photos.length} Photos
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Content Container */}
+                  <div className="p-8 flex flex-col flex-grow">
+                    <div className="flex items-center text-gray-500 text-sm font-medium mb-4">
+                      <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                      November 15, 2024
                     </div>
                     
-                    {/* Content Container */}
-                    <div className="p-8 flex flex-col flex-grow">
-                        <div className="flex items-center text-gray-500 text-sm font-medium mb-4">
-                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                            November 15, 2024
-                        </div>
-                        
-                        <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                            Foreigners Seminar: Bridging Cultures
-                        </h2>
-                        
-                        <p className="text-gray-600 mb-8 leading-relaxed">
-                            A special lecture series featuring international scholars discussing the global impact of Korean linguistics.
-                        </p>
-                        
-                        <div className="mt-auto border-t border-gray-100 pt-6">
-                            <a href="#" className="inline-flex items-center text-blue-600 font-bold text-lg hover:text-blue-800 transition-colors group">
-                                Register Interest 
-                                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                            </a>
-                        </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-3">
+                      Foreigners Seminar: Bridging Cultures
+                    </h2>
+                    
+                    <p className="text-gray-600 mb-8 leading-relaxed">
+                      A special lecture series featuring international scholars discussing the global impact of Korean linguistics.
+                    </p>
+                    
+                    <div className="mt-auto border-t border-gray-100 pt-6">
+                      <span className="inline-flex items-center text-blue-600 font-bold text-lg hover:text-blue-800 transition-colors group">
+                        Register Interest 
+                        <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                      </span>
                     </div>
+                  </div>
                 </div>
 
                 {/* Event Card 2 */}
-                <div className="bg-white rounded-[1.5rem] overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col border border-gray-100">
-                    {/* Image Container */}
-                    <div className="relative h-64 bg-gray-200 overflow-hidden">
-                         {/* Replace src with your actual ceremony image path */}
-                        <img 
-                            src="/event2.png" 
-                            alt="Prize Giving Ceremony" 
-                            className="w-full h-full object-cover"
-                        />
-                        {/* Badge */}
-                        <div className="absolute top-5 left-5 bg-[#bbf7d0] text-[#166534] text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-sm">
-                            CEREMONY
-                        </div>
+                <div 
+                  onClick={() => handleOpenEvent(FALLBACK_EVENT_2)}
+                  className="bg-white rounded-[1.5rem] overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col border border-gray-100 cursor-pointer group"
+                >
+                  {/* Image Container */}
+                  <div className="relative h-64 bg-gray-200 overflow-hidden">
+                    <img 
+                      src="/event2.png" 
+                      alt="Prize Giving Ceremony" 
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    />
+                    {/* Badge */}
+                    <div className="absolute top-5 left-5 bg-[#bbf7d0] text-[#166534] text-xs font-bold px-3 py-1.5 rounded-full tracking-wider shadow-sm">
+                      CEREMONY
+                    </div>
+                    {FALLBACK_EVENT_2.photos?.length > 1 && (
+                      <div className="absolute bottom-4 right-4 bg-black/75 backdrop-blur-xs text-white text-xs font-bold px-2.5 py-1 rounded-lg">
+                        +{FALLBACK_EVENT_2.photos.length} Photos
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Content Container */}
+                  <div className="p-8 flex flex-col flex-grow">
+                    <div className="flex items-center text-gray-500 text-sm font-medium mb-4">
+                      <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                      December 20, 2024
                     </div>
                     
-                    {/* Content Container */}
-                    <div className="p-8 flex flex-col flex-grow">
-                        <div className="flex items-center text-gray-500 text-sm font-medium mb-4">
-                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                            December 20, 2024
-                        </div>
-                        
-                        <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                            Annual Prize Giving Ceremony
-                        </h2>
-                        
-                        <p className="text-gray-600 mb-8 leading-relaxed">
-                            Honoring our most dedicated scholars for their academic achievements and cultural contributions.
-                        </p>
-                        
-                        <div className="mt-auto border-t border-gray-100 pt-6">
-                            <a href="#" className="inline-flex items-center text-blue-600 font-bold text-lg hover:text-blue-800 transition-colors group">
-                                Event Details 
-                                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                            </a>
-                        </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-3">
+                      Annual Prize Giving Ceremony
+                    </h2>
+                    
+                    <p className="text-gray-600 mb-8 leading-relaxed">
+                      Honoring our most dedicated scholars for their academic achievements and cultural contributions.
+                    </p>
+                    
+                    <div className="mt-auto border-t border-gray-100 pt-6">
+                      <span className="inline-flex items-center text-blue-600 font-bold text-lg hover:text-blue-800 transition-colors group">
+                        Event Details 
+                        <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                      </span>
                     </div>
+                  </div>
                 </div>
               </>
             )}
           </div>
-
         </div>
-
-       
       </main>
 
+      {/* Deep Event Details Modal */}
+      {selectedEvent && (
+        <EventDetailsModal
+          event={selectedEvent}
+          onClose={handleCloseModal}
+          onAttendanceChange={handleAttendanceChange}
+        />
+      )}
     </div>
   );
 }

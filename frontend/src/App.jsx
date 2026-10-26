@@ -85,6 +85,7 @@ function App() {
           <Route path="/docs" element={<DocumentationPage />} />
           <Route path="/resources" element={<DocumentationPage />} />
           <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:id" element={<EventsPage />} />
 
           <Route
             path="/announcements"

@@ -85,6 +85,24 @@ const eventService = {
   },
 
   /**
+   * Register attendance / RSVP for an event
+   * @param {string} id
+   */
+  async registerAttendance(id) {
+    const response = await apiClient.post(`/events/${id}/attend`);
+    return response.data;
+  },
+
+  /**
+   * Cancel event RSVP / attendance
+   * @param {string} id
+   */
+  async cancelAttendance(id) {
+    const response = await apiClient.delete(`/events/${id}/attend`);
+    return response.data;
+  },
+
+  /**
    * Create a new event (Admin)
    * @param {Object} eventData
    */
