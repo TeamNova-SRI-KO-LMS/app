@@ -18,10 +18,12 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
+  ClipboardCheck,
 } from 'lucide-react';
 import courseService from '../services/courseService';
 import CreateCourseView from './components/CreateCourseView';
 import EditCourseView from './components/EditCourseView';
+import CourseSubmissionsModal from './components/CourseSubmissionsModal';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 const LEVEL_STYLES = {
@@ -348,9 +350,10 @@ const CourseManagement = () => {
   const LIMIT = 10;
 
   // Modals
-  const [modal,         setModal]         = useState(null);
-  const [editingCourse, setEditingCourse] = useState(null);
-  const [deleteTarget,  setDeleteTarget]  = useState(null);
+  const [modal,                    setModal]                    = useState(null);
+  const [editingCourse,            setEditingCourse]            = useState(null);
+  const [deleteTarget,             setDeleteTarget]             = useState(null);
+  const [submissionsTargetCourse, setSubmissionsTargetCourse] = useState(null);
 
   // Toasts
   const [toasts, setToasts] = useState([]);
@@ -553,6 +556,13 @@ const CourseManagement = () => {
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={actionLoading}
+        />
+      )}
+      {submissionsTargetCourse && (
+        <CourseSubmissionsModal
+          isOpen={Boolean(submissionsTargetCourse)}
+          course={submissionsTargetCourse}
+          onClose={() => setSubmissionsTargetCourse(null)}
         />
       )}
 
@@ -829,28 +839,33 @@ const CourseManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button title="View Details" className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors">
-                          <FileText size={15} />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setSubmissionsTargetCourse(course)}
+                          title="View Student Assignment Submissions"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 transition-colors text-xs font-bold border border-indigo-100 cursor-pointer shadow-2xs"
+                        >
+                          <ClipboardCheck size={14} className="text-indigo-600" />
+                          <span>Submissions</span>
                         </button>
                         <button
                           onClick={() => openEdit(course)}
                           title="Edit Course"
-                          className="text-gray-400 hover:text-indigo-600 cursor-pointer transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                         >
                           <Edit3 size={15} />
                         </button>
                         <button
                           onClick={() => handleTogglePublish(course)}
                           title={course.isPublished ? 'Unpublish' : 'Publish'}
-                          className={`cursor-pointer transition-colors ${course.isPublished ? 'text-gray-400 hover:text-amber-500' : 'text-gray-400 hover:text-emerald-600'}`}
+                          className={`p-1.5 rounded-lg cursor-pointer transition-colors ${course.isPublished ? 'text-gray-400 hover:text-amber-500 hover:bg-gray-100' : 'text-gray-400 hover:text-emerald-600 hover:bg-gray-100'}`}
                         >
                           {course.isPublished ? <EyeOff size={15} /> : <Eye size={15} />}
                         </button>
                         <button
                           onClick={() => setDeleteTarget(course)}
                           title="Delete Course"
-                          className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>

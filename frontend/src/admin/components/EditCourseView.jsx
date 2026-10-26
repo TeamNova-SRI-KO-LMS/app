@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { 
   ArrowLeft, Edit2, PlusCircle, CheckCircle2, 
   AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload,
-  Play, Video
+  Play, Video, ClipboardCheck
 } from 'lucide-react';
 import CourseResourceModal from './CourseResourceModal';
+import CourseSubmissionsModal from './CourseSubmissionsModal';
 import lectureService from '../../services/lectureService';
 import { uploadToSupabase } from '../../services/uploadService';
 import { isVideoUrl, isVideoFile } from '../../utils/mediaUtils';
@@ -31,6 +32,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
   // Resource Upload Modal state
   const [showResourceModal, setShowResourceModal] = useState(false);
   const [activeModuleTarget, setActiveModuleTarget] = useState('01: Introduction to Honorifics');
+  const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
 
   const modules = [
     {
@@ -68,9 +70,9 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-800 pb-16 font-sans">
       
-      {/* Top Back Nav */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2">
-        {onBack && (
+      {/* Top Back Nav & Actions */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2 flex items-center justify-between">
+        {onBack ? (
           <button
             type="button"
             onClick={onBack}
@@ -78,7 +80,16 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
           >
             <ArrowLeft size={14} /> Back to Courses
           </button>
-        )}
+        ) : <div />}
+
+        <button
+          type="button"
+          onClick={() => setShowSubmissionsModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition cursor-pointer shadow-xs mb-2"
+        >
+          <ClipboardCheck size={15} className="text-indigo-600" />
+          <span>View Student Submissions</span>
+        </button>
       </div>
 
       {/* Main Grid: Left General Info & Module Builder + Right Thumbnail, Readiness, Quick Settings */}
@@ -488,6 +499,13 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
         courseId={course?._id}
         courseTitle={title}
         targetModule={activeModuleTarget}
+      />
+
+      {/* Course Submissions Modal */}
+      <CourseSubmissionsModal
+        isOpen={showSubmissionsModal}
+        onClose={() => setShowSubmissionsModal(false)}
+        course={course}
       />
 
     </div>
