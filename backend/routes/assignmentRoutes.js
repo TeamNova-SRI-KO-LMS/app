@@ -5,6 +5,7 @@ const Course = require('../models/Course');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
 const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
+const NotificationEngine = require('../services/NotificationEngine');
 
 const router = express.Router();
 
@@ -51,6 +52,18 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       allowedFileTypes,
       createdBy: req.user._id || req.user.id,
     });
+
+    // Notify enrolled students about the newly published assignment
+    try {
+      const course = await Course.findById(courseId);
+      await NotificationEngine.onAssignmentPublished({
+        assignment,
+        course,
+        createdById: req.user._id || req.user.id,
+      });
+    } catch (notifErr) {
+      console.warn('[assignmentRoutes] Notification error on assignment publish:', notifErr.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -246,6 +259,18 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
       });
     }
 
+    // Notify administrators about the student's submission
+    try {
+      await NotificationEngine.onAssignmentSubmitted({
+        submission,
+        assignment,
+        student: req.user,
+        course,
+      });
+    } catch (notifErr) {
+      console.warn('[assignmentRoutes] Notification error on assignment submit:', notifErr.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Assignment submitted to Supabase Storage successfully!',
@@ -322,6 +347,23 @@ router.patch('/submissions/:submissionId/grade', protect, authorize('admin'), as
     submission.gradedBy = req.user._id || req.user.id;
 
     await submission.save();
+
+    // Notify the student about their graded assignment result
+    try {
+      const assignment = await Assignment.findById(submission.assignment);
+      const course = await Course.findById(submission.course);
+      await NotificationEngine.onAssignmentGraded({
+        submission,
+        assignment,
+        course,
+        studentId: submission.student,
+        grade: submission.grade,
+        feedback: submission.feedback,
+        gradedById: req.user._id || req.user.id,
+      });
+    } catch (notifErr) {
+      console.warn('[assignmentRoutes] Notification error on assignment grade:', notifErr.message);
+    }
 
     res.status(200).json({
       success: true,

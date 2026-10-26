@@ -13,7 +13,8 @@ import {
   Clock,
   Pin,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useSocket } from '../context/SocketProvider';
@@ -31,6 +32,7 @@ export default function NotificationsPage() {
     return notifications.filter((notif) => {
       // Tab filter
       if (activeTab === 'unread' && notif.isRead) return false;
+      if (activeTab === 'assignment' && notif.type !== 'assignment') return false;
       if (activeTab === 'course_update' && notif.type !== 'course_update') return false;
       if (activeTab === 'payment_due' && notif.type !== 'payment_due') return false;
       if (activeTab === 'system' && notif.type !== 'system') return false;
@@ -78,7 +80,7 @@ export default function NotificationsPage() {
   }, [filteredNotifications]);
 
   const getTypeConfig = (type, priority) => {
-    if (priority === 'urgent' || priority === 'high') {
+    if (priority === 'urgent') {
       return {
         icon: AlertTriangle,
         bg: 'bg-red-50 text-red-600 border-red-200',
@@ -87,6 +89,13 @@ export default function NotificationsPage() {
       };
     }
     switch (type) {
+      case 'assignment':
+        return {
+          icon: FileText,
+          bg: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+          badge: 'bg-indigo-100 text-indigo-700',
+          badgeText: 'Assignment'
+        };
       case 'course_update':
         return {
           icon: BookOpen,
@@ -198,6 +207,7 @@ export default function NotificationsPage() {
             {[
               { id: 'all', label: 'All', count: notifications.length },
               { id: 'unread', label: 'Unread', count: unreadCount },
+              { id: 'assignment', label: 'Assignments' },
               { id: 'course_update', label: 'Courses' },
               { id: 'payment_due', label: 'Payments' },
               { id: 'system', label: 'System' },

@@ -185,6 +185,8 @@ export default function NotificationManager() {
   // Helpers for badge styling
   const getTypeBadge = (notifType) => {
     switch (notifType) {
+      case 'assignment':
+        return { label: 'Assignment', bg: 'bg-indigo-100 text-indigo-700' };
       case 'course_update':
         return { label: 'Course Alert', bg: 'bg-blue-100 text-blue-700' };
       case 'payment_due':
@@ -336,6 +338,7 @@ export default function NotificationManager() {
                   className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:bg-white focus:border-blue-600 cursor-pointer"
                 >
                   <option value="system">System Update</option>
+                  <option value="assignment">Assignment</option>
                   <option value="course_update">Course Alert</option>
                   <option value="message">Announcement</option>
                   <option value="payment_due">Payment Due</option>
@@ -512,6 +515,7 @@ export default function NotificationManager() {
                 >
                   <option value="">All Types</option>
                   <option value="system">System Updates</option>
+                  <option value="assignment">Assignments</option>
                   <option value="course_update">Course Alerts</option>
                   <option value="payment_due">Payment Due</option>
                   <option value="message">Announcements</option>

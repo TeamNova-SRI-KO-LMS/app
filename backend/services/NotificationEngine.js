@@ -349,6 +349,199 @@ class NotificationEngine {
       expiresAt: new Date(maintenanceDate)
     }, createdById);
   }
+
+  /**
+   * Triggered when a student submits an assignment
+   * Notifies administrators so they can review and grade the submission
+   */
+  static async onAssignmentSubmitted({ submission, assignment, student, course }) {
+    try {
+      const Course = require('../models/Course');
+      const Assignment = require('../models/Assignment');
+
+      // Resolve student name
+      let studentName = student?.name || 'A student';
+      if (!student?.name && student?._id) {
+        const u = await User.findById(student._id).select('name');
+        if (u) studentName = u.name;
+      }
+
+      // Resolve assignment title
+      let assignmentTitle = assignment?.title;
+      if (!assignmentTitle && submission?.assignment) {
+        const a = await Assignment.findById(submission.assignment).select('title');
+        if (a) assignmentTitle = a.title;
+      }
+      assignmentTitle = assignmentTitle || 'Assignment';
+
+      // Resolve course title and id
+      let courseTitle = course?.title;
+      let courseId = course?._id || course;
+      if (!courseTitle && (courseId || submission?.course)) {
+        const c = await Course.findById(courseId || submission.course).select('title');
+        if (c) {
+          courseTitle = c.title;
+          courseId = c._id;
+        }
+      }
+      courseTitle = courseTitle || 'Course';
+
+      return this.dispatch({
+        title: `📥 New Assignment Submission: ${studentName}`,
+        message: `${studentName} submitted an assignment for "${courseTitle}": ${assignmentTitle}.`,
+        koreanTitle: `📥 새 과제 제출: ${studentName}`,
+        koreanMessage: `${studentName}님이 "${courseTitle}" 강좌의 "${assignmentTitle}" 과제를 제출했습니다.`,
+        type: 'assignment',
+        priority: 'medium',
+        targetAudience: 'admins',
+        targetRoles: ['admin'],
+        targetCourses: courseId ? [courseId] : [],
+        actionUrl: '/admin/courses',
+        actionText: 'Review Submissions',
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      }, student?._id || student || null);
+    } catch (err) {
+      console.error('[NotificationEngine] onAssignmentSubmitted error:', err);
+    }
+  }
+
+  /**
+   * Triggered when an admin creates/publishes a new assignment
+   * Notifies enrolled students of the course
+   */
+  static async onAssignmentPublished({ assignment, course, createdById = null }) {
+    try {
+      const Course = require('../models/Course');
+      const Progress = require('../models/Progress');
+
+      const courseId = course?._id || course || assignment.course;
+      let courseTitle = course?.title;
+      let enrolledFromCourse = [];
+
+      if (!courseTitle || !course?.enrolledStudents) {
+        const c = await Course.findById(courseId).select('title enrolledStudents');
+        if (c) {
+          courseTitle = courseTitle || c.title;
+          enrolledFromCourse = (c.enrolledStudents || []).map(s => (s?._id || s).toString());
+        }
+      } else if (Array.isArray(course.enrolledStudents)) {
+        enrolledFromCourse = course.enrolledStudents.map(s => (s?._id || s).toString());
+      }
+      courseTitle = courseTitle || 'Course';
+
+      // Find all students enrolled in this course (via User.enrolledCourses, Course.enrolledStudents, or Progress)
+      const [enrolledUsers, progressStudents] = await Promise.all([
+        User.find({
+          $or: [
+            { _id: { $in: enrolledFromCourse } },
+            { enrolledCourses: courseId }
+          ],
+          role: 'student',
+          isActive: true
+        }).select('_id'),
+        Progress.find({ course: courseId }).distinct('student')
+      ]);
+
+      const studentIdSet = new Set([
+        ...enrolledFromCourse,
+        ...enrolledUsers.map(u => u._id.toString()),
+        ...progressStudents.map(id => id.toString())
+      ]);
+
+      const targetUsers = Array.from(studentIdSet);
+
+      const dueDateStr = assignment.dueDate
+        ? new Date(assignment.dueDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        : null;
+
+      const dueNoticeEn = dueDateStr ? ` (Due: ${dueDateStr})` : '';
+      const dueNoticeKo = dueDateStr ? ` (마감일: ${dueDateStr})` : '';
+
+      return this.dispatch({
+        title: `📝 New Assignment: ${assignment.title}`,
+        message: `A new assignment "${assignment.title}" has been published in "${courseTitle}"${dueNoticeEn}. Please check your curriculum and submit your files.`,
+        koreanTitle: `📝 새 과제 등록: ${assignment.title}`,
+        koreanMessage: `"${courseTitle}" 강좌에 새로운 과제 "${assignment.title}"이(가) 등록되었습니다${dueNoticeKo}. 커리큘럼에서 확인하고 기한 내에 제출하세요.`,
+        type: 'assignment',
+        priority: 'high',
+        targetAudience: targetUsers.length > 0 ? 'specific_users' : 'students',
+        targetUsers: targetUsers.length > 0 ? targetUsers : [],
+        targetRoles: ['student'],
+        targetCourses: courseId ? [courseId] : [],
+        actionUrl: `/courses/${courseId}/learn`,
+        actionText: 'View Assignment',
+        expiresAt: assignment.dueDate
+          ? new Date(new Date(assignment.dueDate).getTime() + 14 * 24 * 60 * 60 * 1000)
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      }, createdById);
+    } catch (err) {
+      console.error('[NotificationEngine] onAssignmentPublished error:', err);
+    }
+  }
+
+  /**
+   * Triggered when an admin grades an assignment submission
+   * Notifies the student with their grade and feedback
+   */
+  static async onAssignmentGraded({ submission, assignment, course, studentId, grade, feedback, gradedById = null }) {
+    try {
+      const Course = require('../models/Course');
+      const Assignment = require('../models/Assignment');
+
+      // Resolve student ID
+      const targetUserId = studentId || submission?.student?._id || submission?.student;
+      if (!targetUserId) {
+        console.warn('[NotificationEngine] onAssignmentGraded: student ID missing');
+        return;
+      }
+
+      // Resolve assignment title & maxScore
+      let assignmentTitle = assignment?.title;
+      let maxScore = assignment?.maxScore || 100;
+      if (!assignmentTitle && submission?.assignment) {
+        const a = await Assignment.findById(submission.assignment).select('title maxScore');
+        if (a) {
+          assignmentTitle = a.title;
+          maxScore = a.maxScore || 100;
+        }
+      }
+      assignmentTitle = assignmentTitle || 'Assignment';
+
+      // Resolve course title and id
+      let courseTitle = course?.title;
+      let courseId = course?._id || course || submission?.course;
+      if (!courseTitle && courseId) {
+        const c = await Course.findById(courseId).select('title');
+        if (c) {
+          courseTitle = c.title;
+          courseId = c._id;
+        }
+      }
+      courseTitle = courseTitle || 'Course';
+
+      const finalGrade = grade !== undefined ? grade : submission?.grade;
+      const finalFeedback = feedback !== undefined ? feedback : submission?.feedback;
+      const feedbackEn = finalFeedback ? ` Feedback: "${finalFeedback}".` : '';
+      const feedbackKo = finalFeedback ? ` 피드백: "${finalFeedback}".` : '';
+
+      return this.dispatch({
+        title: `📊 Assignment Result: ${assignmentTitle}`,
+        message: `Your assignment "${assignmentTitle}" in "${courseTitle}" has been graded: ${finalGrade}/${maxScore} points.${feedbackEn}`,
+        koreanTitle: `📊 과제 채점 결과: ${assignmentTitle}`,
+        koreanMessage: `"${courseTitle}" 강좌의 "${assignmentTitle}" 과제가 채점되었습니다: ${finalGrade}/${maxScore}점.${feedbackKo}`,
+        type: 'assignment',
+        priority: 'high',
+        targetAudience: 'specific_users',
+        targetUsers: [targetUserId],
+        targetCourses: courseId ? [courseId] : [],
+        actionUrl: `/courses/${courseId}/learn`,
+        actionText: 'View Result',
+        expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+      }, gradedById);
+    } catch (err) {
+      console.error('[NotificationEngine] onAssignmentGraded error:', err);
+    }
+  }
 }
 
 module.exports = NotificationEngine;
