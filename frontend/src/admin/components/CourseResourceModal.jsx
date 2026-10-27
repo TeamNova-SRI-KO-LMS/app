@@ -3,7 +3,7 @@ import {
   X, BookOpen, ChevronDown, ClipboardList, Video, 
   FileText, Calendar, UploadCloud, CheckCircle2, 
   Film, File, ArrowRight, Image as ImageIcon, Link as LinkIcon,
-  Trash2, Loader2, ExternalLink
+  Trash2, Loader2, ExternalLink, Lock, Globe, Sparkles
 } from 'lucide-react';
 import lectureService from '../../services/lectureService';
 import assignmentService from '../../services/assignmentService';
@@ -133,7 +133,7 @@ export default function CourseResourceModal({
         setStatusMessage({ type: 'success', text: 'External resource added successfully!' });
         if (onUploadSuccess) onUploadSuccess({ type: 'link', data: res.material });
       } else {
-        // Upload file to Google Drive (Video, PDF, Image)
+        // Upload file to Supabase Cloud Storage (Video, PDF, Image)
         if (!selectedFile) {
           alert('Please select a file to upload.');
           setIsUploading(false);
@@ -153,7 +153,7 @@ export default function CourseResourceModal({
           setUploadProgress(progress);
         });
 
-        setStatusMessage({ type: 'success', text: 'Uploaded to Google Drive successfully!' });
+        setStatusMessage({ type: 'success', text: 'Uploaded to Supabase Cloud Storage successfully!' });
         if (onUploadSuccess) onUploadSuccess({ type: activeTab, data: res.material });
       }
 
@@ -173,14 +173,30 @@ export default function CourseResourceModal({
       console.error('Resource upload error:', err);
       setStatusMessage({
         type: 'error',
-        text: err?.response?.data?.message || err.message || 'Upload failed. Check your connection or Google Drive config.',
+        text: err?.response?.data?.message || err.message || 'Upload failed. Check your connection or Supabase config.',
       });
       setIsUploading(false);
     }
   };
 
+  const handleTogglePreview = async (materialId) => {
+    try {
+      const res = await lectureService.togglePreview(materialId);
+      setRecentMaterials(prev => prev.map(m => m._id === materialId ? { ...m, isPreview: res.isPreview } : m));
+      setStatusMessage({
+        type: 'success',
+        text: res.message || 'Updated material visibility.',
+      });
+    } catch (err) {
+      setStatusMessage({
+        type: 'error',
+        text: err?.response?.data?.message || 'Failed to toggle preview status.',
+      });
+    }
+  };
+
   const handleDeleteMaterial = async (materialId) => {
-    if (!window.confirm('Are you sure you want to delete this resource from Google Drive?')) return;
+    if (!window.confirm('Are you sure you want to delete this resource from Supabase Cloud Storage?')) return;
     try {
       await lectureService.deleteMaterial(materialId);
       setRecentMaterials(recentMaterials.filter(m => m._id !== materialId));
@@ -198,9 +214,9 @@ export default function CourseResourceModal({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase tracking-wider bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full">
-                Google Drive Storage
+                Supabase Cloud Storage
               </span>
-              <span className="text-xs text-gray-400">• Free & Unlimited for SRI-KO</span>
+              <span className="text-xs text-gray-400">• High-Speed CDN &amp; Streaming for SRI-KO</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mt-0.5">
               {courseTitle}
@@ -332,8 +348,8 @@ export default function CourseResourceModal({
             <form onSubmit={handleSubmit} className="lg:col-span-7 bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-4">
               <h3 className="font-bold text-gray-900 text-base">
                 {activeTab === 'assignment' && 'Create Course Assignment'}
-                {activeTab === 'video' && 'Upload Video Lesson to Google Drive'}
-                {activeTab === 'pdf' && 'Upload PDF / Slides to Google Drive'}
+                {activeTab === 'video' && 'Upload Video Lesson to Supabase Cloud Storage'}
+                {activeTab === 'pdf' && 'Upload PDF / Slides to Supabase Cloud Storage'}
                 {activeTab === 'image' && 'Upload Study Image / Diagram'}
                 {activeTab === 'link' && 'Embed YouTube / External Resource'}
               </h3>
@@ -453,7 +469,7 @@ export default function CourseResourceModal({
                   ) : (
                     <>
                       <p className="font-bold text-gray-900 text-sm">Choose {activeTab.toUpperCase()} File</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Click or drag & drop (Direct to Google Drive)</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Click or drag &amp; drop (Direct to Supabase Cloud Storage)</p>
                       <p className="text-[10px] text-gray-400 mt-1">Up to 500MB</p>
                     </>
                   )}
@@ -465,7 +481,7 @@ export default function CourseResourceModal({
                 <div className="space-y-1.5 pt-2">
                   <div className="flex items-center justify-between text-xs font-bold text-blue-700">
                     <span className="flex items-center gap-1.5">
-                      <Loader2 size={13} className="animate-spin" /> Uploading to Google Drive...
+                      <Loader2 size={13} className="animate-spin" /> Uploading to Supabase Cloud Storage...
                     </span>
                     <span>{uploadProgress}%</span>
                   </div>
@@ -496,7 +512,7 @@ export default function CourseResourceModal({
                   <span>
                     {isUploading 
                       ? `Uploading (${uploadProgress}%)` 
-                      : activeTab === 'assignment' ? 'Create Assignment' : 'Upload to Google Drive 🚀'}
+                      : activeTab === 'assignment' ? 'Create Assignment' : 'Upload to Supabase Storage 🚀'}
                   </span>
                 </button>
               </div>
@@ -542,20 +558,54 @@ export default function CourseResourceModal({
                           </div>
                           <div className="truncate">
                             <p className="text-xs font-bold text-gray-800 truncate">{mat.title}</p>
-                            <p className="text-[10px] text-gray-400 truncate">
-                              W{mat.weekNumber} • {mat.lessonTitle} {mat.isPreview && '• Free Preview'}
-                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-gray-400 truncate">
+                                W{mat.weekNumber} • {mat.lessonTitle}
+                              </span>
+                              {mat.isPreview ? (
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                                  <Sparkles size={9} /> Free Preview
+                                </span>
+                              ) : (
+                                <span className="bg-gray-200/80 text-gray-600 text-[9px] font-medium px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                                  <Lock size={9} /> Enrolled Only
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePreview(mat._id)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              mat.isPreview
+                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                : 'bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-700 border border-gray-200 hover:border-blue-200'
+                            }`}
+                            title={mat.isPreview ? 'Currently published for everyone. Click to make enrolled-only.' : 'Currently enrolled-only. Click to publish for everyone.'}
+                          >
+                            {mat.isPreview ? (
+                              <>
+                                <Globe size={11} className="text-emerald-600" />
+                                <span>Published</span>
+                              </>
+                            ) : (
+                              <>
+                                <Lock size={11} className="text-gray-400" />
+                                <span>Publish</span>
+                              </>
+                            )}
+                          </button>
+
                           {mat.embedUrl && (
                             <a 
                               href={mat.viewUrl || mat.embedUrl}
                               target="_blank"
                               rel="noreferrer"
                               className="p-1 text-gray-400 hover:text-blue-600 transition"
-                              title="Open in Google Drive"
+                              title="Open in Supabase Storage"
                             >
                               <ExternalLink size={14} />
                             </a>

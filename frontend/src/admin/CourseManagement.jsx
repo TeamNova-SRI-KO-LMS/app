@@ -4,7 +4,6 @@ import {
   Users,
   FileEdit,
   Plus,
-  Award,
   ArrowUpDown,
   FileText,
   Edit3,
@@ -19,10 +18,13 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
+  ClipboardCheck,
 } from 'lucide-react';
 import courseService from '../services/courseService';
 import CreateCourseView from './components/CreateCourseView';
 import EditCourseView from './components/EditCourseView';
+import CourseDetailsView from './components/CourseDetailsView';
+import CourseSubmissionsModal from './components/CourseSubmissionsModal';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 const LEVEL_STYLES = {
@@ -328,7 +330,8 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
 /* ─────────────────────────── Main Component ─────────────────────────── */
 const CourseManagement = () => {
   // ── State ──────────────────────────────────────────────────────────
-  const [viewMode, setViewMode]             = useState('list'); // 'list' | 'create' | 'edit'
+  const [viewMode, setViewMode]             = useState('list'); // 'list' | 'create' | 'edit' | 'details'
+  const [viewingCourse, setViewingCourse]   = useState(null);
   const [courses, setCourses]               = useState([]);
   const [stats, setStats]                   = useState({ total: 0, totalPublished: 0, totalDraft: 0, totalStudents: 0 });
   const [loading, setLoading]               = useState(true);
@@ -340,7 +343,7 @@ const CourseManagement = () => {
   const [selectedLevel,    setSelectedLevel]    = useState('All Levels');
   const [selectedStatus,   setSelectedStatus]   = useState('Status');
   const [search,           setSearch]           = useState('');
-  const [sortOrder,        setSortOrder]        = useState('newest');
+  const [sortOrder,        setSortOrder]        = useState('most-enrolled');
 
   // Pagination
   const [page,       setPage]       = useState(1);
@@ -349,9 +352,10 @@ const CourseManagement = () => {
   const LIMIT = 10;
 
   // Modals
-  const [modal,         setModal]         = useState(null);
-  const [editingCourse, setEditingCourse] = useState(null);
-  const [deleteTarget,  setDeleteTarget]  = useState(null);
+  const [modal,                    setModal]                    = useState(null);
+  const [editingCourse,            setEditingCourse]            = useState(null);
+  const [deleteTarget,             setDeleteTarget]             = useState(null);
+  const [submissionsTargetCourse, setSubmissionsTargetCourse] = useState(null);
 
   // Toasts
   const [toasts, setToasts] = useState([]);
@@ -376,15 +380,18 @@ const CourseManagement = () => {
         level:    selectedLevel,
         status:   selectedStatus,
         search,
+        sort:     sortOrder,
       });
       setCourses(data.courses || []);
       setTotal(data.total || 0);
       setTotalPages(data.pages || 1);
       setStats({
-        total:          data.total          || 0,
-        totalPublished: data.totalPublished  || 0,
-        totalDraft:     data.totalDraft      || 0,
-        totalStudents:  data.totalStudents   || 0,
+        total:                   data.total                  || 0,
+        totalPublished:          data.totalPublished         || 0,
+        totalDraft:              data.totalDraft             || 0,
+        totalStudents:           data.totalStudents          || 0,
+        uniqueEnrolledStudents:  data.uniqueEnrolledStudents || 0,
+        totalRegisteredStudents: data.totalRegisteredStudents || 0,
       });
     } catch (err) {
       console.error('Fetch courses error:', err);
@@ -392,14 +399,14 @@ const CourseManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedCategory, selectedLevel, selectedStatus, search]);
+  }, [page, selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
-  useEffect(() => { setPage(1); }, [selectedCategory, selectedLevel, selectedStatus, search]);
+  useEffect(() => { setPage(1); }, [selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
   useEffect(() => {
     fetchCourses(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, selectedCategory, selectedLevel, selectedStatus, search]);
+  }, [page, selectedCategory, selectedLevel, selectedStatus, search, sortOrder]);
 
   // ── CRUD Handlers ──────────────────────────────────────────────────
   const handleCreate = async (formData) => {
@@ -439,6 +446,10 @@ const CourseManagement = () => {
       await courseService.deleteCourse(deleteTarget._id);
       addToast('Course deleted successfully!');
       setDeleteTarget(null);
+      if (viewMode === 'details') {
+        setViewingCourse(null);
+        setViewMode('list');
+      }
       const newPage = courses.length === 1 && page > 1 ? page - 1 : page;
       setPage(newPage);
       fetchCourses(newPage);
@@ -464,8 +475,17 @@ const CourseManagement = () => {
     setViewMode('edit'); 
   };
 
+  const openDetails = (course) => {
+    setViewingCourse(course);
+    setViewMode('details');
+  };
+
   // ── Sorted courses ─────────────────────────────────────────────────
   const displayedCourses = [...courses].sort((a, b) => {
+    if (sortOrder === 'most-enrolled') {
+      const getCount = (c) => Array.isArray(c.enrolledStudents) ? c.enrolledStudents.length : (c.enrolledCount || c.buyersCount || 0);
+      return getCount(b) - getCount(a);
+    }
     if (sortOrder === 'newest')     return new Date(b.createdAt) - new Date(a.createdAt);
     if (sortOrder === 'oldest')     return new Date(a.createdAt) - new Date(b.createdAt);
     if (sortOrder === 'price-asc')  return a.price - b.price;
@@ -488,7 +508,38 @@ const CourseManagement = () => {
     return pages;
   };
 
-  // ── Sub-views for Create and Edit ────────────────────────────────────
+  // ── Sub-views for Details, Create and Edit ───────────────────────────
+  if (viewMode === 'details') {
+    return (
+      <div className="space-y-6">
+        <Toast toasts={toasts} remove={removeToast} />
+        {deleteTarget && (
+          <DeleteModal
+            course={deleteTarget}
+            onConfirm={handleDelete}
+            onCancel={() => setDeleteTarget(null)}
+            loading={actionLoading}
+          />
+        )}
+        <CourseDetailsView 
+          course={viewingCourse}
+          onBack={() => { 
+            setViewingCourse(null); 
+            setViewMode('list'); 
+            fetchCourses(page);
+          }}
+          onEdit={(c) => openEdit(c || viewingCourse)}
+          onTogglePublish={async (c) => {
+            await handleTogglePublish(c || viewingCourse);
+          }}
+          onDelete={(c) => {
+            setDeleteTarget(c || viewingCourse);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (viewMode === 'create') {
     return (
       <div className="space-y-6">
@@ -549,6 +600,13 @@ const CourseManagement = () => {
           loading={actionLoading}
         />
       )}
+      {submissionsTargetCourse && (
+        <CourseSubmissionsModal
+          isOpen={Boolean(submissionsTargetCourse)}
+          course={submissionsTargetCourse}
+          onClose={() => setSubmissionsTargetCourse(null)}
+        />
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -567,10 +625,6 @@ const CourseManagement = () => {
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Refresh</span>
-          </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer">
-            <Award size={16} />
-            <span>Certificates</span>
           </button>
           <button
             onClick={() => { setEditingCourse(null); setViewMode('create'); }}
@@ -607,6 +661,9 @@ const CourseManagement = () => {
             <span className="text-xs font-semibold text-gray-500 block">Total Enrollments</span>
             <span className="text-2xl font-extrabold text-gray-900 mt-1 block">
               {loading ? <span className="inline-block w-10 h-6 bg-gray-200 rounded animate-pulse" /> : stats.totalStudents.toLocaleString()}
+            </span>
+            <span className="text-[11px] text-gray-400 font-medium block mt-0.5">
+              {stats.uniqueEnrolledStudents || 0} unique enrolled students
             </span>
           </div>
           <span className="px-2.5 py-1 rounded-full text-xs font-bold text-emerald-600 bg-emerald-50 self-start">Live</span>
@@ -680,6 +737,7 @@ const CourseManagement = () => {
               onChange={e => setSortOrder(e.target.value)}
               className="bg-transparent font-bold text-gray-900 focus:outline-none cursor-pointer text-xs"
             >
+              <option value="most-enrolled">Most Enrolled</option>
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="price-asc">Price ↑</option>
@@ -762,13 +820,25 @@ const CourseManagement = () => {
                   <tr key={course._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                        <button
+                          type="button"
+                          id={`course-icon-${course._id}`}
+                          onClick={() => openDetails(course)}
+                          className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 hover:scale-105 hover:border-blue-300 transition cursor-pointer shadow-2xs"
+                          title="View Course Details"
+                        >
                           <BookOpen size={17} />
-                        </div>
+                        </button>
                         <div>
-                          <h4 className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate">
+                          <button
+                            type="button"
+                            id={`course-title-${course._id}`}
+                            onClick={() => openDetails(course)}
+                            className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate text-left hover:text-blue-600 transition cursor-pointer block"
+                            title={`View details for ${course.title}`}
+                          >
                             {course.title}
-                          </h4>
+                          </button>
                           <span className="text-[10px] font-mono text-gray-400 block mt-0.5 truncate max-w-[180px]">
                             ID: {course._id}
                           </span>
@@ -783,16 +853,38 @@ const CourseManagement = () => {
                     </td>
                     <td className="px-6 py-4 font-extrabold text-gray-900 text-sm">{formatPrice(course.price)}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-2 overflow-hidden">
-                          <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-300" />
-                          <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-blue-300" />
-                          <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-500" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-600">
-                          {course.enrolledStudents?.length?.toLocaleString() || 0}
-                        </span>
-                      </div>
+                      {(() => {
+                        const studentCount = Array.isArray(course.enrolledStudents)
+                          ? course.enrolledStudents.length
+                          : (typeof course.enrolledCount === 'number'
+                              ? course.enrolledCount
+                              : (typeof course.buyersCount === 'number' ? course.buyersCount : 0));
+
+                        return (
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                                studentCount > 0
+                                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                  : 'bg-gray-100 text-gray-400'
+                              }`}
+                            >
+                              <Users size={14} />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-gray-900 block leading-tight">
+                                {studentCount.toLocaleString()}{' '}
+                                <span className="font-medium text-gray-500">
+                                  {studentCount === 1 ? 'student' : 'students'}
+                                </span>
+                              </span>
+                              <span className="text-[10px] text-gray-400 block font-medium">
+                                {studentCount > 0 ? 'Enrolled / Bought' : 'No buyers yet'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-extrabold ${course.isPublished ? 'text-emerald-600' : 'text-amber-500'}`}>
@@ -801,28 +893,42 @@ const CourseManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button title="View Details" className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors">
-                          <FileText size={15} />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          id={`view-details-${course._id}`}
+                          onClick={() => openDetails(course)}
+                          title="View Course Details"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 transition-colors text-xs font-bold border border-blue-100 cursor-pointer shadow-2xs"
+                        >
+                          <Eye size={14} className="text-blue-600" />
+                          <span>View Details</span>
+                        </button>
+                        <button
+                          onClick={() => setSubmissionsTargetCourse(course)}
+                          title="View Student Assignment Submissions"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 transition-colors text-xs font-bold border border-indigo-100 cursor-pointer shadow-2xs"
+                        >
+                          <ClipboardCheck size={14} className="text-indigo-600" />
+                          <span>Submissions</span>
                         </button>
                         <button
                           onClick={() => openEdit(course)}
                           title="Edit Course"
-                          className="text-gray-400 hover:text-indigo-600 cursor-pointer transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                         >
                           <Edit3 size={15} />
                         </button>
                         <button
                           onClick={() => handleTogglePublish(course)}
                           title={course.isPublished ? 'Unpublish' : 'Publish'}
-                          className={`cursor-pointer transition-colors ${course.isPublished ? 'text-gray-400 hover:text-amber-500' : 'text-gray-400 hover:text-emerald-600'}`}
+                          className={`p-1.5 rounded-lg cursor-pointer transition-colors ${course.isPublished ? 'text-gray-400 hover:text-amber-500 hover:bg-gray-100' : 'text-gray-400 hover:text-emerald-600 hover:bg-gray-100'}`}
                         >
                           {course.isPublished ? <EyeOff size={15} /> : <Eye size={15} />}
                         </button>
                         <button
                           onClick={() => setDeleteTarget(course)}
                           title="Delete Course"
-                          className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>
