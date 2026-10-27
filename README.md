@@ -14,8 +14,8 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Backend coverage](https://img.shields.io/badge/backend_coverage-91.5%25_lines-brightgreen)
-![Frontend logic coverage](https://img.shields.io/badge/frontend_logic_coverage-98.7%25_lines-brightgreen)
+![Backend coverage](https://img.shields.io/badge/backend_coverage-87.6%25_lines-brightgreen)
+![Frontend logic coverage](https://img.shields.io/badge/frontend_logic_coverage-95.0%25_lines-brightgreen)
 
 **Official live deployment:** [SRI-KO LMS](https://app-t7u8.vercel.app/) · **API health check:** [app-khaki-mu-55.vercel.app/api/health](https://app-khaki-mu-55.vercel.app/api/health)
 
@@ -153,7 +153,6 @@ app/
 │   ├── services/            # NotificationEngine, ChatbotEngine
 │   ├── socket/              # Socket.IO manager (real-time notifications)
 │   ├── utils/               # Attendance date helpers, regex escaping
-│   ├── seedCourses.js       # Sample course data (replaces ALL courses)
 │   └── env.example          # Backend environment template
 ├── frontend/
 │   ├── index.html
@@ -227,16 +226,7 @@ npm run dev
 
 Open **http://localhost:5173**.
 
-### 5. Load sample courses (optional)
-
-```bash
-cd backend
-node seedCourses.js
-```
-
-> **Warning:** `seedCourses.js` **deletes every existing course** before inserting the samples. Never run it against a production database.
-
-### 6. Create the first administrator
+### 5. Create the first administrator
 
 For security, the public registration form only creates **student** or **instructor** accounts. To create the first admin:
 
@@ -296,6 +286,7 @@ The suites never touch the database or the services in your `.env` files: the ba
 | --- | --- | --- | --- |
 | Backend unit, integration and security | Jest, Supertest, mongodb-memory-server | `backend/tests/` | `cd backend && npm test` |
 | Backend coverage (fails below 80% lines) | Jest | `backend/coverage/` | `cd backend && npm run test:coverage` |
+| Backend password-reset flow | Node.js test runner | `backend/test/` | `cd backend && npm run test:node` |
 | Frontend unit (services, config, route guard, shared components) | Vitest, Testing Library | `frontend/src/__tests__/` | `cd frontend && npm test` |
 | End-to-end journeys (desktop and phone) | Playwright | `frontend/e2e/` | see below |
 | Load test (NFR-001 response time) | Node.js | `backend/tests/performance/` | `cd backend && npm run test:perf` |
@@ -488,7 +479,6 @@ Admin attendance endpoints accept `from`, `to` (`YYYY-MM-DD`), `courseId`, `stud
 | --- | --- | --- |
 | `backend/` | `npm run dev` | Start the API with auto-reload (nodemon) and Socket.IO. |
 | `backend/` | `npm start` | Start the API with Node.js. |
-| `backend/` | `node seedCourses.js` | Replace all courses with sample data (development only). |
 | `frontend/` | `npm run dev` | Start the Vite development server on port 5173. |
 | `frontend/` | `npm run build` | Build the production bundle into `frontend/dist`. |
 | `frontend/` | `npm run preview` | Preview the production build locally. |
