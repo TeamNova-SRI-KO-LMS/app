@@ -178,7 +178,7 @@ const TermsOfServicePage = () => {
                       Age Requirement
                     </h3>
                     <p className="text-slate-600 text-sm leading-relaxed mt-1">
-                      Users must be at least 13 years of age, or have explicit parental consent in jurisdictions where required.
+                      Users must be at least 16 years of age, or have explicit parental consent in jurisdictions where required.
                     </p>
                   </div>
                 </div>
