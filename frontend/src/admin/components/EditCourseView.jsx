@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { 
   ArrowLeft, Edit2, PlusCircle, CheckCircle2, 
-  AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload
+  AlertCircle, ChevronDown, Check, Image as ImageIcon, Loader2, Upload,
+  Play, Video, ClipboardCheck
 } from 'lucide-react';
 import CourseResourceModal from './CourseResourceModal';
+import CourseSubmissionsModal from './CourseSubmissionsModal';
 import lectureService from '../../services/lectureService';
+import { uploadToSupabase } from '../../services/uploadService';
+import { isVideoUrl, isVideoFile } from '../../utils/mediaUtils';
 
 export default function EditCourseView({ course, onBack, onSave, loading }) {
   const [title, setTitle] = useState(course?.title || 'Intermediate Korean: Business Etiquette');
@@ -17,6 +21,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
   );
 
   const [thumbnail, setThumbnail] = useState(course?.thumbnail || '');
+  const [isThumbnailVideo, setIsThumbnailVideo] = useState(() => isVideoUrl(course?.thumbnail));
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   // Quick settings toggles
@@ -27,6 +32,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
   // Resource Upload Modal state
   const [showResourceModal, setShowResourceModal] = useState(false);
   const [activeModuleTarget, setActiveModuleTarget] = useState('01: Introduction to Honorifics');
+  const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
 
   const modules = [
     {
@@ -64,9 +70,9 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-800 pb-16 font-sans">
       
-      {/* Top Back Nav */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2">
-        {onBack && (
+      {/* Top Back Nav & Actions */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2 flex items-center justify-between">
+        {onBack ? (
           <button
             type="button"
             onClick={onBack}
@@ -74,7 +80,16 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
           >
             <ArrowLeft size={14} /> Back to Courses
           </button>
-        )}
+        ) : <div />}
+
+        <button
+          type="button"
+          onClick={() => setShowSubmissionsModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl border border-indigo-200 transition cursor-pointer shadow-xs mb-2"
+        >
+          <ClipboardCheck size={15} className="text-indigo-600" />
+          <span>View Student Submissions</span>
+        </button>
       </div>
 
       {/* Main Grid: Left General Info & Module Builder + Right Thumbnail, Readiness, Quick Settings */}
@@ -261,55 +276,93 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
                 Course Thumbnail
               </h4>
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                Google Drive
+                Supabase Cloud Storage
               </span>
             </div>
             
             <div className="border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-[#f8fafc] hover:bg-blue-50/10 transition cursor-pointer relative overflow-hidden group">
               {thumbnail ? (
                 <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black/10">
-                  <img 
-                    src={thumbnail} 
-                    alt="Course Thumbnail" 
-                    className="w-full h-full object-cover" 
-                  />
+                  {isThumbnailVideo ? (
+                    <video 
+                      src={thumbnail} 
+                      className="w-full h-full object-cover" 
+                      muted 
+                      playsInline 
+                      preload="metadata" 
+                    />
+                  ) : (
+                    <img 
+                      src={thumbnail} 
+                      alt="Course Thumbnail" 
+                      className="w-full h-full object-cover" 
+                    />
+                  )}
+
+                  {/* Play badge shown ONLY for video thumbnails */}
+                  {isThumbnailVideo && (
+                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+                      <div className="w-12 h-12 rounded-full bg-blue-600/90 text-white flex items-center justify-center shadow-lg">
+                        <Play size={20} className="fill-current translate-x-0.5" />
+                      </div>
+                      <div className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs px-2.5 py-1 rounded-md text-[10px] font-bold text-white flex items-center gap-1.5">
+                        <Video size={12} className="text-blue-400" />
+                        <span>Video Thumbnail</span>
+                      </div>
+                    </div>
+                  )}
+
                   {uploadingThumbnail && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-2 text-white text-xs font-bold">
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center gap-2 text-white text-xs font-bold z-10">
                       <Loader2 size={16} className="animate-spin text-blue-400" />
-                      <span>Uploading to Google Drive...</span>
+                      <span>Uploading to Supabase Cloud Storage...</span>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="py-6 flex flex-col items-center">
                   <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-blue-50 text-gray-400 group-hover:text-blue-600 flex items-center justify-center mb-2 transition">
-                    <ImageIcon size={22} />
+                    <div className="flex items-center gap-1">
+                      <ImageIcon size={18} />
+                      <Video size={18} />
+                    </div>
                   </div>
                   <p className="text-xs font-bold text-gray-600">
-                    Click to upload thumbnail
+                    Click to upload thumbnail photo or video
                   </p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    1280×720px • Stored on Google Drive
+                    Images (PNG, JPG) or Videos (MP4, WebM) • Stored on Supabase
                   </p>
                 </div>
               )}
 
               <input 
                 type="file" 
-                accept="image/*"
+                accept="image/*,video/*"
                 disabled={uploadingThumbnail}
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    const isVid = isVideoFile(file);
+                    setIsThumbnailVideo(isVid);
+                    setThumbnail(URL.createObjectURL(file));
                     setUploadingThumbnail(true);
                     try {
                       const res = await lectureService.uploadThumbnail(file);
                       if (res?.url) {
                         setThumbnail(res.url);
+                        setIsThumbnailVideo(isVid || isVideoUrl(res.url));
                       }
                     } catch (err) {
-                      console.error('Thumbnail upload error:', err);
-                      alert('Failed to upload thumbnail to Google Drive.');
+                      console.error('Thumbnail upload error, trying fallback:', err);
+                      try {
+                        const url = await uploadToSupabase(file, 'courses', 'thumbnails');
+                        setThumbnail(url);
+                        setIsThumbnailVideo(isVid || isVideoUrl(url));
+                      } catch (fallbackErr) {
+                        console.error('Thumbnail fallback error:', fallbackErr);
+                        alert('Failed to upload thumbnail to Supabase Storage.');
+                      }
                     } finally {
                       setUploadingThumbnail(false);
                     }
@@ -320,7 +373,7 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
             </div>
 
             <p className="text-[10px] text-gray-400 text-center mt-2.5">
-              Click thumbnail area to replace image. Saved directly to your Google Drive.
+              Click thumbnail area to replace photo or video. Saved directly to your Supabase Cloud Storage.
             </p>
           </div>
 
@@ -446,6 +499,13 @@ export default function EditCourseView({ course, onBack, onSave, loading }) {
         courseId={course?._id}
         courseTitle={title}
         targetModule={activeModuleTarget}
+      />
+
+      {/* Course Submissions Modal */}
+      <CourseSubmissionsModal
+        isOpen={showSubmissionsModal}
+        onClose={() => setShowSubmissionsModal(false)}
+        course={course}
       />
 
     </div>
