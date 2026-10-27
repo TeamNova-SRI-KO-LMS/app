@@ -1,8 +1,9 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, optionalAuth } = require('../middleware/auth');
 const LectureMaterial = require('../models/LectureMaterial');
 const Course = require('../models/Course');
+const { canAccessCourseContent } = require('../utils/courseAccess');
 const { uploadToDrive, deleteFromDrive } = require('../services/googleDriveService');
 
 const router = express.Router();
@@ -213,7 +214,7 @@ router.post('/link', protect, authorize('admin'), async (req, res) => {
 // 4. GET: Materials for a Course (Enrolled students or admin, or preview items)
 // GET /api/lectures/course/:courseId
 // ─────────────────────────────────────────────────────────────
-router.get('/course/:courseId', async (req, res) => {
+router.get('/course/:courseId', optionalAuth, async (req, res) => {
   try {
     const { courseId } = req.params;
 
@@ -223,12 +224,17 @@ router.get('/course/:courseId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    const materials = await LectureMaterial.find({ course: courseId })
+    // Visitors and students who have not enrolled only see the free preview items
+    const fullAccess = await canAccessCourseContent(req.user, course);
+    const filter = fullAccess ? { course: courseId } : { course: courseId, isPreview: true };
+
+    const materials = await LectureMaterial.find(filter)
       .sort({ weekNumber: 1, order: 1, createdAt: 1 })
       .populate('uploadedBy', 'name');
 
     res.status(200).json({
       success: true,
+      access: fullAccess ? 'full' : 'preview',
       count: materials.length,
       materials,
     });
@@ -242,14 +248,25 @@ router.get('/course/:courseId', async (req, res) => {
 // 5. GET: Single Material by ID
 // GET /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const material = await LectureMaterial.findById(req.params.id);
     if (!material) {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
+
+    if (!material.isPreview) {
+      const course = await Course.findById(material.course);
+      if (!(await canAccessCourseContent(req.user, course))) {
+        return res.status(req.user ? 403 : 401).json({
+          success: false,
+          message: 'Enrol in this course to open this material.',
+        });
+      }
+    }
+
     res.status(200).json({ success: true, material });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
