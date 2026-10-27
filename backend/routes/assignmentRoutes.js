@@ -1,11 +1,25 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, optionalAuth } = require('../middleware/auth');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
-const { uploadToDrive, deleteFromDrive } = require('../services/googleDriveService');
+const Course = require('../models/Course');
+const { canAccessCourseContent } = require('../utils/courseAccess');
+const { uploadToDrive } = require('../services/googleDriveService');
 
 const router = express.Router();
+
+// Fields of an assignment shown on the public course page; the instructions and the
+// attached file are reserved for enrolled students.
+const toAssignmentPreview = (assignment) => ({
+  _id: assignment._id,
+  course: assignment.course,
+  weekNumber: assignment.weekNumber,
+  lessonTitle: assignment.lessonTitle,
+  title: assignment.title,
+  dueDate: assignment.dueDate,
+  maxScore: assignment.maxScore,
+});
 
 // Multer memory storage for student assignment uploads (up to 5 files, 50MB each)
 const upload = multer({
@@ -66,17 +80,24 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
 // 2. GET: Assignments for a Course
 // GET /api/assignments/course/:courseId
 // ─────────────────────────────────────────────────────────────
-router.get('/course/:courseId', async (req, res) => {
+router.get('/course/:courseId', optionalAuth, async (req, res) => {
   try {
-    const assignments = await Assignment.find({ course: req.params.courseId })
-      .sort({ weekNumber: 1, createdAt: 1 });
+    const [course, assignments] = await Promise.all([
+      Course.findById(req.params.courseId),
+      Assignment.find({ course: req.params.courseId }).sort({ weekNumber: 1, createdAt: 1 }),
+    ]);
+
+    // Visitors and students who have not enrolled see which assignments the course has,
+    // but not their instructions or attached files.
+    const fullAccess = await canAccessCourseContent(req.user, course);
 
     res.status(200).json({
       success: true,
+      access: fullAccess ? 'full' : 'preview',
       count: assignments.length,
-      assignments,
+      assignments: fullAccess ? assignments : assignments.map(toAssignmentPreview),
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch assignments.' });
   }
 });
@@ -85,14 +106,23 @@ router.get('/course/:courseId', async (req, res) => {
 // 3. GET: Single Assignment Details
 // GET /api/assignments/:id
 // ─────────────────────────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const assignment = await Assignment.findById(req.params.id).populate('course', 'title');
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
     }
+
+    const course = await Course.findById(assignment.course?._id);
+    if (!(await canAccessCourseContent(req.user, course))) {
+      return res.status(req.user ? 403 : 401).json({
+        success: false,
+        message: 'Enrol in this course to open this assignment.',
+      });
+    }
+
     res.status(200).json({ success: true, assignment });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -195,7 +225,7 @@ router.get('/:id/my-submission', protect, async (req, res) => {
       success: true,
       submission: submission || null,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -216,7 +246,7 @@ router.get('/:id/submissions', protect, authorize('admin'), async (req, res) => 
       count: submissions.length,
       submissions,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -247,7 +277,7 @@ router.patch('/submissions/:submissionId/grade', protect, authorize('admin'), as
       message: 'Submission graded successfully.',
       submission,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to grade submission.' });
   }
 });
@@ -267,7 +297,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     await assignment.deleteOne();
 
     res.status(200).json({ success: true, message: 'Assignment deleted successfully.' });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to delete assignment.' });
   }
 });
