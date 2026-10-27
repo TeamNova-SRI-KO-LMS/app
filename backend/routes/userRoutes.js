@@ -55,7 +55,7 @@ router.get('/dashboard', protect, async (req, res) => {
     const userId = req.user.id;
     const user = await User.findById(userId).populate({
       path: 'enrolledCourses',
-      select: 'title description thumbnail category level duration price curriculum isPublished'
+      select: 'title description thumbnail category level duration price curriculum isPublished createdAt updatedAt'
     });
 
     if (!user) {
@@ -66,10 +66,14 @@ router.get('/dashboard', protect, async (req, res) => {
     const directEnrolledCourses = await Course.find({
       enrolledStudents: userId,
       _id: { $nin: (user.enrolledCourses || []).map(c => c._id) }
-    }).select('title description thumbnail category level duration price curriculum isPublished');
+    }).select('title description thumbnail category level duration price curriculum isPublished createdAt updatedAt');
 
     // Combined unique enrolled courses
-    const allEnrolledCourses = [...(user.enrolledCourses || []), ...directEnrolledCourses];
+    const allEnrolledCourses = [...(user.enrolledCourses || []), ...directEnrolledCourses]
+      .filter(course => course?._id)
+      .filter((course, index, courses) => (
+        courses.findIndex(item => item._id.toString() === course._id.toString()) === index
+      ));
 
     // Fetch user progress for enrolled courses
     const progressRecords = await Progress.find({ student: userId });
@@ -207,6 +211,7 @@ router.get('/dashboard', protect, async (req, res) => {
       ? 'Intermediate'
       : 'Beginner';
 
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.status(200).json({
       success: true,
       data: {
@@ -681,7 +686,10 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
       ];
     }
 
-    const users = await User.find(query).select('-password').sort({ createdAt: -1 });
+    const users = await User.find(query)
+      .select('-password')
+      .populate('enrolledCourses', 'title category level thumbnail')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -740,6 +748,7 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        avatar: user.avatar,
         enrolledCourses: user.enrolledCourses || []
       }
     });
@@ -795,6 +804,7 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        avatar: user.avatar,
         enrolledCourses: user.enrolledCourses || []
       }
     });
@@ -850,6 +860,7 @@ router.patch('/:id', protect, authorize('admin'), async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        avatar: user.avatar,
         enrolledCourses: user.enrolledCourses || []
       }
     });
