@@ -161,6 +161,42 @@ router.post(
   },
 );
 
+// Check if an email is registered previously
+router.post('/check-email', async (req, res) => {
+  const email = typeof req.body.email === 'string'
+    ? req.body.email.trim().toLowerCase()
+    : '';
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide a valid email address',
+    });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user || !user.isActive) {
+      return res.status(200).json({
+        success: true,
+        exists: false,
+        message: 'This email is not registered previously',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      exists: true,
+      message: 'User exists',
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while checking email',
+    });
+  }
+});
+
 // Request a one-time password reset code.
 router.post('/forgot-password', async (req, res) => {
   const email = typeof req.body.email === 'string'
@@ -177,11 +213,10 @@ router.post('/forgot-password', async (req, res) => {
   try {
     const user = await User.findOne({ email });
 
-    // Keep this response identical for existing and unknown addresses.
     if (!user || !user.isActive) {
-      return res.status(200).json({
-        success: true,
-        message: 'If an account exists for this email, a verification code has been sent',
+      return res.status(404).json({
+        success: false,
+        message: 'This email is not registered previously. Please check your email or create an account.',
       });
     }
 

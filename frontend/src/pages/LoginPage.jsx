@@ -1,8 +1,8 @@
-
 import { useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import useAuth from '../context/useAuth';
+import apiService from '../services/apiService';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -16,6 +16,7 @@ const LoginPage = () => {
 
   // Preserve authentication error handling from develop.
   const [localError, setLocalError] = useState('');
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const { login, googleLogin, loading, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -56,6 +57,47 @@ const LoginPage = () => {
 
     if (localError) {
       setLocalError('');
+    }
+  };
+
+  const handleForgotPassword = async event => {
+    event.preventDefault();
+    setLocalError('');
+
+    const email = formData.email?.trim().toLowerCase();
+
+    if (!email) {
+      setLocalError(
+        'Please enter your registered email address first to reset your password.',
+      );
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLocalError(
+        'The email address entered is invalid. Please enter a valid registered email address.',
+      );
+      return;
+    }
+
+    try {
+      setCheckingEmail(true);
+      const response = await apiService.post('/auth/check-email', { email });
+      if (response.data?.exists) {
+        navigate('/forgot-password', { state: { email } });
+      } else {
+        sessionStorage.removeItem('lastLoginEmail');
+        setLocalError(
+          'This email is not registered previously. Please check your email address or apply for membership.',
+        );
+      }
+    } catch (checkError) {
+      setLocalError(
+        checkError.response?.data?.message ||
+          'Unable to verify account email. Please check your connection and try again.',
+      );
+    } finally {
+      setCheckingEmail(false);
     }
   };
 
@@ -234,13 +276,14 @@ const LoginPage = () => {
               >
                 PASSWORD
               </label>
-              <Link
-                to="/forgot-password"
-                state={{ email: formData.email }}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={checkingEmail}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Forgot password?
-              </Link>
+                {checkingEmail ? 'Verifying...' : 'Forgot password?'}
+              </button>
             </div>
             <input
               id="password"

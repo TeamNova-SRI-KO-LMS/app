@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import useAuth from '../context/useAuth';
+import apiService from '../services/apiService';
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({
@@ -10,6 +11,7 @@ const AdminLogin = () => {
     rememberMe: false,
   });
   const [localError, setLocalError] = useState('');
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const { login, loading } = useAuth();
   const navigate = useNavigate();
@@ -27,6 +29,47 @@ const AdminLogin = () => {
       sessionStorage.setItem('lastLoginEmail', value.trim());
     }
     if (localError) setLocalError('');
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLocalError('');
+
+    const email = formData.email?.trim().toLowerCase();
+
+    if (!email) {
+      setLocalError(
+        'Please enter your registered email address first to reset your password.',
+      );
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLocalError(
+        'The email address entered is invalid. Please enter a valid registered email address.',
+      );
+      return;
+    }
+
+    try {
+      setCheckingEmail(true);
+      const response = await apiService.post('/auth/check-email', { email });
+      if (response.data?.exists) {
+        navigate('/forgot-password', { state: { email } });
+      } else {
+        sessionStorage.removeItem('lastLoginEmail');
+        setLocalError(
+          'This email is not registered previously. Please check your email address.',
+        );
+      }
+    } catch (checkError) {
+      setLocalError(
+        checkError.response?.data?.message ||
+          'Unable to verify account email. Please check your connection and try again.',
+      );
+    } finally {
+      setCheckingEmail(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -133,13 +176,14 @@ const AdminLogin = () => {
                 >
                   PASSWORD
                 </label>
-                <Link
-                  to="/forgot-password"
-                  state={{ email: formData.email }}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={checkingEmail}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Forgot password?
-                </Link>
+                  {checkingEmail ? 'Verifying...' : 'Forgot password?'}
+                </button>
               </div>
               <input
                 id="password"
