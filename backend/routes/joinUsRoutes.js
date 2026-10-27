@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const JoinUsSubmission = require('../models/JoinUsSubmission');
 const { protect, authorize } = require('../middleware/auth');
 const escapeRegex = require('../utils/escapeRegex');
@@ -9,7 +10,7 @@ const escapeRegex = require('../utils/escapeRegex');
 router.post('/submit', async (req, res) => {
   try {
     const {
-      name, email, phone, age, currentLevel,
+      name, email, phone, subject, category, age, currentLevel,
       preferredTime, interests, hearAboutUs, message,
     } = req.body;
 
@@ -17,11 +18,12 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name and email are required.' });
     }
 
-    // Optional selects left blank arrive as "", which the schema's enums reject
     const submission = new JoinUsSubmission({
       name,
       email,
       phone,
+      subject: subject || undefined,
+      category: category || undefined,
       age: age ? Number(age) : undefined,
       currentLevel: currentLevel || undefined,
       preferredTime: preferredTime || undefined,
@@ -36,7 +38,7 @@ router.post('/submit', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Thank you for your interest! We will contact you soon.',
+      message: 'Thank you for reaching out! We will get back to you shortly.',
       data: { id: submission._id },
     });
   } catch (error) {
@@ -58,7 +60,16 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
     const query = {};
 
     if (status && status !== 'ALL') {
-      query.status = String(status).toLowerCase();
+      const s = String(status).toLowerCase().replace(/\s+/g, '_');
+      if (s === 'new' || s === 'pending') {
+        query.status = { $in: ['new', 'pending'] };
+      } else if (s === 'in_progress' || s === 'contacted') {
+        query.status = { $in: ['in_progress', 'contacted'] };
+      } else if (s === 'resolved' || s === 'enrolled' || s === 'rejected') {
+        query.status = { $in: ['resolved', 'enrolled', 'rejected'] };
+      } else {
+        query.status = s;
+      }
     }
 
     if (search) {
@@ -74,10 +85,30 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
       .limit(Number(limit))
       .lean();
 
+    const newCount = await JoinUsSubmission.countDocuments({ status: { $in: ['new', 'pending'] } });
+    const inProgressCount = await JoinUsSubmission.countDocuments({ status: { $in: ['in_progress', 'contacted'] } });
+    const resolvedCount = await JoinUsSubmission.countDocuments({ status: { $in: ['resolved', 'enrolled', 'rejected'] } });
+
+    const counts = {
+      total: await JoinUsSubmission.countDocuments(),
+      new: newCount,
+      in_progress: inProgressCount,
+      resolved: resolvedCount,
+    };
+
+    const normalizedSubmissions = submissions.map((sub) => {
+      let st = sub.status;
+      if (st === 'pending') st = 'new';
+      else if (st === 'contacted') st = 'in_progress';
+      else if (st === 'enrolled' || st === 'rejected') st = 'resolved';
+      return { ...sub, status: st || 'new' };
+    });
+
     return res.json({
       success: true,
-      data: submissions,
+      data: normalizedSubmissions,
       total,
+      counts,
       page: Number(page),
       pages: Math.ceil(total / Number(limit)),
     });
@@ -97,45 +128,108 @@ router.get('/recent', protect, authorize('admin'), async (req, res) => {
       .limit(limit)
       .lean();
 
+    const normalizedSubmissions = submissions.map((sub) => {
+      let st = sub.status;
+      if (st === 'pending') st = 'new';
+      else if (st === 'contacted') st = 'in_progress';
+      else if (st === 'enrolled' || st === 'rejected') st = 'resolved';
+      return { ...sub, status: st || 'new' };
+    });
+
     // Stats
     const total = await JoinUsSubmission.countDocuments();
-    const pending = await JoinUsSubmission.countDocuments({ status: 'pending' });
+    const newCount = await JoinUsSubmission.countDocuments({ status: { $in: ['new', 'pending'] } });
+    const inProgressCount = await JoinUsSubmission.countDocuments({ status: { $in: ['in_progress', 'contacted'] } });
+    const resolvedCount = await JoinUsSubmission.countDocuments({ status: { $in: ['resolved', 'enrolled', 'rejected'] } });
 
-    return res.json({ success: true, data: submissions, total, pending });
+    return res.json({
+      success: true,
+      data: normalizedSubmissions,
+      total,
+      new: newCount,
+      in_progress: inProgressCount,
+      resolved: resolvedCount,
+    });
   } catch (error) {
     console.error('Join-Us recent error:', error);
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
-// ─── Admin: Update application status ─────────────────────────────────────────
-// PATCH /api/join-us/:id/status
-router.patch('/:id/status', protect, authorize('admin'), async (req, res) => {
+// ─── Admin: Get single application by ID ───────────────────────────────────────
+// GET /api/join-us/:id
+router.get('/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+    const submission = await JoinUsSubmission.findById(req.params.id).lean();
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
+    let st = submission.status;
+    if (st === 'pending') st = 'new';
+    else if (st === 'contacted') st = 'in_progress';
+    else if (st === 'enrolled' || st === 'rejected') st = 'resolved';
+    return res.json({ success: true, data: { ...submission, status: st || 'new' } });
+  } catch (error) {
+    console.error('Join-Us get error:', error);
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// ─── Admin: Update application status and notes ────────────────────────────────
+// Supports PATCH/PUT /api/join-us/:id/status and /api/join-us/submissions/:id/status
+const handleStatusUpdate = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, notes } = req.body;
 
-    const allowed = ['pending', 'contacted', 'enrolled', 'rejected'];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status value.' });
+    let targetStatus = status;
+    if (status === 'pending') targetStatus = 'new';
+    else if (status === 'contacted') targetStatus = 'in_progress';
+    else if (status === 'enrolled' || status === 'rejected') targetStatus = 'resolved';
+
+    const allowed = ['new', 'in_progress', 'resolved'];
+    if (targetStatus && !allowed.includes(targetStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status value '${status}'. Allowed values: new, in_progress, resolved`,
+      });
+    }
+
+    const updateData = {};
+    if (targetStatus) {
+      updateData.status = targetStatus;
+      if (targetStatus === 'in_progress' || targetStatus === 'resolved') {
+        updateData.contactedAt = new Date();
+      }
+    }
+    if (notes !== undefined) {
+      updateData.notes = notes;
     }
 
     const submission = await JoinUsSubmission.findByIdAndUpdate(
       id,
-      { status, contactedAt: status === 'contacted' ? new Date() : undefined },
+      updateData,
       { new: true }
     );
 
     if (!submission) {
-      return res.status(404).json({ success: false, message: 'Submission not found.' });
+      return res.status(404).json({ success: false, message: 'Application submission not found.' });
     }
 
     return res.json({ success: true, data: submission });
   } catch (error) {
     console.error('Join-Us status update error:', error);
-    return res.status(500).json({ success: false, message: 'Server error.' });
+    return res.status(500).json({ success: false, message: 'Server error updating application.' });
   }
-});
+};
+
+router.patch('/:id/status', protect, authorize('admin'), handleStatusUpdate);
+router.put('/:id/status', protect, authorize('admin'), handleStatusUpdate);
+router.patch('/submissions/:id/status', protect, authorize('admin'), handleStatusUpdate);
+router.put('/submissions/:id/status', protect, authorize('admin'), handleStatusUpdate);
 
 // ─── Admin: Delete a submission ────────────────────────────────────────────────
 // DELETE /api/join-us/:id

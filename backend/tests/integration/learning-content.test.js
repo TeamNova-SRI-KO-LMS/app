@@ -1,10 +1,10 @@
-// Google Drive is replaced so uploads never leave the test process or touch the disk.
-jest.mock('../../services/googleDriveService', () => ({
-  uploadToDrive: jest.fn(),
-  deleteFromDrive: jest.fn(),
+// Supabase Storage is replaced so uploads never leave the test process.
+jest.mock('../../services/supabaseStorageService', () => ({
+  uploadToStorage: jest.fn(),
+  deleteFromStorage: jest.fn(),
 }));
 
-const drive = require('../../services/googleDriveService');
+const storage = require('../../services/supabaseStorageService');
 const LectureMaterial = require('../../models/LectureMaterial');
 const Assignment = require('../../models/Assignment');
 const AssignmentSubmission = require('../../models/AssignmentSubmission');
@@ -12,19 +12,21 @@ const {
   api, createStudent, createAdmin, createCourse, enrol, authHeader,
 } = require('../helpers/factories');
 
-const driveResult = (overrides = {}) => ({
-  fileId: 'drive-file-1', viewUrl: 'https://drive.google.com/file/d/drive-file-1/view', embedUrl: 'https://drive.google.com/file/d/drive-file-1/preview',
-  downloadUrl: 'https://drive.google.com/uc?export=download&id=drive-file-1', fileName: 'lesson.pdf', size: 1024, ...overrides,
+const PUBLIC_URL = 'https://example.supabase.co/storage/v1/object/public/lecture-materials';
+
+const storageResult = (overrides = {}) => ({
+  fileId: 'pdfs/1_lesson.pdf', viewUrl: `${PUBLIC_URL}/pdfs/1_lesson.pdf`, embedUrl: `${PUBLIC_URL}/pdfs/1_lesson.pdf`,
+  downloadUrl: `${PUBLIC_URL}/pdfs/1_lesson.pdf?download=lesson.pdf`, fileName: '1_lesson.pdf', size: 1024, ...overrides,
 });
 
 beforeEach(() => {
-  drive.uploadToDrive.mockReset();
-  drive.deleteFromDrive.mockReset();
-  drive.uploadToDrive.mockResolvedValue(driveResult());
+  storage.uploadToStorage.mockReset();
+  storage.deleteFromStorage.mockReset();
+  storage.uploadToStorage.mockResolvedValue(storageResult());
 });
 
 describe('Lecture materials', () => {
-  test('TC-LEC-01 uploads a lecture file to Drive and records it against the course [FR-007]', async () => {
+  test('TC-LEC-01 uploads a lecture file to storage and records it against the course [FR-007]', async () => {
     const admin = await createAdmin();
     const course = await createCourse();
 
@@ -33,8 +35,8 @@ describe('Lecture materials', () => {
       .attach('file', Buffer.from('%PDF-1.4'), { filename: 'week1.pdf', contentType: 'application/pdf' });
 
     expect(res.status).toBe(201);
-    expect(drive.uploadToDrive).toHaveBeenCalledWith(expect.any(Buffer), 'week1.pdf', 'application/pdf', 'pdf');
-    expect(res.body.material).toMatchObject({ title: 'Week 1 notes', type: 'pdf', lessonIndex: 2, isPreview: true, driveFileId: 'drive-file-1' });
+    expect(storage.uploadToStorage).toHaveBeenCalledWith(expect.any(Buffer), 'week1.pdf', 'application/pdf', 'pdf');
+    expect(res.body.material).toMatchObject({ title: 'Week 1 notes', type: 'pdf', lessonIndex: 2, isPreview: true, driveFileId: 'pdfs/1_lesson.pdf' });
   });
 
   test('TC-LEC-02 classifies video and image uploads [FR-007]', async () => {
@@ -63,18 +65,19 @@ describe('Lecture materials', () => {
     expect(badType.status).toBe(500);
   });
 
-  test('TC-LEC-04 uploads a course thumbnail and reports Drive failures [FR-007]', async () => {
+  test('TC-LEC-04 uploads a course thumbnail and reports storage failures [FR-007]', async () => {
     const admin = await createAdmin();
-    drive.uploadToDrive.mockResolvedValueOnce(driveResult({ embedUrl: 'https://lh3.googleusercontent.com/d/thumb' }));
+    storage.uploadToStorage.mockResolvedValueOnce(storageResult({ embedUrl: `${PUBLIC_URL}/thumbnails/1_cover.png` }));
 
     const ok = await api().post('/api/lectures/upload-thumbnail').set(authHeader(admin)).attach('thumbnail', Buffer.from('img'), { filename: 'cover.png', contentType: 'image/png' });
-    drive.uploadToDrive.mockRejectedValueOnce(new Error('Drive quota exceeded'));
+    storage.uploadToStorage.mockRejectedValueOnce(new Error('Storage quota exceeded'));
     const failed = await api().post('/api/lectures/upload-thumbnail').set(authHeader(admin)).attach('thumbnail', Buffer.from('img'), { filename: 'cover.png', contentType: 'image/png' });
     const missing = await api().post('/api/lectures/upload-thumbnail').set(authHeader(admin));
 
-    expect(ok.body.url).toBe('https://lh3.googleusercontent.com/d/thumb');
+    expect(storage.uploadToStorage).toHaveBeenCalledWith(expect.any(Buffer), 'cover.png', 'image/png', 'thumbnail');
+    expect(ok.body.url).toBe(`${PUBLIC_URL}/thumbnails/1_cover.png`);
     expect(failed.status).toBe(500);
-    expect(failed.body.message).toBe('Drive quota exceeded');
+    expect(failed.body.message).toBe('Storage quota exceeded');
     expect(missing.status).toBe(400);
   });
 
@@ -105,18 +108,22 @@ describe('Lecture materials', () => {
     expect((await api().get('/api/lectures/64b7f0a0a0a0a0a0a0a0a0a0')).status).toBe(404);
   });
 
-  test('TC-LEC-07 deletes a material from Drive and the database, even if Drive fails [FR-007]', async () => {
+  test('TC-LEC-07 deletes a material from storage and the database, even if storage fails [FR-007]', async () => {
     const admin = await createAdmin();
     const course = await createCourse();
-    const material = await LectureMaterial.create({ course: course._id, lessonTitle: 'L', title: 'Old', type: 'pdf', driveFileId: 'drive-9' });
-    drive.deleteFromDrive.mockRejectedValue(new Error('not found on Drive'));
+    const material = await LectureMaterial.create({ course: course._id, lessonTitle: 'L', title: 'Old', type: 'pdf', driveFileId: 'pdfs/old.pdf' });
+    const link = await LectureMaterial.create({ course: course._id, lessonTitle: 'L', title: 'Video', type: 'link', externalUrl: 'https://vimeo.com/42', viewUrl: 'https://vimeo.com/42' });
+    storage.deleteFromStorage.mockRejectedValue(new Error('not found in storage'));
 
     const res = await api().delete(`/api/lectures/${material._id}`).set(authHeader(admin));
     const again = await api().delete(`/api/lectures/${material._id}`).set(authHeader(admin));
+    const linkRes = await api().delete(`/api/lectures/${link._id}`).set(authHeader(admin));
 
     expect(res.status).toBe(200);
-    expect(drive.deleteFromDrive).toHaveBeenCalledWith('drive-9');
     expect(again.status).toBe(404);
+    expect(linkRes.status).toBe(200);
+    expect(storage.deleteFromStorage).toHaveBeenCalledTimes(1);
+    expect(storage.deleteFromStorage).toHaveBeenCalledWith('pdfs/old.pdf');
   });
 });
 
@@ -153,6 +160,7 @@ describe('Assignments', () => {
   test('TC-ASG-03 a student submits files, resubmits, and late work is flagged [FR-020]', async () => {
     const student = await createStudent();
     const assignment = await createAssignment({ dueDate: new Date(Date.now() - 1000) });
+    await enrol(student, { _id: assignment.course });
     const submit = () => api().post(`/api/assignments/${assignment._id}/submit`).set(authHeader(student))
       .field('submissionNote', 'Done').attach('files', Buffer.from('answer'), { filename: 'answer.pdf', contentType: 'application/pdf' });
 
@@ -161,6 +169,7 @@ describe('Assignments', () => {
     const mine = await api().get(`/api/assignments/${assignment._id}/my-submission`).set(authHeader(student));
 
     expect(first.status).toBe(200);
+    expect(storage.uploadToStorage).toHaveBeenCalledWith(expect.any(Buffer), 'answer.pdf', 'application/pdf', 'assignment');
     expect(first.body.submission).toMatchObject({ status: 'late', submissionNote: 'Done' });
     expect(second.body.submission.files).toHaveLength(2);
     expect(mine.body.submission.files).toHaveLength(2);
@@ -170,6 +179,7 @@ describe('Assignments', () => {
   test('TC-ASG-04 rejects a submission without files or for an unknown assignment [FR-020]', async () => {
     const student = await createStudent();
     const assignment = await createAssignment();
+    await enrol(student, { _id: assignment.course });
 
     const noFiles = await api().post(`/api/assignments/${assignment._id}/submit`).set(authHeader(student)).field('submissionNote', 'forgot the file');
     const unknown = await api().post('/api/assignments/64b7f0a0a0a0a0a0a0a0a0a0/submit').set(authHeader(student)).field('submissionNote', 'x');
@@ -209,15 +219,16 @@ describe('Assignments', () => {
     expect(await AssignmentSubmission.countDocuments()).toBe(0);
   });
 
-  test('TC-ASG-07 reports Drive failures during submission as 500 [NFR-002]', async () => {
+  test('TC-ASG-07 reports storage failures during submission as 500 [NFR-002]', async () => {
     const student = await createStudent();
     const assignment = await createAssignment();
-    drive.uploadToDrive.mockRejectedValue(new Error('Drive unavailable'));
+    await enrol(student, { _id: assignment.course });
+    storage.uploadToStorage.mockRejectedValue(new Error('Storage unavailable'));
 
     const res = await api().post(`/api/assignments/${assignment._id}/submit`).set(authHeader(student))
       .attach('files', Buffer.from('x'), { filename: 'a.pdf', contentType: 'application/pdf' });
 
     expect(res.status).toBe(500);
-    expect(res.body.message).toBe('Drive unavailable');
+    expect(res.body.message).toBe('Storage unavailable');
   });
 });

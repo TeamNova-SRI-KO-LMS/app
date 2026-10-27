@@ -1,10 +1,9 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize, optionalAuth } = require('../middleware/auth');
+const { protect, authorize, optionalAuth, hasCourseAccess } = require('../middleware/auth');
 const LectureMaterial = require('../models/LectureMaterial');
 const Course = require('../models/Course');
-const { canAccessCourseContent } = require('../utils/courseAccess');
-const { uploadToDrive, deleteFromDrive } = require('../services/googleDriveService');
+const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
 
 const router = express.Router();
 
@@ -74,14 +73,14 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
       return res.status(400).json({ success: false, message: 'Material title is required.' });
     }
 
-    const driveType = getDriveType(req.file.mimetype);
+    const storageType = getDriveType(req.file.mimetype);
 
-    // Upload to Google Drive using Service Account
-    const driveResult = await uploadToDrive(
+    // Upload directly to Supabase Storage bucket
+    const storageResult = await uploadToStorage(
       req.file.buffer,
       req.file.originalname,
       req.file.mimetype,
-      driveType
+      storageType
     );
 
     // Create record in MongoDB
@@ -92,13 +91,13 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
       lessonTitle,
       title: title.trim(),
       description: description.trim(),
-      type: driveType,
-      driveFileId: driveResult.fileId,
-      viewUrl: driveResult.viewUrl,
-      embedUrl: driveResult.embedUrl,
-      downloadUrl: driveResult.downloadUrl,
-      fileName: driveResult.fileName,
-      fileSizeBytes: driveResult.size,
+      type: storageType,
+      driveFileId: storageResult.fileId,
+      viewUrl: storageResult.viewUrl,
+      embedUrl: storageResult.embedUrl,
+      downloadUrl: storageResult.downloadUrl,
+      fileName: storageResult.fileName,
+      fileSizeBytes: storageResult.size,
       mimeType: req.file.mimetype,
       isPreview: isPreview === 'true' || isPreview === true,
       uploadedBy: req.user._id || req.user.id,
@@ -106,29 +105,29 @@ router.post('/upload', protect, authorize('admin'), upload.single('file'), async
 
     res.status(201).json({
       success: true,
-      message: 'Lecture material uploaded to Google Drive successfully.',
+      message: 'Lecture material uploaded to Supabase Storage successfully.',
       material,
     });
   } catch (error) {
     console.error('[lectureRoutes] Upload error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to upload material to Google Drive.',
+      message: error.message || 'Failed to upload material to Supabase Storage.',
     });
   }
 });
 
 // ─────────────────────────────────────────────────────────────
-// 2. ADMIN: Upload Course Cover / Thumbnail to Google Drive
+// 2. ADMIN: Upload Course Cover / Thumbnail to Supabase Storage
 // POST /api/lectures/upload-thumbnail
 // ─────────────────────────────────────────────────────────────
 router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thumbnail'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Please select an image file.' });
+      return res.status(400).json({ success: false, message: 'Please select an image or video file.' });
     }
 
-    const driveResult = await uploadToDrive(
+    const storageResult = await uploadToStorage(
       req.file.buffer,
       req.file.originalname,
       req.file.mimetype,
@@ -137,16 +136,16 @@ router.post('/upload-thumbnail', protect, authorize('admin'), upload.single('thu
 
     res.status(200).json({
       success: true,
-      message: 'Thumbnail uploaded to Google Drive successfully.',
-      url: driveResult.embedUrl,
-      viewUrl: driveResult.viewUrl,
-      fileId: driveResult.fileId,
+      message: 'Thumbnail uploaded to Supabase Storage successfully.',
+      url: storageResult.embedUrl,
+      viewUrl: storageResult.viewUrl,
+      fileId: storageResult.fileId,
     });
   } catch (error) {
     console.error('[lectureRoutes] Thumbnail upload error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to upload thumbnail to Google Drive.',
+      message: error.message || 'Failed to upload thumbnail to Supabase Storage.',
     });
   }
 });
@@ -211,7 +210,7 @@ router.post('/link', protect, authorize('admin'), async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 4. GET: Materials for a Course (Enrolled students or admin, or preview items)
+// 4. GET: Materials for a Course (Enrolled students or admin get full URLs, unenrolled get curriculum text + public previews)
 // GET /api/lectures/course/:courseId
 // ─────────────────────────────────────────────────────────────
 router.get('/course/:courseId', optionalAuth, async (req, res) => {
@@ -224,19 +223,72 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found.' });
     }
 
-    // Visitors and students who have not enrolled only see the free preview items
-    const fullAccess = await canAccessCourseContent(req.user, course);
-    const filter = fullAccess ? { course: courseId } : { course: courseId, isPreview: true };
+    const hasAccess = await hasCourseAccess(req.user, course);
 
-    const materials = await LectureMaterial.find(filter)
+    const materials = await LectureMaterial.find({ course: courseId })
       .sort({ weekNumber: 1, order: 1, createdAt: 1 })
       .populate('uploadedBy', 'name');
 
+    // Enrolled students, course instructors, and admins get all materials with full playback & download URLs
+    if (hasAccess) {
+      return res.status(200).json({
+        success: true,
+        count: materials.length,
+        hasFullAccess: true,
+        materials,
+      });
+    }
+
+    // Unenrolled users can only view curriculum text (titles, topics, week numbers)
+    // and video playback strictly for videos explicitly marked as preview/public (isPreview: true).
+    const sanitizedMaterials = materials.map((m) => {
+      const isPublic = Boolean(m.isPreview);
+
+      if (isPublic) {
+        // Public preview: playback URLs are permitted
+        return {
+          _id: m._id,
+          course: m.course,
+          weekNumber: m.weekNumber,
+          lessonIndex: m.lessonIndex,
+          lessonTitle: m.lessonTitle,
+          title: m.title,
+          description: m.description,
+          type: m.type,
+          isPreview: true,
+          isLocked: false,
+          viewUrl: m.viewUrl,
+          embedUrl: m.embedUrl,
+          externalUrl: m.externalUrl,
+          fileName: m.fileName,
+          mimeType: m.mimeType,
+          order: m.order,
+          createdAt: m.createdAt,
+        };
+      }
+
+      // Restricted material: ONLY curriculum text and topics, NO playback/download URLs
+      return {
+        _id: m._id,
+        course: m.course,
+        weekNumber: m.weekNumber,
+        lessonIndex: m.lessonIndex,
+        lessonTitle: m.lessonTitle,
+        title: m.title,
+        description: m.description,
+        type: m.type,
+        isPreview: false,
+        isLocked: true,
+        order: m.order,
+        createdAt: m.createdAt,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      access: fullAccess ? 'full' : 'preview',
-      count: materials.length,
-      materials,
+      count: sanitizedMaterials.length,
+      hasFullAccess: false,
+      materials: sanitizedMaterials,
     });
   } catch (error) {
     console.error('[lectureRoutes] Get materials error:', error);
@@ -245,7 +297,7 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 5. GET: Single Material by ID
+// 5. GET: Single Material by ID (Guarded for restricted content)
 // GET /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
 router.get('/:id', optionalAuth, async (req, res) => {
@@ -255,24 +307,57 @@ router.get('/:id', optionalAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
 
-    if (!material.isPreview) {
-      const course = await Course.findById(material.course);
-      if (!(await canAccessCourseContent(req.user, course))) {
-        return res.status(req.user ? 403 : 401).json({
-          success: false,
-          message: 'Enrol in this course to open this material.',
-        });
-      }
+    // Public preview videos/materials are accessible to everyone
+    if (material.isPreview) {
+      return res.status(200).json({ success: true, material });
+    }
+
+    // Restricted materials require enrollment, instructor, or admin access
+    const course = await Course.findById(material.course);
+    const hasAccess = await hasCourseAccess(req.user, course);
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You must be enrolled in this course to view this restricted content.',
+      });
     }
 
     res.status(200).json({ success: true, material });
-  } catch {
+  } catch (error) {
+    console.error('[lectureRoutes] Get single material error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
 // ─────────────────────────────────────────────────────────────
-// 6. ADMIN: Delete a material (deletes from Google Drive & MongoDB)
+// 6. ADMIN: Toggle preview / public status of lecture material
+// PATCH /api/lectures/:id/toggle-preview
+// ─────────────────────────────────────────────────────────────
+router.patch('/:id/toggle-preview', protect, authorize('admin'), async (req, res) => {
+  try {
+    const material = await LectureMaterial.findById(req.params.id);
+    if (!material) {
+      return res.status(404).json({ success: false, message: 'Material not found.' });
+    }
+
+    material.isPreview = !material.isPreview;
+    await material.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Material is now ${material.isPreview ? 'published for everyone (Free Preview)' : 'restricted to enrolled students only'}`,
+      isPreview: material.isPreview,
+      material,
+    });
+  } catch (error) {
+    console.error('[lectureRoutes] Toggle preview error:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle preview status.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 7. ADMIN: Delete a material (deletes from Supabase Storage & MongoDB)
 // DELETE /api/lectures/:id
 // ─────────────────────────────────────────────────────────────
 router.delete('/:id', protect, authorize('admin'), async (req, res) => {
@@ -282,12 +367,13 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
       return res.status(404).json({ success: false, message: 'Material not found.' });
     }
 
-    // Delete from Google Drive if fileId exists
-    if (material.driveFileId) {
+    // Delete from Supabase Storage if fileId or viewUrl exists
+    const fileIdentifier = material.driveFileId || material.viewUrl;
+    if (fileIdentifier && material.type !== 'link') {
       try {
-        await deleteFromDrive(material.driveFileId);
-      } catch (driveErr) {
-        console.warn(`[lectureRoutes] Warning: Could not delete file ${material.driveFileId} from Drive:`, driveErr.message);
+        await deleteFromStorage(fileIdentifier);
+      } catch (storageErr) {
+        console.warn(`[lectureRoutes] Warning: Could not delete file ${fileIdentifier} from Supabase:`, storageErr.message);
       }
     }
 
@@ -295,7 +381,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Lecture material deleted from Google Drive and database.',
+      message: 'Lecture material deleted from Supabase Storage and database.',
     });
   } catch (error) {
     console.error('[lectureRoutes] Delete error:', error);
