@@ -125,6 +125,28 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// 2c. STUDENT: Get all my submissions for a course
+// GET /api/assignments/course/:courseId/my-submissions
+// ─────────────────────────────────────────────────────────────
+router.get('/course/:courseId/my-submissions', protect, async (req, res) => {
+  try {
+    const studentId = req.user._id || req.user.id;
+    const submissions = await AssignmentSubmission.find({
+      course: req.params.courseId,
+      student: studentId,
+    }).populate('gradedBy', 'name');
+
+    res.status(200).json({
+      success: true,
+      submissions: submissions || [],
+    });
+  } catch (error) {
+    console.error('[assignmentRoutes] Error fetching my course submissions:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // 2b. ADMIN: Get All Assignments & Submissions for a Course
 // GET /api/assignments/course/:courseId/submissions
 // ─────────────────────────────────────────────────────────────

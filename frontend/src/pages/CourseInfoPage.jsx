@@ -65,6 +65,7 @@ export default function CourseInfoPage() {
   const [course, setCourse] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [userSubmissions, setUserSubmissions] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -158,9 +159,10 @@ export default function CourseInfoPage() {
 
         setCourse(courseData);
 
-        const [matsRes, assignRes] = await Promise.allSettled([
+        const [matsRes, assignRes, mySubsRes] = await Promise.allSettled([
           lectureService.getCourseMaterials(courseId),
           assignmentService.getCourseAssignments(courseId),
+          assignmentService.getMyCourseSubmissions(courseId),
         ]);
 
         let matsData = [];
@@ -174,6 +176,28 @@ export default function CourseInfoPage() {
           assignData = assignRes.value?.assignments || [];
           setAssignments(assignData);
         }
+
+        // Map and load student's submissions and marks
+        const subsMap = {};
+        if (mySubsRes.status === 'fulfilled' && mySubsRes.value?.submissions?.length) {
+          mySubsRes.value.submissions.forEach((s) => {
+            const aId = typeof s.assignment === 'object' ? s.assignment?._id : s.assignment;
+            if (aId) subsMap[aId] = s;
+          });
+        }
+        if (assignData.length > 0 && Object.keys(subsMap).length === 0) {
+          await Promise.allSettled(
+            assignData.map(async (a) => {
+              try {
+                const sRes = await assignmentService.getMySubmission(a._id);
+                if (sRes?.submission) {
+                  subsMap[a._id] = sRes.submission;
+                }
+              } catch (_) {}
+            })
+          );
+        }
+        setUserSubmissions(subsMap);
 
         // Auto-select first available material or lesson
         if (matsData.length > 0) {
@@ -247,6 +271,10 @@ export default function CourseInfoPage() {
       if (res?.submission) {
         setCurrentSubmission(res.submission);
         setSubmissionNote(res.submission.submissionNote || '');
+        setUserSubmissions(prev => ({
+          ...prev,
+          [assignment._id]: res.submission,
+        }));
       }
     } catch (err) {
       console.warn('Could not load submission:', err);
@@ -278,6 +306,10 @@ export default function CourseInfoPage() {
       );
 
       setCurrentSubmission(res.submission);
+      setUserSubmissions(prev => ({
+        ...prev,
+        [activeAssignmentForSubmit._id]: res.submission,
+      }));
       setSubmissionStatusMsg({
         type: 'success',
         text: 'Assignment submitted to Supabase Cloud Storage successfully! 🎉',
@@ -365,7 +397,7 @@ export default function CourseInfoPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* ================= LEFT SIDEBAR (Syllabus & Materials) ================= */}
-          <aside className="lg:col-span-3 bg-white rounded-3xl border border-gray-200/80 shadow-xs p-5 flex flex-col justify-between min-h-[780px]">
+          <aside className="lg:col-span-3 bg-white rounded-3xl border border-gray-200/80 shadow-xs p-5 flex flex-col">
             <div>
               {/* Course Title Card */}
               <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-gray-100">
@@ -554,23 +586,6 @@ export default function CourseInfoPage() {
                 ))}
 
               </div>
-            </div>
-
-            {/* Bottom Assignment Quick Launcher */}
-            <div className="pt-4 mt-4 border-t border-gray-100">
-              <button 
-                onClick={() => {
-                  if (assignments.length > 0) {
-                    handleOpenAssignmentModal(assignments[0]);
-                  } else {
-                    alert('No assignments have been assigned for this course yet.');
-                  }
-                }}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-              >
-                <ClipboardList size={14} />
-                <span>Submit Course Assignment</span>
-              </button>
             </div>
           </aside>
 
@@ -975,32 +990,98 @@ export default function CourseInfoPage() {
                   {assignments.length === 0 ? (
                     <p className="text-xs text-gray-400">No assignments posted for this course yet.</p>
                   ) : (
-                    assignments.map((assign) => (
-                      <div 
-                        key={assign._id}
-                        className="p-4 bg-[#f8fafc] rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div>
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mb-1">
-                            {assign.maxScore} Max Points
-                          </span>
-                          <h4 className="text-xs sm:text-sm font-bold text-gray-900">{assign.title}</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">{assign.description}</p>
-                          {assign.dueDate && (
-                            <p className="text-[10px] text-gray-400 mt-1">
-                              Due Date: {new Date(assign.dueDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
+                    assignments.map((assign) => {
+                      const sub = userSubmissions[assign._id];
+                      const isGraded = sub?.grade !== undefined && sub?.grade !== null;
+                      const isSubmitted = Boolean(sub);
 
-                        <button
-                          onClick={() => handleOpenAssignmentModal(assign)}
-                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
+                      return (
+                        <div 
+                          key={assign._id}
+                          className="p-4 bg-[#f8fafc] rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition hover:border-gray-200 hover:shadow-2xs"
                         >
-                          Submit Assignment 📤
-                        </button>
-                      </div>
-                    ))
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mb-1">
+                              {assign.maxScore} Max Points
+                            </span>
+                            <h4 className="text-xs sm:text-sm font-bold text-gray-900">{assign.title}</h4>
+                            <p className="text-xs text-gray-500 mt-0.5">{assign.description}</p>
+                            {assign.dueDate && (
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                Due Date: {new Date(assign.dueDate).toLocaleDateString()}
+                              </p>
+                            )}
+                            {isGraded && sub.feedback && (
+                              <p className="text-[11px] text-emerald-800 bg-emerald-50/70 border border-emerald-100 px-2.5 py-1 rounded-lg mt-2 inline-block">
+                                <span className="font-bold">Feedback:</span> "{sub.feedback}"
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                            {/* Submission Marks Badge next to Submit button */}
+                            {isGraded ? (
+                              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 shadow-2xs">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                  <Check size={14} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-[9px] uppercase font-black tracking-wider text-emerald-600 block leading-tight">
+                                    Submission Marks
+                                  </span>
+                                  <span className="text-sm font-black text-emerald-950 leading-none">
+                                    {sub.grade} <span className="text-xs font-semibold text-emerald-700">/ {assign.maxScore} pts</span>
+                                  </span>
+                                </div>
+                              </div>
+                            ) : isSubmitted ? (
+                              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 shadow-2xs">
+                                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                                  <Clock size={14} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-[9px] uppercase font-black tracking-wider text-blue-600 block leading-tight">
+                                    Submission Marks
+                                  </span>
+                                  <span className="text-xs font-bold text-blue-900 leading-none">
+                                    Pending Grading <span className="text-[10px] font-semibold text-blue-600">(-- / {assign.maxScore})</span>
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100/80 border border-gray-200 text-gray-600">
+                                <div className="w-7 h-7 rounded-lg bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-xs shrink-0">
+                                  <ClipboardList size={13} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-[9px] uppercase font-black tracking-wider text-gray-400 block leading-tight">
+                                    Submission Marks
+                                  </span>
+                                  <span className="text-xs font-bold text-gray-600 leading-none">
+                                    Not Submitted <span className="text-[10px] font-medium text-gray-400">(-- / {assign.maxScore})</span>
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Submit / View Submission Button */}
+                            <button
+                              onClick={() => handleOpenAssignmentModal(assign)}
+                              className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                                isGraded
+                                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                                  : isSubmitted
+                                  ? 'bg-blue-600 hover:bg-blue-700'
+                                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                              }`}
+                            >
+                              <span>{isGraded ? 'View Submission' : isSubmitted ? 'Resubmit Files' : 'Submit Assignment'}</span>
+                              <span>📤</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
