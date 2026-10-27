@@ -469,9 +469,7 @@ const JoinUsPage = () => {
               </div>
               <h3 className="text-lg font-semibold text-white mb-2">Call Us</h3>
               <p className="text-blue-100">
-                +94 11 234 5678
-                <br />
-                +94 77 123 4567
+                +94 77 307 9412 
                 <br />
                 Mon - Fri: 9:00 AM - 6:00 PM
               </p>
@@ -565,15 +563,15 @@ const JoinUsPage = () => {
           <div className="flex justify-center">
             <div className="w-full max-w-4xl">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4707.050571005448!2d79.91825783365468!3d6.973977156617916!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae2597c8dde7e47%3Ax341e7e820c46d3ed!2sUniversity%20of%20Kelaniya!5e0!3m2!1sen!2slk!4v1759676064848!5m2!1sen!2slk"
-                width="100%"
-                height="450"
-                style={{ border: 0 }}
-                allowFullScreen=""
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="SRI-KO Korean Language Institute Location"
-              ></iframe>
+  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3959.2897874539503!2d79.992031!3d7.092369399999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ae2fb14af6371f5%3A0x2fc2ab9a3d9d4605!2sSRIKO%20Korean%20Language%20Training%20Center%20Gampaha!5e0!3m2!1sen!2slk!4v1793079498109!5m2!1sen!2slk"
+  width="100%"
+  height="450"
+  style={{ border: 0 }}
+  allowFullScreen=""
+  loading="lazy"
+  referrerPolicy="no-referrer-when-downgrade"
+  title="SRI-KO Korean Language Institute Location"
+></iframe>
             </div>
           </div>
         </div>

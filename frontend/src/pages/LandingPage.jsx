@@ -126,77 +126,74 @@ const LandingPage = () => {
 
 
 
-      {/* Hero Section */}
-      <section 
-        className="relative pt-32 pb-32 lg:pt-72 lg:pb-72 flex items-center justify-center text-center px-4"
-        style={{
-          backgroundImage: ' url("/unreghero.jpg")',
-          backgroundSize: 'cover',
-          backgroundRepeat: 'no-repeat',
-          width:'100%',
-          height:'100%',
-          backgroundPosition: 'center',
-        }}
-      >
-        
+      {/* Hero Banner Section */}
+      <section className="max-w-7xl mx-auto pt-2 sm:pt-4 px-3 sm:px-6">
+        <div className="w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm border border-gray-100 bg-gray-900">
+          <img 
+            src="/unreghero.jpg" 
+            alt="SRI-KO Korean Language Training Institute" 
+            className="w-full h-auto block object-cover" 
+          />
+        </div>
       </section>
 
       {/* Stats Section */}
-      <section className="max-w-7xl mx-auto px-4 -mt-10 relative z-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 mt-4 sm:mt-6 lg:-mt-10 relative z-20">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
             { icon: Users, count: "5,000+", label: "STUDENTS TAUGHT", color: "bg-blue-50 text-blue-600" },
             { icon: BookOpen, count: "50+", label: "KOREAN COURSES", color: "bg-green-50 text-green-600" },
             { icon: GraduationCap, count: "25+", label: "NATIVE INSTRUCTORS", color: "bg-purple-50 text-purple-600" },
             { icon: Award, count: "98%", label: "SUCCESS RATE", color: "bg-orange-50 text-orange-600" },
           ].map((stat, idx) => (
-            <div key={idx} className="bg-white p-6 rounded-xl shadow-sm flex items-center gap-4 border border-gray-100">
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${stat.color}`}>
-                <stat.icon size={24} />
+            <div key={idx} className="bg-white p-3.5 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-2.5 sm:gap-4 border border-gray-100">
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${stat.color}`}>
+                <stat.icon size={20} className="sm:w-6 sm:h-6" />
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-400 tracking-wider mb-1">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
+                <p className="text-[10px] sm:text-xs font-bold text-gray-400 tracking-wider mb-0.5 sm:mb-1 uppercase">{stat.label}</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-none sm:leading-tight">{stat.count}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-<section className="relative z-10  h-full w-full mx-auto  text-center py-8 ">
-          <h1 className="text-4xl md:text-6xl font-bold text-blue-600 text-shadow-lg mb-6">
-            Welcome to <span className="text-yellow-400  text-shadow-lg ">SRI-KO</span>
-          </h1>
-          <p className="text-lg md:text-xl text-black mb-10 max-w-3xl mx-auto leading-relaxed">
-            Your premier destination for Korean language learning. Experience authentic Korean education with native instructors, cultural immersion, and proven results.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link
-              to="/register"
-              className="bg-blue-600 text-white px-8 py-3 rounded-md font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2"
-            >
-              <span>Join Us Today</span>
-              <span className="text-xl">→</span>
-            </Link>
-            <Link
-              to="/courses"
-              className="bg-transparent border border-blue-600 text-blue-600 px-8 py-3 rounded-md font-medium hover:bg-blue-50 transition flex items-center justify-center gap-2"
-            >
-              <span>Explore Courses</span>
-              <BookOpen size={18} />
-            </Link>
-          </div>
-        </section>
-      {/* Features Section */}
-      <section className="py-10 max-w-7xl mx-auto px-4">
+      {/* Welcome / Intro Section */}
+      <section className="relative z-10 w-full max-w-4xl mx-auto text-center py-8 sm:py-12 px-4 sm:px-6">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-blue-600 mb-3 sm:mb-6">
+          Welcome to <span className="text-yellow-400">SRI-KO</span>
+        </h1>
+        <p className="text-sm sm:text-base md:text-lg text-gray-700 mb-6 sm:mb-10 max-w-2xl mx-auto leading-relaxed">
+          Your premier destination for Korean language learning. Experience authentic Korean education with native instructors, cultural immersion, and proven results.
+        </p>
         
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">What Makes SRI-KO Special?</h2>
-          <p className="text-gray-500 max-w-2xl mx-auto">Discover the unique advantages that make SRI-KO the best choice for Korean language learning.</p>
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-4 max-w-xs sm:max-w-none mx-auto">
+          <Link
+            to="/register"
+            className="w-full sm:w-auto bg-blue-600 text-white px-7 py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-sm text-sm sm:text-base"
+          >
+            <span>Join Us Today</span>
+            <span className="text-lg">→</span>
+          </Link>
+          <Link
+            to="/courses"
+            className="w-full sm:w-auto bg-white border border-blue-600 text-blue-600 px-7 py-3 rounded-xl font-semibold hover:bg-blue-50 transition flex items-center justify-center gap-2 shadow-xs text-sm sm:text-base"
+          >
+            <span>Explore Courses</span>
+            <BookOpen size={18} />
+          </Link>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-10 sm:py-16 max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-12">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">What Makes SRI-KO Special?</h2>
+          <p className="text-gray-500 text-xs sm:text-sm max-w-2xl mx-auto">Discover the unique advantages that make SRI-KO the best choice for Korean language learning.</p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {[
             { icon: Globe, title: "Native Korean Instructors", desc: "Learn from certified native Korean speakers with extensive teaching experience and cultural knowledge.", bg: "bg-blue-50 text-blue-500" },
             { icon: FileText, title: "Comprehensive Curriculum", desc: "Structured courses covering all aspects of Korean language from beginner to advanced levels.", bg: "bg-green-50 text-green-500" },
@@ -205,30 +202,31 @@ const LandingPage = () => {
             { icon: Lightbulb, title: "Interactive Learning", desc: "Engage with interactive content, pronunciation practice, and real-time feedback from instructors.", bg: "bg-yellow-50 text-yellow-500" },
             { icon: Award, title: "Certification Programs", desc: "Earn internationally recognized Korean language certificates to boost your career prospects.", bg: "bg-orange-50 text-orange-500" }
           ].map((feature, idx) => (
-            <div key={idx} className="bg-white p-8 rounded-2xl shadow-sm text-center border border-gray-100 hover:shadow-md transition">
-              <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-6 ${feature.bg}`}>
-                <feature.icon size={28} />
+            <div key={idx} className="bg-white p-5 sm:p-6 lg:p-8 rounded-2xl shadow-sm text-center border border-gray-100 hover:shadow-md transition">
+              <div className={`w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full flex items-center justify-center mb-4 sm:mb-6 ${feature.bg}`}>
+                <feature.icon className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-3">{feature.title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">{feature.title}</h3>
+              <p className="text-gray-500 text-xs sm:text-sm leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>
       </section>
+
       {/* Programs Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Korean Language Programs</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">Choose from our comprehensive range of Korean language courses designed for every level.</p>
+      <section className="py-12 sm:py-20 bg-white border-y border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-8 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Our Korean Language Programs</h2>
+            <p className="text-gray-500 text-xs sm:text-sm max-w-2xl mx-auto">Choose from our comprehensive range of Korean language courses designed for every level.</p>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
               {[1, 2, 3].map((n) => (
-                <div key={n} className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 flex flex-col h-[520px] animate-pulse">
-                  <div className="h-48 sm:h-52 w-full bg-gray-200"></div>
-                  <div className="p-6 sm:p-8 flex flex-col flex-grow">
+                <div key={n} className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 flex flex-col h-[480px] sm:h-[520px] animate-pulse">
+                  <div className="h-44 sm:h-52 w-full bg-gray-200"></div>
+                  <div className="p-5 sm:p-8 flex flex-col flex-grow">
                     <div className="h-6 w-3/4 bg-gray-200 rounded mb-4"></div>
                     <div className="h-4 w-full bg-gray-200 rounded mb-2"></div>
                     <div className="h-4 w-2/3 bg-gray-200 rounded mb-6"></div>
@@ -243,7 +241,7 @@ const LandingPage = () => {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
               {displayCourses.map((course, idx) => {
                 const badge = getLevelBadge(course.level);
                 const features = getFeatures(course);
@@ -256,7 +254,7 @@ const LandingPage = () => {
                     className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 flex flex-col h-full hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group"
                   >
                     {/* Course Thumbnail */}
-                    <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-gray-900">
+                    <div className="relative h-44 sm:h-52 w-full overflow-hidden bg-gray-900">
                       {isVideoUrl(thumbnailSrc) ? (
                         <>
                           <video
@@ -266,7 +264,7 @@ const LandingPage = () => {
                             playsInline
                             preload="metadata"
                           />
-                          <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-xs text-white p-2 rounded-full shadow pointer-events-none">
+                          <div className="absolute top-3 sm:top-4 right-3 sm:right-4 bg-black/60 backdrop-blur-xs text-white p-1.5 sm:p-2 rounded-full shadow pointer-events-none">
                             <Play size={12} className="fill-current translate-x-0.5" />
                           </div>
                         </>
@@ -280,36 +278,36 @@ const LandingPage = () => {
                           }}
                         />
                       )}
-                      <div className="absolute top-4 left-4">
-                        <span className={`${badge.bg} text-xs font-bold px-3 py-1 rounded-full uppercase shadow-sm`}>
+                      <div className="absolute top-3 sm:top-4 left-3 sm:left-4">
+                        <span className={`${badge.bg} text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 rounded-full uppercase shadow-sm`}>
                           {badge.label}
                         </span>
                       </div>
-                      <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-xs text-white text-xs font-medium px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
-                        <Clock size={13} /> {formatDuration(course.duration)}
+                      <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 bg-black/60 backdrop-blur-xs text-white text-[11px] sm:text-xs font-medium px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                        <Clock size={12} /> {formatDuration(course.duration)}
                       </div>
                     </div>
 
-                    <div className="p-6 sm:p-8 flex flex-col flex-grow">
-                      <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
+                    <div className="p-5 sm:p-6 lg:p-8 flex flex-col flex-grow">
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 sm:mb-3 group-hover:text-blue-600 transition-colors">
                         {course.title}
                       </h3>
-                      <p className="text-gray-500 text-sm mb-6 flex-grow leading-relaxed">
+                      <p className="text-gray-500 text-xs sm:text-sm mb-4 sm:mb-6 flex-grow leading-relaxed line-clamp-3">
                         {course.description}
                       </p>
 
-                      <ul className="space-y-3 mb-8">
+                      <ul className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
                         {features.map((item, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
+                          <li key={i} className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
                             <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
-                            <span>{item}</span>
+                            <span className="line-clamp-1">{item}</span>
                           </li>
                         ))}
                       </ul>
 
                       <Link
                         to={targetLink}
-                        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition mt-auto text-center block shadow-sm hover:shadow"
+                        className="w-full bg-blue-600 text-white py-2.5 sm:py-3 rounded-xl font-semibold hover:bg-blue-700 transition mt-auto text-center block shadow-sm hover:shadow text-sm sm:text-base"
                       >
                         Learn More
                       </Link>
@@ -320,7 +318,7 @@ const LandingPage = () => {
             </div>
           )}
 
-          <div className="text-center mt-12">
+          <div className="text-center mt-8 sm:mt-12">
             <Link
               to="/courses"
               className="inline-flex items-center gap-2 text-blue-600 font-semibold hover:text-blue-700 text-sm group"
@@ -333,13 +331,13 @@ const LandingPage = () => {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-20 max-w-7xl mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">What Our Students Say</h2>
-          <p className="text-gray-500 max-w-2xl mx-auto">Hear from our successful students who have achieved their Korean language goals.</p>
+      <section className="py-12 sm:py-20 max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">What Our Students Say</h2>
+          <p className="text-gray-500 text-xs sm:text-sm max-w-2xl mx-auto">Hear from our successful students who have achieved their Korean language goals.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {[
             {
               quote: "\"SRI-KO helped me master Korean for my business trips to Seoul. The instructors are amazing and the cultural insights are invaluable.\"",
@@ -357,20 +355,22 @@ const LandingPage = () => {
               role: "K-Pop Enthusiast"
             }
           ].map((testimonial, idx) => (
-            <div key={idx} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
-              <div className="flex gap-1 mb-4">
+            <div key={idx} className="bg-white p-5 sm:p-6 lg:p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full hover:shadow-md transition">
+              <div className="flex gap-1 mb-3 sm:mb-4">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={16} className="fill-yellow-400 text-yellow-400" />
+                  <Star key={i} size={15} className="fill-yellow-400 text-yellow-400" />
                 ))}
               </div>
-              <p className="text-gray-600 italic text-sm mb-8 flex-grow">
+              <p className="text-gray-600 italic text-xs sm:text-sm mb-6 sm:mb-8 flex-grow leading-relaxed">
                 {testimonial.quote}
               </p>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                <div className="w-10 h-10 bg-blue-100 text-blue-700 font-bold rounded-full flex items-center justify-center shrink-0 text-sm">
+                  {testimonial.name[0]}
+                </div>
                 <div>
-                  <h4 className="font-bold text-gray-900 text-sm">{testimonial.name}</h4>
-                  <p className="text-xs text-gray-500">{testimonial.role}</p>
+                  <h4 className="font-bold text-gray-900 text-xs sm:text-sm">{testimonial.name}</h4>
+                  <p className="text-[11px] text-gray-500">{testimonial.role}</p>
                 </div>
               </div>
             </div>
@@ -379,24 +379,24 @@ const LandingPage = () => {
       </section>
 
       {/* Why Choose Us */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Choose SRI-KO Foreign Language Training Center?</h2>
-          <p className="text-gray-500 mb-16">We are committed to providing the highest quality Korean language education.</p>
+      <section className="py-12 sm:py-20 bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">Why Choose SRI-KO Foreign Language Training Center?</h2>
+          <p className="text-gray-500 text-xs sm:text-sm mb-8 sm:mb-16 max-w-2xl mx-auto">We are committed to providing the highest quality Korean language education.</p>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             {[
               { icon: ShieldCheck, title: "Certified Excellence", desc: "All our instructors are certified Korean language teachers with years of experience.", bg: "bg-blue-50 text-blue-500" },
               { icon: Globe, title: "Global Recognition", desc: "Our certificates are recognized internationally for academic and professional purposes.", bg: "bg-green-50 text-green-500" },
               { icon: CreditCard, title: "Affordable Pricing", desc: "Quality education at competitive prices with flexible payment options.", bg: "bg-purple-50 text-purple-500" },
               { icon: Users, title: "Community Support", desc: "Join our vibrant community of Korean language learners and cultural enthusiasts.", bg: "bg-orange-50 text-orange-500" }
             ].map((item, idx) => (
-              <div key={idx} className="flex flex-col items-center">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${item.bg}`}>
-                  <item.icon size={32} />
+              <div key={idx} className="flex flex-col items-center p-3 sm:p-0">
+                <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mb-3 sm:mb-4 ${item.bg}`}>
+                  <item.icon size={26} className="sm:w-8 sm:h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-gray-500 text-sm">{item.desc}</p>
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2">{item.title}</h3>
+                <p className="text-gray-500 text-xs sm:text-sm leading-relaxed max-w-xs">{item.desc}</p>
               </div>
             ))}
           </div>
