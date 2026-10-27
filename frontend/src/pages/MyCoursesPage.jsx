@@ -11,8 +11,10 @@ import {
   Trash2,
   PlusCircle,
   AlertTriangle,
+  Play,
 } from 'lucide-react';
 import DiscussionForumSection from '../components/DiscussionForumSection';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 export default function MyCoursesPage() {
   const { user } = useAuth();
@@ -208,15 +210,30 @@ export default function MyCoursesPage() {
                 >
                   {/* Top Thumbnail */}
                   <div>
-                    <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
-                      <img
-                        src={
-                          course.thumbnail ||
-                          'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&q=80&w=800'
-                        }
-                        alt={course.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                      />
+                    <div className="relative h-48 w-full bg-slate-900 overflow-hidden">
+                      {isVideoUrl(course.thumbnail) ? (
+                        <>
+                          <video
+                            src={course.thumbnail}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                          <div className="absolute top-3.5 right-3.5 bg-black/60 backdrop-blur-xs text-white p-2 rounded-full shadow pointer-events-none">
+                            <Play size={12} className="fill-current translate-x-0.5" />
+                          </div>
+                        </>
+                      ) : (
+                        <img
+                          src={
+                            course.thumbnail ||
+                            'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&q=80&w=800'
+                          }
+                          alt={course.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                        />
+                      )}
                       <div className="absolute top-3.5 left-3.5">
                         {getLevelBadge(course.level)}
                       </div>

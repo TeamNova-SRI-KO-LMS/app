@@ -12,7 +12,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['course_update', 'payment_due', 'system', 'message', 'other'],
+    enum: ['course_update', 'payment_due', 'system', 'message', 'assignment', 'other'],
     default: 'system'
   },
   priority: {

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
@@ -50,9 +49,38 @@ const LoginPage = () => {
       [name]: type === 'checkbox' ? checked : value,
     }));
 
+    if (name === 'email' && typeof value === 'string') {
+      sessionStorage.setItem('lastLoginEmail', value.trim());
+    }
+
     if (localError) {
       setLocalError('');
     }
+  };
+
+  const handleForgotPassword = event => {
+    event.preventDefault();
+    setLocalError('');
+
+    const email = formData.email?.trim().toLowerCase();
+
+    if (!email) {
+      setLocalError(
+        'Please enter your registered email address first to reset your password.',
+      );
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLocalError(
+        'The email address entered is invalid. Please enter a valid registered email address.',
+      );
+      return;
+    }
+
+    // Go straight to the reset page. It answers the same way whether or not the email has
+    // an account, so checking first would tell anyone which addresses are registered.
+    navigate('/forgot-password', { state: { email } });
   };
 
   // User portal authentication: administrators must use the admin portal.
@@ -105,17 +133,10 @@ const LoginPage = () => {
     }
   };
 
-  // While auth is initializing, show a neutral spinner so the form doesn't flash
-  if (loading && !displayError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F4F6FB]">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
-  // If already logged in, redirect away
-  if (isAuthenticated) {
+  // Redirect already-authenticated users away from the login page.
+  // Guard with !loading so we don't redirect during the initial auth check.
+  if (isAuthenticated && !loading) {
     return <Navigate to={from} replace />;
   }
 
@@ -237,12 +258,13 @@ const LoginPage = () => {
               >
                 PASSWORD
               </label>
-              <Link
-                to="/forgot-password"
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer"
               >
                 Forgot password?
-              </Link>
+              </button>
             </div>
             <input
               id="password"
