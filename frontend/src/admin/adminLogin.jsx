@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import useAuth from '../context/useAuth';
 
@@ -13,9 +13,6 @@ const AdminLogin = () => {
 
   const { login, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -23,7 +20,35 @@ const AdminLogin = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    if (name === 'email' && typeof value === 'string') {
+      sessionStorage.setItem('lastLoginEmail', value.trim());
+    }
     if (localError) setLocalError('');
+  };
+
+  const handleForgotPassword = (e) => {
+    e.preventDefault();
+    setLocalError('');
+
+    const email = formData.email?.trim().toLowerCase();
+
+    if (!email) {
+      setLocalError(
+        'Please enter your registered email address first to reset your password.',
+      );
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLocalError(
+        'The email address entered is invalid. Please enter a valid registered email address.',
+      );
+      return;
+    }
+
+    // Go straight to the reset page. It answers the same way whether or not the email has
+    // an account, so checking first would tell anyone which addresses are registered.
+    navigate('/forgot-password', { state: { email } });
   };
 
   const handleSubmit = async (e) => {
@@ -130,12 +155,13 @@ const AdminLogin = () => {
                 >
                   PASSWORD
                 </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer"
                 >
                   Forgot password?
-                </Link>
+                </button>
               </div>
               <input
                 id="password"
