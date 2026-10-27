@@ -1,25 +1,13 @@
 const express = require('express');
 const multer = require('multer');
-const { protect, authorize, optionalAuth } = require('../middleware/auth');
+const { protect, authorize, optionalAuth, hasCourseAccess } = require('../middleware/auth');
+const Course = require('../models/Course');
 const Assignment = require('../models/Assignment');
 const AssignmentSubmission = require('../models/AssignmentSubmission');
-const Course = require('../models/Course');
-const { canAccessCourseContent } = require('../utils/courseAccess');
-const { uploadToDrive } = require('../services/googleDriveService');
+const { uploadToStorage, deleteFromStorage } = require('../services/supabaseStorageService');
+const NotificationEngine = require('../services/NotificationEngine');
 
 const router = express.Router();
-
-// Fields of an assignment shown on the public course page; the instructions and the
-// attached file are reserved for enrolled students.
-const toAssignmentPreview = (assignment) => ({
-  _id: assignment._id,
-  course: assignment.course,
-  weekNumber: assignment.weekNumber,
-  lessonTitle: assignment.lessonTitle,
-  title: assignment.title,
-  dueDate: assignment.dueDate,
-  maxScore: assignment.maxScore,
-});
 
 // Multer memory storage for student assignment uploads (up to 5 files, 50MB each)
 const upload = multer({
@@ -65,6 +53,18 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       createdBy: req.user._id || req.user.id,
     });
 
+    // Notify enrolled students about the newly published assignment
+    try {
+      const course = await Course.findById(courseId);
+      await NotificationEngine.onAssignmentPublished({
+        assignment,
+        course,
+        createdById: req.user._id || req.user.id,
+      });
+    } catch (notifErr) {
+      console.warn('[assignmentRoutes] Notification error on assignment publish:', notifErr.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Assignment created successfully.',
@@ -82,23 +82,100 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.get('/course/:courseId', optionalAuth, async (req, res) => {
   try {
-    const [course, assignments] = await Promise.all([
-      Course.findById(req.params.courseId),
-      Assignment.find({ course: req.params.courseId }).sort({ weekNumber: 1, createdAt: 1 }),
-    ]);
+    const course = await Course.findById(req.params.courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
 
-    // Visitors and students who have not enrolled see which assignments the course has,
-    // but not their instructions or attached files.
-    const fullAccess = await canAccessCourseContent(req.user, course);
+    const hasAccess = await hasCourseAccess(req.user, course);
+    const assignments = await Assignment.find({ course: req.params.courseId })
+      .sort({ weekNumber: 1, createdAt: 1 });
+
+    if (hasAccess) {
+      return res.status(200).json({
+        success: true,
+        count: assignments.length,
+        hasFullAccess: true,
+        assignments,
+      });
+    }
+
+    // Unenrolled users: only title and week metadata for curriculum display
+    const sanitized = assignments.map((a) => ({
+      _id: a._id,
+      course: a.course,
+      weekNumber: a.weekNumber,
+      lessonTitle: a.lessonTitle,
+      title: a.title,
+      description: a.description,
+      dueDate: a.dueDate,
+      maxScore: a.maxScore,
+      isLocked: true,
+    }));
 
     res.status(200).json({
       success: true,
-      access: fullAccess ? 'full' : 'preview',
-      count: assignments.length,
-      assignments: fullAccess ? assignments : assignments.map(toAssignmentPreview),
+      count: sanitized.length,
+      hasFullAccess: false,
+      assignments: sanitized,
     });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch assignments.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 2c. STUDENT: Get all my submissions for a course
+// GET /api/assignments/course/:courseId/my-submissions
+// ─────────────────────────────────────────────────────────────
+router.get('/course/:courseId/my-submissions', protect, async (req, res) => {
+  try {
+    const studentId = req.user._id || req.user.id;
+    const submissions = await AssignmentSubmission.find({
+      course: req.params.courseId,
+      student: studentId,
+    }).populate('gradedBy', 'name');
+
+    res.status(200).json({
+      success: true,
+      submissions: submissions || [],
+    });
+  } catch (error) {
+    console.error('[assignmentRoutes] Error fetching my course submissions:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 2b. ADMIN: Get All Assignments & Submissions for a Course
+// GET /api/assignments/course/:courseId/submissions
+// ─────────────────────────────────────────────────────────────
+router.get('/course/:courseId/submissions', protect, authorize('admin'), async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found.' });
+    }
+
+    const assignments = await Assignment.find({ course: req.params.courseId })
+      .sort({ weekNumber: 1, createdAt: 1 });
+
+    const assignmentIds = assignments.map((a) => a._id);
+    const submissions = await AssignmentSubmission.find({ assignment: { $in: assignmentIds } })
+      .populate('student', 'name email avatar')
+      .populate('assignment', 'title maxScore weekNumber dueDate')
+      .populate('gradedBy', 'name')
+      .sort({ submittedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: submissions.length,
+      assignments,
+      submissions,
+    });
+  } catch (error) {
+    console.error('[assignmentRoutes] Error fetching course submissions:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching course submissions.' });
   }
 });
 
@@ -108,16 +185,16 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    const assignment = await Assignment.findById(req.params.id).populate('course', 'title');
+    const assignment = await Assignment.findById(req.params.id).populate('course', 'title instructor enrolledStudents');
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
     }
 
-    const course = await Course.findById(assignment.course?._id);
-    if (!(await canAccessCourseContent(req.user, course))) {
-      return res.status(req.user ? 403 : 401).json({
+    const hasAccess = await hasCourseAccess(req.user, assignment.course);
+    if (!hasAccess) {
+      return res.status(403).json({
         success: false,
-        message: 'Enrol in this course to open this assignment.',
+        message: 'Access denied. You must be enrolled in this course to view assignment details.',
       });
     }
 
@@ -142,14 +219,23 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
     }
 
+    const course = await Course.findById(assignment.course);
+    const hasAccess = await hasCourseAccess(req.user, course);
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You must be enrolled in this course to submit assignments.',
+      });
+    }
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, message: 'Please upload at least one file.' });
     }
 
-    // Upload each submitted file to Google Drive "assignment" folder
+    // Upload each submitted file to Supabase Storage "assignment" folder
     const uploadedFiles = [];
     for (const file of req.files) {
-      const driveResult = await uploadToDrive(
+      const storageResult = await uploadToStorage(
         file.buffer,
         file.originalname,
         file.mimetype,
@@ -158,9 +244,9 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
 
       uploadedFiles.push({
         fileName: file.originalname,
-        fileUrl: driveResult.viewUrl,
-        driveFileId: driveResult.fileId,
-        downloadUrl: driveResult.downloadUrl,
+        fileUrl: storageResult.viewUrl,
+        driveFileId: storageResult.fileId,
+        downloadUrl: storageResult.downloadUrl,
         fileSize: file.size,
         mimeType: file.mimetype,
         uploadedAt: new Date(),
@@ -195,9 +281,21 @@ router.post('/:id/submit', protect, upload.array('files', 5), async (req, res) =
       });
     }
 
+    // Notify administrators about the student's submission
+    try {
+      await NotificationEngine.onAssignmentSubmitted({
+        submission,
+        assignment,
+        student: req.user,
+        course,
+      });
+    } catch (notifErr) {
+      console.warn('[assignmentRoutes] Notification error on assignment submit:', notifErr.message);
+    }
+
     res.status(200).json({
       success: true,
-      message: 'Assignment submitted to Google Drive successfully!',
+      message: 'Assignment submitted to Supabase Storage successfully!',
       submission,
     });
   } catch (error) {
@@ -272,6 +370,23 @@ router.patch('/submissions/:submissionId/grade', protect, authorize('admin'), as
 
     await submission.save();
 
+    // Notify the student about their graded assignment result
+    try {
+      const assignment = await Assignment.findById(submission.assignment);
+      const course = await Course.findById(submission.course);
+      await NotificationEngine.onAssignmentGraded({
+        submission,
+        assignment,
+        course,
+        studentId: submission.student,
+        grade: submission.grade,
+        feedback: submission.feedback,
+        gradedById: req.user._id || req.user.id,
+      });
+    } catch (notifErr) {
+      console.warn('[assignmentRoutes] Notification error on assignment grade:', notifErr.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Submission graded successfully.',
@@ -291,6 +406,19 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     const assignment = await Assignment.findById(req.params.id);
     if (!assignment) {
       return res.status(404).json({ success: false, message: 'Assignment not found.' });
+    }
+
+    const submissions = await AssignmentSubmission.find({ assignment: req.params.id });
+    for (const sub of submissions) {
+      for (const f of (sub.files || [])) {
+        if (f.driveFileId || f.fileUrl) {
+          try {
+            await deleteFromStorage(f.driveFileId || f.fileUrl);
+          } catch (storageErr) {
+            console.warn('[assignmentRoutes] Could not delete assignment file:', storageErr.message);
+          }
+        }
+      }
     }
 
     await AssignmentSubmission.deleteMany({ assignment: req.params.id });

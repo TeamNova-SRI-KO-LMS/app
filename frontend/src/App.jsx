@@ -38,6 +38,7 @@ import { Toaster } from "react-hot-toast";
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
 const CreateCoursePage = lazy(() => import("./admin/CreateCoursePage"));
 const EditCoursePage = lazy(() => import("./admin/EditCoursePage"));
+const ViewCoursePage = lazy(() => import("./admin/ViewCoursePage"));
 const DiscussionForums = lazy(() => import("./admin/DiscussionForums"));
 
 const PageLoader = () => (
@@ -97,9 +98,30 @@ function App() {
 
           <Route path="/course-details" element={<CourseDetails />} />
           <Route path="/courses/:id" element={<CourseDetails />} />
-          <Route path="/course-info" element={<CourseInfoPage />} />
-          <Route path="/course-info/:id" element={<CourseInfoPage />} />
-          <Route path="/courses/:id/learn" element={<CourseInfoPage />} />
+          <Route
+            path="/course-info"
+            element={
+              <ProtectedRoute>
+                <CourseInfoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/course-info/:id"
+            element={
+              <ProtectedRoute>
+                <CourseInfoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/courses/:id/learn"
+            element={
+              <ProtectedRoute>
+                <CourseInfoPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected student routes */}
           <Route
@@ -184,6 +206,24 @@ function App() {
           element={
             <ProtectedRoute roles={["admin"]}>
               <EditCoursePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/courses/view/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <ViewCoursePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/courses/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <ViewCoursePage />
             </ProtectedRoute>
           }
         />

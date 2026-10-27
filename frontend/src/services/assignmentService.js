@@ -21,7 +21,7 @@ const assignmentService = {
     return res.data;
   },
 
-  // Submit student files to Google Drive with progress tracking
+  // Submit student files to Supabase Storage with progress tracking
   submitAssignment: async (assignmentId, formData, onProgress) => {
     const token = getAuthToken();
     const response = await axios.post(`${apiUrl}/assignments/${assignmentId}/submit`, formData, {
@@ -46,9 +46,21 @@ const assignmentService = {
     return res.data;
   },
 
+  // Get current user's submissions for all assignments in a course
+  getMyCourseSubmissions: async (courseId) => {
+    const res = await apiClient.get(`/assignments/course/${courseId}/my-submissions`);
+    return res.data;
+  },
+
   // Admin: Get all student submissions for an assignment
   getAllSubmissions: async (assignmentId) => {
     const res = await apiClient.get(`/assignments/${assignmentId}/submissions`);
+    return res.data;
+  },
+
+  // Admin: Get all assignments and submissions for a course
+  getCourseSubmissions: async (courseId) => {
+    const res = await apiClient.get(`/assignments/course/${courseId}/submissions`);
     return res.data;
   },
 
