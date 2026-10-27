@@ -100,7 +100,7 @@ const ResetPasswordPage = () => {
         value={value}
         onChange={event => setValue(event.target.value)}
         placeholder={placeholder}
-        className="h-10 w-full rounded-md border border-transparent bg-gray-200 pl-8 pr-9 text-[10px] text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+        className="h-11 w-full rounded-xl border border-transparent bg-[#EAEFF4] pl-10 pr-10 text-sm text-gray-900 placeholder-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
       />
       <button
         type="button"
@@ -114,26 +114,26 @@ const ResetPasswordPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#f7f8fc]">
-      <main className="flex min-h-[calc(100vh-78px)] items-center justify-center px-4 py-10">
-        <section className="w-full max-w-59 rounded-md bg-white px-6 py-5 shadow-[0_10px_25px_rgba(45,55,90,0.08)] sm:max-w-67.5">
-          <div className="flex justify-center">
+    <div className="min-h-screen w-full bg-[#F4F6FB] px-4 py-8 text-gray-900 sm:px-6">
+      <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
+        <section className="w-full max-w-[460px] rounded-2xl border border-gray-100/80 bg-white p-8 shadow-[0_20px_50px_rgba(0,0,0,0.06)] sm:rounded-3xl sm:p-10">
+          <div className="mb-4 flex justify-center">
             <img
               src="/sri-ko-logo.png"
               alt="SRI-KO Foreign Language Training Center"
-              className="h-12 w-auto object-contain"
+              className="h-20 w-auto object-contain"
             />
           </div>
 
-          <h1 className="mt-2 text-center text-[12px] font-bold text-gray-900">
+          <h1 className="text-center text-2xl font-bold tracking-tight text-gray-900 sm:text-[26px]">
             Reset Your Password
           </h1>
-          <p className="mt-1 text-center text-[9px] text-gray-500">{email}</p>
-          {error && <p className="mt-3 text-center text-[9px] text-red-600">{error}</p>}
+          <p className="mt-1 text-center text-sm text-gray-500">{email}</p>
+          {error && <p className="mt-4 text-center text-xs text-red-600">{error}</p>}
 
-          <form className="mt-4 space-y-2.5" onSubmit={handleSubmit}>
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="password" className="block text-[8px] font-medium text-gray-600">
+              <label htmlFor="password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-700">
                 Password
               </label>
               {passwordInput(
@@ -146,7 +146,7 @@ const ResetPasswordPage = () => {
               )}
             </div>
             <div>
-              <label htmlFor="confirm-password" className="block text-[8px] font-medium text-gray-600">
+              <label htmlFor="confirm-password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-700">
                 Confirm Password
               </label>
               {passwordInput(
@@ -161,7 +161,7 @@ const ResetPasswordPage = () => {
             <button
               type="submit"
               disabled={submitting || password.length < 6 || password !== confirmPassword}
-              className="mt-1 h-8 w-full rounded-md bg-linear-to-r from-blue-700 to-purple-600 text-[10px] font-semibold text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-1 h-11 w-full rounded-xl bg-linear-to-r from-blue-700 to-purple-600 text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? 'Resetting...' : 'Reset Password'}
             </button>
@@ -169,7 +169,7 @@ const ResetPasswordPage = () => {
 
           <Link
             to="/login"
-            className="mt-4 block text-center text-[9px] text-gray-500 hover:text-blue-700"
+            className="mt-5 block text-center text-xs text-gray-500 hover:text-blue-700"
           >
             <span aria-hidden="true">←</span> Back to Sign In
           </Link>

@@ -197,8 +197,8 @@ async function seedDemoData() {
 
   await JoinUsSubmission.create([
     { name: 'Malith Herath', email: 'malith.herath@example.com', phone: '0711234567', age: 23, currentLevel: 'Complete Beginner', preferredTime: 'Weekend Classes', interests: ['Korean Language Basics'], hearAboutUs: 'social-media', message: 'I want to prepare for EPS-TOPIK.' },
-    { name: 'Dulani Rathnayake', email: 'dulani.r@example.com', phone: '0759876543', age: 27, currentLevel: 'Beginner', preferredTime: 'Evening (6:00 PM - 9:00 PM)', interests: ['Business Korean', 'Korean Culture'], hearAboutUs: 'referral', status: 'contacted', contactedAt: new Date() },
-    { name: 'Chamod Perera', email: 'chamod.p@example.com', phone: '0761122334', age: 19, currentLevel: 'Intermediate', preferredTime: 'Flexible Schedule', interests: ['K-Pop & K-Drama'], hearAboutUs: 'website', status: 'enrolled' },
+    { name: 'Dulani Rathnayake', email: 'dulani.r@example.com', phone: '0759876543', age: 27, currentLevel: 'Beginner', preferredTime: 'Evening (6:00 PM - 9:00 PM)', interests: ['Business Korean', 'Korean Culture'], hearAboutUs: 'referral', status: 'in_progress', contactedAt: new Date() },
+    { name: 'Chamod Perera', email: 'chamod.p@example.com', phone: '0761122334', age: 19, currentLevel: 'Intermediate', preferredTime: 'Flexible Schedule', interests: ['K-Pop & K-Drama'], hearAboutUs: 'website', status: 'resolved' },
   ]);
 
   await LectureMaterial.create([

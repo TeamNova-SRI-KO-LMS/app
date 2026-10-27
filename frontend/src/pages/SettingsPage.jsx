@@ -9,7 +9,6 @@ import { resizeImageFile } from '../utils/resizeImage';
 import {
   User,
   Shield,
-  Bell,
   Globe,
   Link2,
   Eye,
@@ -67,10 +66,6 @@ const SettingsContent = ({ user, updateUser }) => {
     }
   }, [user]);
 
-  // Data Privacy Toggle in Account tab
-  const [dataPrivacy, setDataPrivacy] = useState(
-    user?.privacy?.showEmail !== undefined ? !user.privacy.showEmail : true,
-  );
 
   // Password state
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -81,25 +76,6 @@ const SettingsContent = ({ user, updateUser }) => {
     newPassword: '',
     confirmPassword: '',
   });
-
-  // Notifications state
-  const [notifications, setNotifications] = useState(() => ({
-    emailNotifications: true,
-    courseUpdates: true,
-    assignmentReminders: true,
-    systemAnnouncements: true,
-    marketingEmails: false,
-    ...(user?.notifications || {}),
-  }));
-
-  // Privacy state
-  const [privacy, setPrivacy] = useState(() => ({
-    profileVisibility: 'public',
-    showEmail: false,
-    showCourses: true,
-    allowMessages: true,
-    ...(user?.privacy || {}),
-  }));
 
   const handleInputChange = e => {
     const { name, value } = e.target;
@@ -114,20 +90,6 @@ const SettingsContent = ({ user, updateUser }) => {
     setPasswordForm(prev => ({
       ...prev,
       [name]: value,
-    }));
-  };
-
-  const handleNotificationToggle = key => {
-    setNotifications(prev => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
-
-  const handlePrivacyToggle = key => {
-    setPrivacy(prev => ({
-      ...prev,
-      [key]: !prev[key],
     }));
   };
 
@@ -255,10 +217,6 @@ const SettingsContent = ({ user, updateUser }) => {
         socialLinks: {
           linkedin,
         },
-        privacy: {
-          ...privacy,
-          showEmail: !dataPrivacy,
-        },
       };
 
       const response = await apiService.put('/users/profile', payload);
@@ -311,52 +269,12 @@ const SettingsContent = ({ user, updateUser }) => {
     }
   };
 
-  // Save Notifications
-  const handleNotificationSave = async () => {
-    setLoading(true);
-    try {
-      const response = await apiService.put('/users/notifications', {
-        notifications,
-      });
-      if (response.data.success) {
-        toast.success('Notification preferences saved!');
-      }
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || 'Failed to save notifications',
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Save Privacy Settings
-  const handlePrivacySave = async () => {
-    setLoading(true);
-    try {
-      const response = await apiService.put('/users/privacy', { privacy });
-      if (response.data.success) {
-        toast.success('Privacy settings saved!');
-      }
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || 'Failed to save privacy settings',
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Master Save Changes handler depending on active tab
   const handleSaveActiveTab = () => {
     if (activeTab === 'account') {
       handleSaveProfile();
     } else if (activeTab === 'security') {
       handlePasswordSubmit();
-    } else if (activeTab === 'notifications') {
-      handleNotificationSave();
-    } else if (activeTab === 'privacy') {
-      handlePrivacySave();
     }
   };
 
@@ -367,8 +285,6 @@ const SettingsContent = ({ user, updateUser }) => {
   const navTabs = [
     { id: 'account', label: 'Account', icon: User },
     { id: 'security', label: 'Security', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'privacy', label: 'Privacy', icon: Globe },
   ];
 
 
@@ -635,26 +551,6 @@ const SettingsContent = ({ user, updateUser }) => {
                     </div>
                   </div>
 
-                  {/* Data Privacy Toggle Box */}
-                  <div className="bg-[#EAECEF] rounded-2xl p-4 sm:p-5 flex items-center justify-between mt-8">
-                    <div>
-                      <h3 className="text-sm font-bold text-gray-900">
-                        Data Privacy
-                      </h3>
-                      <p className="text-xs text-gray-600 font-medium mt-0.5">
-                        Your email and phone are only visible to instructors.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setDataPrivacy(!dataPrivacy)}
-                      className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
-                        dataPrivacy ? 'bg-blue-600 justify-end' : 'bg-gray-300 justify-start'
-                      }`}
-                    >
-                      <span className="bg-white w-4 h-4 rounded-full shadow-md" />
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -783,174 +679,7 @@ const SettingsContent = ({ user, updateUser }) => {
                 </div>
               )}
 
-              {/* TAB 3: NOTIFICATIONS */}
-              {activeTab === 'notifications' && (
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2 tracking-tight">
-                    Notification Preferences
-                  </h2>
-                  <p className="text-sm text-gray-500 mb-6">
-                    Choose how and when you receive alerts from SRI-KO.
-                  </p>
 
-                  <div className="space-y-4">
-                    {[
-                      {
-                        key: 'emailNotifications',
-                        title: 'Email Notifications',
-                        desc: 'Receive alerts and updates directly to your email address.',
-                      },
-                      {
-                        key: 'courseUpdates',
-                        title: 'Course Updates',
-                        desc: 'Get notified when new lessons, assignments, or lectures drop.',
-                      },
-                      {
-                        key: 'assignmentReminders',
-                        title: 'Assignment Reminders',
-                        desc: 'Timely reminders for upcoming homework and quiz deadlines.',
-                      },
-                      {
-                        key: 'systemAnnouncements',
-                        title: 'System Announcements',
-                        desc: 'Important news regarding the platform and maintenance.',
-                      },
-                      {
-                        key: 'marketingEmails',
-                        title: 'Promotions & Events',
-                        desc: 'Receive invites to special Korean cultural workshops and events.',
-                      },
-                    ].map(item => (
-                      <div
-                        key={item.key}
-                        className="flex items-center justify-between p-4 bg-[#EAECEF]/70 rounded-2xl transition hover:bg-[#EAECEF]"
-                      >
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-900">
-                            {item.title}
-                          </h4>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            {item.desc}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleNotificationToggle(item.key)}
-                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ${
-                            notifications[item.key]
-                              ? 'bg-blue-600 justify-end'
-                              : 'bg-gray-300 justify-start'
-                          }`}
-                        >
-                          <span className="bg-white w-4 h-4 rounded-full shadow-md" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-8 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleNotificationSave}
-                      disabled={loading}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition cursor-pointer flex items-center gap-2"
-                    >
-                      <Check size={16} />
-                      <span>Save Preferences</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: PRIVACY */}
-              {activeTab === 'privacy' && (
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2 tracking-tight">
-                    Privacy Settings
-                  </h2>
-                  <p className="text-sm text-gray-500 mb-6">
-                    Control your visibility and who can interact with you on SRI-KO.
-                  </p>
-
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-                        PROFILE VISIBILITY
-                      </label>
-                      <select
-                        name="profileVisibility"
-                        value={privacy.profileVisibility}
-                        onChange={e =>
-                          setPrivacy(prev => ({
-                            ...prev,
-                            profileVisibility: e.target.value,
-                          }))
-                        }
-                        className="w-full bg-[#EAECEF] hover:bg-[#E2E6EA] focus:bg-white focus:ring-2 focus:ring-blue-500 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 border-0 outline-none transition"
-                      >
-                        <option value="public">Public - Visible to all students and instructors</option>
-                        <option value="friends">Classmates Only - Visible only to enrolled peers</option>
-                        <option value="private">Private - Only instructors can view</option>
-                      </select>
-                    </div>
-
-                    {[
-                      {
-                        key: 'showEmail',
-                        title: 'Show Email Address',
-                        desc: 'Display your email on your public academic profile.',
-                      },
-                      {
-                        key: 'showCourses',
-                        title: 'Show Enrolled Courses',
-                        desc: 'Show which courses and certificates you are pursuing.',
-                      },
-                      {
-                        key: 'allowMessages',
-                        title: 'Allow Direct Messages',
-                        desc: 'Allow other students to message you regarding study groups.',
-                      },
-                    ].map(item => (
-                      <div
-                        key={item.key}
-                        className="flex items-center justify-between p-4 bg-[#EAECEF]/70 rounded-2xl transition hover:bg-[#EAECEF]"
-                      >
-                        <div>
-                          <h4 className="text-sm font-bold text-gray-900">
-                            {item.title}
-                          </h4>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            {item.desc}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handlePrivacyToggle(item.key)}
-                          className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ${
-                            privacy[item.key]
-                              ? 'bg-blue-600 justify-end'
-                              : 'bg-gray-300 justify-start'
-                          }`}
-                        >
-                          <span className="bg-white w-4 h-4 rounded-full shadow-md" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-8 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handlePrivacySave}
-                      disabled={loading}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition cursor-pointer flex items-center gap-2"
-                    >
-                      <Check size={16} />
-                      <span>Save Privacy Settings</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </main>

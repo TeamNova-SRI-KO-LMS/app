@@ -12,8 +12,9 @@ import useAuth from '../context/useAuth';
 import UserAvatar from './UserAvatar';
 import toast from 'react-hot-toast';
 
-export default function StudentSidebar({ activeTab: propActiveTab }) {
-  const { user, logout } = useAuth();
+export default function StudentSidebar({ activeTab: propActiveTab, user: userOverride }) {
+  const { user: authUser, logout } = useAuth();
+  const user = userOverride || authUser;
   const location = useLocation();
   const navigate = useNavigate();
 
