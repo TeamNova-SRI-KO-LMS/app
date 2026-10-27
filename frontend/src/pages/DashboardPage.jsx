@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -24,38 +24,95 @@ import useAuth from '../context/useAuth';
 import apiService from '../services/apiService';
 import toast from 'react-hot-toast';
 import StudentSidebar from '../components/StudentSidebar';
+import { isVideoUrl } from '../utils/mediaUtils';
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading, isAuthenticated } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState('This Month');
 
-  useEffect(() => {
-    let isMounted = true;
+  const fetchDashboardData = useCallback(async (showLoading = false) => {
+    if (authLoading || !isAuthenticated || !user?.id) {
+      return;
+    }
 
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const res = await apiService.get('/users/dashboard');
-        if (isMounted && res.data?.success) {
-          setDashboardData(res.data.data);
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      const requestConfig = {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache' },
+      };
+      const [dashboardResponse, attendanceResponse] = await Promise.all([
+        apiService.get('/users/dashboard', requestConfig),
+        apiService.get('/attendance/my-attendance', requestConfig),
+      ]);
+
+      if (dashboardResponse.data?.success) {
+        const dashboard = dashboardResponse.data.data;
+        const attendance = attendanceResponse.data;
+
+        // Attendance is also used by the profile page. Use that same
+        // database-backed source here so both pages always show the same
+        // records and summary.
+        if (attendance?.success && dashboard?.statistics) {
+          dashboard.statistics = {
+            ...dashboard.statistics,
+            attendanceRate: attendance.stats?.attendanceRate ?? dashboard.statistics.attendanceRate,
+            attendanceSummary: {
+              totalSessions: attendance.stats?.totalSessions || 0,
+              presentCount: attendance.stats?.present || 0,
+              absentCount: attendance.stats?.absent || 0,
+              lateCount: attendance.stats?.late || 0,
+              excusedCount: attendance.stats?.excused || 0,
+            },
+          };
+          dashboard.attendance = {
+            ...(dashboard.attendance || {}),
+            rate: attendance.stats?.attendanceRate ?? dashboard.attendance?.rate,
+            records: attendance.records || [],
+          };
         }
-      } catch (error) {
-        console.error('Failed to load user dashboard from database:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+
+        setDashboardData(dashboard);
+      }
+    } catch (error) {
+      console.error('Failed to load user dashboard from database:', error);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }, [authLoading, isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    fetchDashboardData(true);
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData();
       }
     };
+    const refreshOnPageShow = () => fetchDashboardData();
+    const refreshInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData();
+      }
+    }, 15000);
 
-    fetchDashboardData();
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('pageshow', refreshOnPageShow);
 
     return () => {
-      isMounted = false;
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('pageshow', refreshOnPageShow);
+      window.clearInterval(refreshInterval);
     };
-  }, []);
+  }, [fetchDashboardData]);
 
   const handleLogout = () => {
     logout();
@@ -122,7 +179,7 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 items-start">
         
         {/* Left Sidebar */}
-        <StudentSidebar activeTab="dashboard" />
+        <StudentSidebar activeTab="dashboard" user={currentUser} />
 
         {/* Main Dashboard Area */}
         <main className="flex-1 min-w-0 space-y-6">
@@ -409,11 +466,25 @@ export default function DashboardPage() {
                     className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex gap-4 items-center hover:shadow-md hover:border-blue-100 transition group"
                   >
                     {course.thumbnail ? (
-                      <img
-                        src={course.thumbnail}
-                        alt={course.title}
-                        className="w-16 h-16 rounded-xl object-cover border border-gray-100 flex-shrink-0"
-                      />
+                      isVideoUrl(course.thumbnail) ? (
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 border border-gray-100 flex-shrink-0">
+                          <video
+                            src={course.thumbnail}
+                            className="w-full h-full object-cover"
+                            muted
+                            preload="metadata"
+                          />
+                          <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                            <Play size={10} className="text-white fill-current translate-x-0.5" />
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={course.thumbnail}
+                          alt={course.title}
+                          className="w-16 h-16 rounded-xl object-cover border border-gray-100 flex-shrink-0"
+                        />
+                      )
                     ) : (
                       <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center border border-blue-200/60 shadow-inner flex-shrink-0">
                         <span className="font-serif text-xl font-bold text-blue-800 tracking-tighter">

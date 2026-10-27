@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { 
   Info, BookOpen, Clock, Edit2, Trash2, Plus, 
   Upload, CheckCircle, ChevronDown, ArrowLeft, 
-  Globe, HelpCircle, X, Image as ImageIcon, Loader2
+  Globe, HelpCircle, X, Image as ImageIcon, Loader2, Play, Video
 } from 'lucide-react';
 import { uploadToSupabase } from '../../services/uploadService';
 import toast from 'react-hot-toast';
 import lectureService from '../../services/lectureService';
+import { isVideoUrl, isVideoFile } from '../../utils/mediaUtils';
 
 export default function CreateCourseView({ onBack, onSave, loading }) {
   const [title, setTitle] = useState('');
@@ -18,6 +19,7 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
   const [tags, setTags] = useState(['Business', 'Culture']);
   const [tagInput, setTagInput] = useState('');
   const [thumbnailPreview, setThumbnailPreview] = useState('');
+  const [isThumbnailVideo, setIsThumbnailVideo] = useState(false);
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
 
   // Curriculum weeks state
@@ -290,10 +292,34 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
             
             <div className="border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl p-8 flex flex-col items-center justify-center text-center bg-[#f8fafc] hover:bg-blue-50/10 transition cursor-pointer relative overflow-hidden group">
               {thumbnailPreview ? (
-                <div className="relative w-full h-36 rounded-xl overflow-hidden">
-                  <img src={thumbnailPreview} alt="Preview" className="w-full h-full object-cover" />
+                <div className="relative w-full h-36 rounded-xl overflow-hidden bg-black/10">
+                  {isThumbnailVideo ? (
+                    <video
+                      src={thumbnailPreview}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img src={thumbnailPreview} alt="Preview" className="w-full h-full object-cover" />
+                  )}
+
+                  {/* Play badge shown ONLY for video thumbnails */}
+                  {isThumbnailVideo && (
+                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+                      <div className="w-10 h-10 rounded-full bg-blue-600/90 text-white flex items-center justify-center shadow-md">
+                        <Play size={18} className="fill-current translate-x-0.5" />
+                      </div>
+                      <div className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] font-bold text-white flex items-center gap-1">
+                        <Video size={11} className="text-blue-400" />
+                        <span>Video Thumbnail</span>
+                      </div>
+                    </div>
+                  )}
+
                   {uploadingThumbnail && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 text-white">
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 text-white z-10">
                       <Loader2 size={18} className="animate-spin text-blue-400" />
                       <span className="text-xs font-bold">Uploading to Supabase...</span>
                     </div>
@@ -302,32 +328,42 @@ export default function CreateCourseView({ onBack, onSave, loading }) {
               ) : (
                 <>
                   <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-blue-50 text-gray-400 group-hover:text-blue-600 flex items-center justify-center mb-3 transition">
-                    <ImageIcon size={22} />
+                    <div className="flex items-center gap-1">
+                      <ImageIcon size={18} />
+                      <Video size={18} />
+                    </div>
                   </div>
                   <p className="text-xs font-bold text-gray-500 group-hover:text-gray-700">
-                    Upload image (1280×720)
+                    Upload photo or video (1280×720)
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Images (PNG, JPG) or Videos (MP4, WebM)
                   </p>
                 </>
               )}
               <input 
                 type="file" 
-                accept="image/*"
+                accept="image/*,video/*"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    const isVid = isVideoFile(file);
+                    setIsThumbnailVideo(isVid);
                     setThumbnailPreview(URL.createObjectURL(file));
                     setUploadingThumbnail(true);
                     try {
-                      // Upload to Google Drive
+                      // Upload to Supabase Storage
                       const res = await lectureService.uploadThumbnail(file);
                       if (res?.url) {
                         setThumbnailPreview(res.url);
+                        setIsThumbnailVideo(isVid || isVideoUrl(res.url));
                       }
                     } catch (err) {
-                      console.error('Course thumbnail Google Drive upload error, falling back:', err);
+                      console.error('Course thumbnail upload error, falling back:', err);
                       try {
                         const url = await uploadToSupabase(file, 'courses', 'thumbnails');
                         setThumbnailPreview(url);
+                        setIsThumbnailVideo(isVid || isVideoUrl(url));
                       } catch (subErr) {
                         console.error('Supabase fallback error:', subErr);
                       }
