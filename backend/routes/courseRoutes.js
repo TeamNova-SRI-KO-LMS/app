@@ -2,7 +2,8 @@ const express = require('express');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const User = require('../models/User');
-const { protect, authorize, checkCourseAccess } = require('../middleware/auth');
+const { protect, authorize, checkCourseAccess, optionalAuth, hasCourseAccess } = require('../middleware/auth');
+const Payment = require('../models/Payment');
 const {
   validateCourseCreation,
   validateReview,
@@ -13,11 +14,11 @@ const escapeRegex = require('../utils/escapeRegex');
 const router = express.Router();
 
 // Course fields an instructor may set. Enrolments, reviews and ratings are managed by the
-// platform, and publishing a course needs an administrator.
-const COURSE_FIELDS = ['title', 'description', 'category', 'level', 'duration', 'price', 'thumbnail', 'curriculum', 'tags', 'prerequisites'];
+// platform, and publishing or featuring a course needs an administrator.
+const COURSE_FIELDS = ['title', 'description', 'category', 'level', 'duration', 'price', 'thumbnail', 'curriculum', 'features', 'tags', 'prerequisites'];
 
 const pickCourseFields = (body, user) => {
-  const allowed = user.role === 'admin' ? [...COURSE_FIELDS, 'isPublished'] : COURSE_FIELDS;
+  const allowed = user.role === 'admin' ? [...COURSE_FIELDS, 'isPublished', 'isFeatured'] : COURSE_FIELDS;
   const data = {};
   allowed.forEach((field) => { if (body[field] !== undefined) data[field] = body[field]; });
   return data;
@@ -40,6 +41,7 @@ router.get('/', async (req, res) => {
     if (req.query.category) filter.category = req.query.category;
     if (req.query.level)    filter.level    = req.query.level;
     if (req.query.published) filter.isPublished = req.query.published === 'true';
+    if (req.query.featured) filter.isFeatured = req.query.featured === 'true';
     if (req.query.search)  filter.title = { $regex: escapeRegex(req.query.search), $options: 'i' };
 
     const courses = await Course.find(filter)
@@ -47,7 +49,7 @@ router.get('/', async (req, res) => {
       .populate('enrolledStudents', 'name')
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 });
+      .sort({ isFeatured: -1, createdAt: -1 });
 
     const total = await Course.countDocuments(filter);
 
@@ -110,28 +112,154 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
     if (req.query.status   && req.query.status   !== 'Status')         filter.isPublished = req.query.status === 'PUBLISHED';
     if (req.query.search)  filter.title = { $regex: escapeRegex(req.query.search), $options: 'i' };
 
-    const courses = await Course.find(filter)
-      .populate('instructor', 'name avatar')
-      .skip(skip).limit(limit).sort({ createdAt: -1 });
+    let sortObj = { createdAt: -1 };
+    if (req.query.sort === 'oldest') sortObj = { createdAt: 1 };
+    if (req.query.sort === 'price-asc') sortObj = { price: 1 };
+    if (req.query.sort === 'price-desc') sortObj = { price: -1 };
+
+    // Synchronize enrolled students into Course documents from Users, Payments, and Progress
+    // so Course.enrolledStudents in MongoDB is guaranteed to reflect real student purchases
+    try {
+      const [usersWithAnyCourses, paymentsWithCourses, progressWithCourses] = await Promise.all([
+        User.find({ 'enrolledCourses.0': { $exists: true } }).select('_id enrolledCourses').lean(),
+        Payment.find({ course: { $exists: true, $ne: null }, status: { $in: ['completed', 'processing', 'paid'] } }).select('user course').lean(),
+        Progress.find({ course: { $exists: true, $ne: null } }).select('student course').lean(),
+      ]);
+
+      const courseStudentMap = new Map();
+      const addStudentToCourse = (cId, uId) => {
+        if (!cId || !uId) return;
+        const key = (cId._id || cId).toString();
+        if (!courseStudentMap.has(key)) courseStudentMap.set(key, new Set());
+        courseStudentMap.get(key).add(uId.toString());
+      };
+
+      usersWithAnyCourses.forEach((u) => {
+        (u.enrolledCourses || []).forEach((cId) => addStudentToCourse(cId, u._id));
+      });
+      paymentsWithCourses.forEach((p) => addStudentToCourse(p.course, p.user));
+      progressWithCourses.forEach((pr) => addStudentToCourse(pr.course, pr.student));
+
+      const bulkOps = [];
+      for (const [courseIdStr, studentSet] of courseStudentMap.entries()) {
+        if (studentSet.size > 0) {
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: courseIdStr },
+              update: { $addToSet: { enrolledStudents: { $each: Array.from(studentSet) } } },
+            },
+          });
+        }
+      }
+
+      if (bulkOps.length > 0) {
+        await Course.bulkWrite(bulkOps, { ordered: false });
+      }
+    } catch (syncErr) {
+      console.warn('Course enrollment sync warning:', syncErr.message);
+    }
+
+    let coursesQuery = Course.find(filter)
+      .populate('instructor', 'name avatar');
+
+    if (req.query.sort === 'most-enrolled') {
+      // Sort by number of enrolled students descending
+      coursesQuery = Course.aggregate([
+        { $match: filter },
+        { $addFields: { enrolledCount: { $size: { $ifNull: ['$enrolledStudents', []] } } } },
+        { $sort: { enrolledCount: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ]);
+    } else {
+      coursesQuery = coursesQuery.skip(skip).limit(limit).sort(sortObj);
+    }
+
+    const rawCourses = await coursesQuery;
+    const courses = Array.isArray(rawCourses) ? rawCourses : [];
+
+    // Cross-reference all sources where students buy or enroll in courses:
+    // 1. Users with course in enrolledCourses (regardless of role)
+    // 2. Payments completed for the course
+    // 3. Progress records for the course
+    const courseIds = courses.map((c) => c._id);
+    const [usersWithCourses, completedPayments, progressRecords] = await Promise.all([
+      User.find({ enrolledCourses: { $in: courseIds } }).select('_id enrolledCourses'),
+      Payment.find({ course: { $in: courseIds }, status: { $in: ['completed', 'processing', 'paid'] } }).select('user course'),
+      Progress.find({ course: { $in: courseIds } }).select('student course'),
+    ]);
+
+    const courseEnrollmentMap = new Map();
+    const getSet = (id) => {
+      const k = id.toString();
+      if (!courseEnrollmentMap.has(k)) courseEnrollmentMap.set(k, new Set());
+      return courseEnrollmentMap.get(k);
+    };
+
+    usersWithCourses.forEach((u) => {
+      (u.enrolledCourses || []).forEach((cId) => {
+        getSet(cId).add(u._id.toString());
+      });
+    });
+
+    completedPayments.forEach((p) => {
+      if (p.course && p.user) {
+        getSet(p.course).add(p.user.toString());
+      }
+    });
+
+    progressRecords.forEach((pr) => {
+      if (pr.course && pr.student) {
+        getSet(pr.course).add(pr.student.toString());
+      }
+    });
+
+    const coursesWithEnrolled = courses.map((course) => {
+      const courseObj = typeof course.toObject === 'function' ? course.toObject() : { ...course };
+      const existingIds = new Set(
+        (courseObj.enrolledStudents || []).map((id) => (id?._id || id).toString())
+      );
+      const userIds = courseEnrollmentMap.get(course._id.toString()) || new Set();
+      userIds.forEach((id) => existingIds.add(id));
+      const enrolledArray = Array.from(existingIds);
+      courseObj.enrolledStudents = enrolledArray;
+      courseObj.enrolledCount = enrolledArray.length;
+      courseObj.buyersCount = enrolledArray.length;
+      courseObj.studentsCount = enrolledArray.length;
+      return courseObj;
+    });
 
     const total          = await Course.countDocuments(filter);
     const totalPublished = await Course.countDocuments({ isPublished: true });
     const totalDraft     = await Course.countDocuments({ isPublished: false });
-    const totalStudents  = await Course.aggregate([
-      { $project: { count: { $size: '$enrolledStudents' } } },
+    
+    // Total course enrollments across all courses
+    const totalEnrollmentsAgg = await Course.aggregate([
+      { $project: { count: { $size: { $ifNull: ['$enrolledStudents', []] } } } },
       { $group: { _id: null, total: { $sum: '$count' } } },
     ]);
 
+    // Unique students who have registered and enrolled/bought courses
+    const uniqueEnrolledStudents = await User.countDocuments({
+      role: 'student',
+      'enrolledCourses.0': { $exists: true },
+    });
+
+    // Total registered students in the system
+    const totalRegisteredStudents = await User.countDocuments({ role: 'student' });
+
     res.status(200).json({
       success: true,
-      count: courses.length,
+      count: coursesWithEnrolled.length,
       total,
       totalPublished,
       totalDraft,
-      totalStudents: totalStudents[0]?.total || 0,
+      totalStudents: totalEnrollmentsAgg[0]?.total || 0,
+      uniqueEnrolledStudents,
+      totalRegisteredStudents,
       page,
       pages: Math.ceil(total / limit),
-      courses,
+      courses: coursesWithEnrolled,
     });
   } catch (error) {
     console.error('Admin get courses error:', error);
@@ -144,7 +272,7 @@ router.get('/admin/all', protect, authorize('admin'), async (req, res) => {
 // @access  Private/Admin
 router.post('/admin', protect, authorize('admin'), async (req, res) => {
   try {
-    const { title, description, category, level, duration, price, isPublished, tags, thumbnail } = req.body;
+    const { title, description, category, level, duration, price, isPublished, isFeatured, features, tags, thumbnail } = req.body;
 
     if (!title || title.trim().length < 3)
       return res.status(400).json({ success: false, message: 'Course title must be at least 3 characters' });
@@ -161,6 +289,8 @@ router.post('/admin', protect, authorize('admin'), async (req, res) => {
       duration:    duration    || 4,
       price:       Number(price),
       isPublished: isPublished !== undefined ? isPublished : false,
+      isFeatured:  isFeatured !== undefined ? isFeatured : false,
+      features:    features    || [],
       tags:        tags        || [],
       thumbnail:   thumbnail   || '',
       instructor:  req.user._id,
@@ -183,7 +313,7 @@ router.put('/admin/:id', protect, authorize('admin'), async (req, res) => {
     const course = await Course.findById(req.params.id);
     if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
 
-    const allowed = ['title','description','category','level','duration','price','isPublished','tags','thumbnail','prerequisites'];
+    const allowed = ['title','description','category','level','duration','price','isPublished','isFeatured','features','tags','thumbnail','prerequisites'];
     const updateData = {};
     allowed.forEach(field => { if (req.body[field] !== undefined) updateData[field] = req.body[field]; });
     if (updateData.level)              updateData.level  = updateData.level.toLowerCase();
@@ -237,10 +367,21 @@ router.patch('/admin/:id/toggle-publish', protect, authorize('admin'), async (re
 // SINGLE-COURSE ROUTES (/:id wildcard — must stay AFTER admin routes)
 // ─────────────────────────────────────────────────────────────
 
-// @desc    Get course by ID (public)
+// @desc    Verify if user is authorized to access course info / classroom
+// @route   GET /api/courses/:id/verify-access
+// @access  Private
+router.get('/:id/verify-access', protect, checkCourseAccess, async (req, res) => {
+  res.status(200).json({
+    success: true,
+    hasAccess: true,
+    courseId: req.params.id,
+  });
+});
+
+// @desc    Get course by ID (public with role/enrollment awareness)
 // @route   GET /api/courses/:id
 // @access  Public
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const course = await Course.findById(req.params.id)
       .populate('instructor', 'name avatar bio')
@@ -251,8 +392,40 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Course not found' });
     }
 
-    res.status(200).json({ success: true, course });
-  } catch {
+    const hasAccess = await hasCourseAccess(req.user, course);
+    const courseObj = course.toObject();
+
+    // If unenrolled, sanitize curriculum lessons: topics and titles remain visible,
+    // but restricted lesson content/video streams are omitted
+    if (!hasAccess && Array.isArray(courseObj.curriculum)) {
+      courseObj.curriculum = courseObj.curriculum.map((week) => ({
+        ...week,
+        lessons: Array.isArray(week.lessons)
+          ? week.lessons.map((lesson) => {
+              if (lesson.isFreePreview) {
+                return lesson;
+              }
+              return {
+                _id: lesson._id,
+                title: lesson.title,
+                duration: lesson.duration,
+                type: lesson.type,
+                isFreePreview: false,
+                isLocked: true,
+                // Omit lesson.content for restricted lessons
+              };
+            })
+          : [],
+      }));
+    }
+
+    res.status(200).json({
+      success: true,
+      course: courseObj,
+      isEnrolled: hasAccess,
+    });
+  } catch (error) {
+    console.error('[courseRoutes] Get course error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });

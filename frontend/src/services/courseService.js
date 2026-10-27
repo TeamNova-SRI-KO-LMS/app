@@ -15,6 +15,7 @@ const courseService = {
     if (params.level    && params.level    !== 'All Levels')     query.append('level', params.level);
     if (params.status   && params.status   !== 'Status')         query.append('status', params.status);
     if (params.search)   query.append('search', params.search);
+    if (params.sort)     query.append('sort', params.sort);
     const response = await apiClient.get('/courses/admin/all?' + query.toString());
     return response.data;
   },
@@ -22,11 +23,13 @@ const courseService = {
   /** Fetch all public courses */
   async getAllCourses(params = {}) {
     const query = new URLSearchParams();
-    if (params.page)     query.append('page', params.page);
-    if (params.limit)    query.append('limit', params.limit);
-    if (params.category) query.append('category', params.category);
-    if (params.level)    query.append('level', params.level);
-    if (params.search)   query.append('search', params.search);
+    if (params.page)      query.append('page', params.page);
+    if (params.limit)     query.append('limit', params.limit);
+    if (params.category)  query.append('category', params.category);
+    if (params.level)     query.append('level', params.level);
+    if (params.search)    query.append('search', params.search);
+    if (params.published !== undefined) query.append('published', params.published);
+    if (params.featured  !== undefined) query.append('featured', params.featured);
     const response = await apiClient.get('/courses?' + query.toString());
     return response.data;
   },
