@@ -75,14 +75,18 @@ describe('useAuth', () => {
 });
 
 describe('Shared components', () => {
-  test('TC-FE-CMP-08 UserAvatar shows the photo, hides a broken one and falls back to an icon [FR-012]', () => {
+  test('TC-FE-CMP-08 UserAvatar shows the photo and falls back to initials or an icon when it is missing or broken [FR-012]', () => {
     const { rerender, container } = render(<UserAvatar user={{ name: 'Nimali', avatar: 'https://img/a.png' }} />);
-    const img = screen.getByAltText('Nimali');
-    fireEvent.error(img);
+    fireEvent.error(screen.getByAltText('Nimali'));
 
-    expect(img.style.display).toBe('none');
+    expect(screen.queryByAltText('Nimali')).not.toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeInTheDocument();
     rerender(<UserAvatar user={{ name: 'Nimali' }} src="https://img/preview.png" alt="Preview" />);
     expect(screen.getByAltText('Preview')).toHaveAttribute('src', 'https://img/preview.png');
+    rerender(<UserAvatar user={{ name: 'Kasun', avatar: '/uploads/avatars/kasun.png' }} />);
+    expect(screen.getByAltText('Kasun')).toHaveAttribute('src', 'http://localhost:5000/uploads/avatars/kasun.png');
+    rerender(<UserAvatar user={{ name: 'Nimali Perera' }} showInitials />);
+    expect(screen.getByText('NP')).toBeInTheDocument();
     rerender(<UserAvatar user={null} size="w-6 h-6" />);
     expect(container.querySelector('svg')).toBeInTheDocument();
     expect(container.firstChild).toHaveClass('w-6', 'h-6');
