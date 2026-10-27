@@ -23,6 +23,7 @@ import {
 import courseService from '../services/courseService';
 import CreateCourseView from './components/CreateCourseView';
 import EditCourseView from './components/EditCourseView';
+import CourseDetailsView from './components/CourseDetailsView';
 import CourseSubmissionsModal from './components/CourseSubmissionsModal';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -329,7 +330,8 @@ const CourseModal = ({ mode, course, onSubmit, onClose, loading }) => {
 /* ─────────────────────────── Main Component ─────────────────────────── */
 const CourseManagement = () => {
   // ── State ──────────────────────────────────────────────────────────
-  const [viewMode, setViewMode]             = useState('list'); // 'list' | 'create' | 'edit'
+  const [viewMode, setViewMode]             = useState('list'); // 'list' | 'create' | 'edit' | 'details'
+  const [viewingCourse, setViewingCourse]   = useState(null);
   const [courses, setCourses]               = useState([]);
   const [stats, setStats]                   = useState({ total: 0, totalPublished: 0, totalDraft: 0, totalStudents: 0 });
   const [loading, setLoading]               = useState(true);
@@ -444,6 +446,10 @@ const CourseManagement = () => {
       await courseService.deleteCourse(deleteTarget._id);
       addToast('Course deleted successfully!');
       setDeleteTarget(null);
+      if (viewMode === 'details') {
+        setViewingCourse(null);
+        setViewMode('list');
+      }
       const newPage = courses.length === 1 && page > 1 ? page - 1 : page;
       setPage(newPage);
       fetchCourses(newPage);
@@ -467,6 +473,11 @@ const CourseManagement = () => {
   const openEdit = (course) => { 
     setEditingCourse(course); 
     setViewMode('edit'); 
+  };
+
+  const openDetails = (course) => {
+    setViewingCourse(course);
+    setViewMode('details');
   };
 
   // ── Sorted courses ─────────────────────────────────────────────────
@@ -497,7 +508,38 @@ const CourseManagement = () => {
     return pages;
   };
 
-  // ── Sub-views for Create and Edit ────────────────────────────────────
+  // ── Sub-views for Details, Create and Edit ───────────────────────────
+  if (viewMode === 'details') {
+    return (
+      <div className="space-y-6">
+        <Toast toasts={toasts} remove={removeToast} />
+        {deleteTarget && (
+          <DeleteModal
+            course={deleteTarget}
+            onConfirm={handleDelete}
+            onCancel={() => setDeleteTarget(null)}
+            loading={actionLoading}
+          />
+        )}
+        <CourseDetailsView 
+          course={viewingCourse}
+          onBack={() => { 
+            setViewingCourse(null); 
+            setViewMode('list'); 
+            fetchCourses(page);
+          }}
+          onEdit={(c) => openEdit(c || viewingCourse)}
+          onTogglePublish={async (c) => {
+            await handleTogglePublish(c || viewingCourse);
+          }}
+          onDelete={(c) => {
+            setDeleteTarget(c || viewingCourse);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (viewMode === 'create') {
     return (
       <div className="space-y-6">
@@ -778,13 +820,25 @@ const CourseManagement = () => {
                   <tr key={course._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                        <button
+                          type="button"
+                          id={`course-icon-${course._id}`}
+                          onClick={() => openDetails(course)}
+                          className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 hover:scale-105 hover:border-blue-300 transition cursor-pointer shadow-2xs"
+                          title="View Course Details"
+                        >
                           <BookOpen size={17} />
-                        </div>
+                        </button>
                         <div>
-                          <h4 className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate">
+                          <button
+                            type="button"
+                            id={`course-title-${course._id}`}
+                            onClick={() => openDetails(course)}
+                            className="font-bold text-gray-900 text-sm leading-snug max-w-[200px] truncate text-left hover:text-blue-600 transition cursor-pointer block"
+                            title={`View details for ${course.title}`}
+                          >
                             {course.title}
-                          </h4>
+                          </button>
                           <span className="text-[10px] font-mono text-gray-400 block mt-0.5 truncate max-w-[180px]">
                             ID: {course._id}
                           </span>
@@ -811,7 +865,7 @@ const CourseManagement = () => {
                             <div
                               className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
                                 studentCount > 0
-                                  ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
                                   : 'bg-gray-100 text-gray-400'
                               }`}
                             >
@@ -840,6 +894,15 @@ const CourseManagement = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          id={`view-details-${course._id}`}
+                          onClick={() => openDetails(course)}
+                          title="View Course Details"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 transition-colors text-xs font-bold border border-blue-100 cursor-pointer shadow-2xs"
+                        >
+                          <Eye size={14} className="text-blue-600" />
+                          <span>View Details</span>
+                        </button>
                         <button
                           onClick={() => setSubmissionsTargetCourse(course)}
                           title="View Student Assignment Submissions"

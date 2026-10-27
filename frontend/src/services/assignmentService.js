@@ -46,6 +46,12 @@ const assignmentService = {
     return res.data;
   },
 
+  // Get current user's submissions for all assignments in a course
+  getMyCourseSubmissions: async (courseId) => {
+    const res = await apiClient.get(`/assignments/course/${courseId}/my-submissions`);
+    return res.data;
+  },
+
   // Admin: Get all student submissions for an assignment
   getAllSubmissions: async (assignmentId) => {
     const res = await apiClient.get(`/assignments/${assignmentId}/submissions`);
