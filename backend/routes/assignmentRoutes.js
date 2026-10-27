@@ -119,7 +119,7 @@ router.get('/course/:courseId', optionalAuth, async (req, res) => {
       hasFullAccess: false,
       assignments: sanitized,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to fetch assignments.' });
   }
 });
@@ -199,7 +199,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
     }
 
     res.status(200).json({ success: true, assignment });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -323,7 +323,7 @@ router.get('/:id/my-submission', protect, async (req, res) => {
       success: true,
       submission: submission || null,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -344,7 +344,7 @@ router.get('/:id/submissions', protect, authorize('admin'), async (req, res) => 
       count: submissions.length,
       submissions,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -392,7 +392,7 @@ router.patch('/submissions/:submissionId/grade', protect, authorize('admin'), as
       message: 'Submission graded successfully.',
       submission,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to grade submission.' });
   }
 });
@@ -425,7 +425,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     await assignment.deleteOne();
 
     res.status(200).json({ success: true, message: 'Assignment deleted successfully.' });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Failed to delete assignment.' });
   }
 });

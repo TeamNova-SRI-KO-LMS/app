@@ -13,6 +13,17 @@ const escapeRegex = require('../utils/escapeRegex');
 
 const router = express.Router();
 
+// Course fields an instructor may set. Enrolments, reviews and ratings are managed by the
+// platform, and publishing or featuring a course needs an administrator.
+const COURSE_FIELDS = ['title', 'description', 'category', 'level', 'duration', 'price', 'thumbnail', 'curriculum', 'features', 'tags', 'prerequisites'];
+
+const pickCourseFields = (body, user) => {
+  const allowed = user.role === 'admin' ? [...COURSE_FIELDS, 'isPublished', 'isFeatured'] : COURSE_FIELDS;
+  const data = {};
+  allowed.forEach((field) => { if (body[field] !== undefined) data[field] = body[field]; });
+  return data;
+};
+
 // ─────────────────────────────────────────────────────────────
 // PUBLIC ROUTES
 // ─────────────────────────────────────────────────────────────
@@ -50,7 +61,7 @@ router.get('/', async (req, res) => {
       pages: Math.ceil(total / limit),
       courses,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -462,7 +473,7 @@ router.post('/:id/enroll', protect, authorize('student'), async (req, res) => {
       overallProgress: 0,
     });
 
-    const updatedUser = await User.findByIdAndUpdate(req.user.id, {
+    await User.findByIdAndUpdate(req.user.id, {
       $push: { enrolledCourses: req.params.id },
     }, { new: true });
 
@@ -543,7 +554,7 @@ router.post(
       await course.populate({ path: 'reviews.user', select: 'name avatar' });
 
       res.status(200).json({ success: true, message: 'Review added successfully', course });
-    } catch (error) {
+    } catch {
       res.status(500).json({ success: false, message: 'Server error' });
     }
   }
@@ -595,11 +606,11 @@ router.post(
   handleValidationErrors,
   async (req, res) => {
     try {
-      const courseData = { ...req.body, instructor: req.user.id };
+      const courseData = { ...pickCourseFields(req.body, req.user), instructor: req.user.id };
       const course = await Course.create(courseData);
       await course.populate('instructor', 'name avatar');
       res.status(201).json({ success: true, message: 'Course created successfully', course });
-    } catch (error) {
+    } catch {
       res.status(500).json({ success: false, message: 'Server error' });
     }
   }
@@ -622,13 +633,13 @@ router.put(
         return res.status(403).json({ success: false, message: 'Not authorized to update this course' });
       }
 
-      course = await Course.findByIdAndUpdate(req.params.id, req.body, {
+      course = await Course.findByIdAndUpdate(req.params.id, pickCourseFields(req.body, req.user), {
         new: true,
         runValidators: true,
       }).populate('instructor', 'name avatar');
 
       res.status(200).json({ success: true, message: 'Course updated successfully', course });
-    } catch (error) {
+    } catch {
       res.status(500).json({ success: false, message: 'Server error' });
     }
   }
@@ -653,7 +664,7 @@ router.delete(
 
       await Course.findByIdAndDelete(req.params.id);
       res.status(200).json({ success: true, message: 'Course deleted successfully' });
-    } catch (error) {
+    } catch {
       res.status(500).json({ success: false, message: 'Server error' });
     }
   }

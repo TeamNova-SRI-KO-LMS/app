@@ -65,4 +65,51 @@ const subscriptionSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Plan limits and prices in LKR, as shown on the pricing page. -1 means unlimited, which
+// is how GET /api/subscriptions/usage reports it.
+const PLANS = {
+  starter: {
+    features: { maxCourses: 5, maxStudents: 50, customBranding: false, apiAccess: false, whiteLabel: false },
+    pricing: { monthly: 0, yearly: 0 }
+  },
+  pro: {
+    features: { maxCourses: -1, maxStudents: 500, customBranding: true, apiAccess: true, whiteLabel: false },
+    pricing: { monthly: 15000, yearly: 150000 }
+  },
+  premium: {
+    features: { maxCourses: -1, maxStudents: -1, customBranding: true, apiAccess: true, whiteLabel: true },
+    pricing: { monthly: 35000, yearly: 350000 }
+  }
+};
+
+const planFor = (plan) => {
+  if (!PLANS[plan]) {
+    throw new Error(`Unknown subscription plan: ${plan}`);
+  }
+  return PLANS[plan];
+};
+
+subscriptionSchema.statics.getPlanFeatures = function (plan) {
+  return { ...planFor(plan).features };
+};
+
+subscriptionSchema.statics.getPlanPricing = function (plan, billingCycle) {
+  const { pricing } = planFor(plan);
+  if (pricing[billingCycle] === undefined) {
+    throw new Error(`Unknown billing cycle: ${billingCycle}`);
+  }
+  return pricing[billingCycle];
+};
+
+// Cancel the subscription; it stays usable until its end date but does not renew
+subscriptionSchema.methods.cancel = function (reason) {
+  this.status = 'cancelled';
+  this.cancelledAt = new Date();
+  this.autoRenew = false;
+  if (reason) {
+    this.cancellationReason = reason;
+  }
+  return this.save();
+};
+
 module.exports = mongoose.model('Subscription', subscriptionSchema);

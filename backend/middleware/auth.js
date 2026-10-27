@@ -145,10 +145,11 @@ exports.protect = async (req, res, next) => {
 
     next();
   } catch (error) {
+    // The reason (expired, bad signature, malformed) goes to the server log only
     console.warn(`[auth.protect] Token verification failed for ${req.method} ${req.originalUrl}:`, error.message);
     return res.status(401).json({
       success: false,
-      message: error.message || 'Token is not valid',
+      message: 'Token is not valid',
     });
   }
 };

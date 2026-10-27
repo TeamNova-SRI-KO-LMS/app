@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import useAuth from '../context/useAuth';
-import apiService from '../services/apiService';
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({
@@ -11,13 +10,9 @@ const AdminLogin = () => {
     rememberMe: false,
   });
   const [localError, setLocalError] = useState('');
-  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const { login, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -31,7 +26,7 @@ const AdminLogin = () => {
     if (localError) setLocalError('');
   };
 
-  const handleForgotPassword = async (e) => {
+  const handleForgotPassword = (e) => {
     e.preventDefault();
     setLocalError('');
 
@@ -51,25 +46,9 @@ const AdminLogin = () => {
       return;
     }
 
-    try {
-      setCheckingEmail(true);
-      const response = await apiService.post('/auth/check-email', { email });
-      if (response.data?.exists) {
-        navigate('/forgot-password', { state: { email } });
-      } else {
-        sessionStorage.removeItem('lastLoginEmail');
-        setLocalError(
-          'This email is not registered previously. Please check your email address.',
-        );
-      }
-    } catch (checkError) {
-      setLocalError(
-        checkError.response?.data?.message ||
-          'Unable to verify account email. Please check your connection and try again.',
-      );
-    } finally {
-      setCheckingEmail(false);
-    }
+    // Go straight to the reset page. It answers the same way whether or not the email has
+    // an account, so checking first would tell anyone which addresses are registered.
+    navigate('/forgot-password', { state: { email } });
   };
 
   const handleSubmit = async (e) => {
@@ -179,10 +158,9 @@ const AdminLogin = () => {
                 <button
                   type="button"
                   onClick={handleForgotPassword}
-                  disabled={checkingEmail}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer"
                 >
-                  {checkingEmail ? 'Verifying...' : 'Forgot password?'}
+                  Forgot password?
                 </button>
               </div>
               <input

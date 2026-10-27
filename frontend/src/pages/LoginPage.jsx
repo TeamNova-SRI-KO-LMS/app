@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import useAuth from '../context/useAuth';
-import apiService from '../services/apiService';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -16,7 +15,6 @@ const LoginPage = () => {
 
   // Preserve authentication error handling from develop.
   const [localError, setLocalError] = useState('');
-  const [checkingEmail, setCheckingEmail] = useState(false);
 
   const { login, googleLogin, loading, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -60,7 +58,7 @@ const LoginPage = () => {
     }
   };
 
-  const handleForgotPassword = async event => {
+  const handleForgotPassword = event => {
     event.preventDefault();
     setLocalError('');
 
@@ -80,25 +78,9 @@ const LoginPage = () => {
       return;
     }
 
-    try {
-      setCheckingEmail(true);
-      const response = await apiService.post('/auth/check-email', { email });
-      if (response.data?.exists) {
-        navigate('/forgot-password', { state: { email } });
-      } else {
-        sessionStorage.removeItem('lastLoginEmail');
-        setLocalError(
-          'This email is not registered previously. Please check your email address or apply for membership.',
-        );
-      }
-    } catch (checkError) {
-      setLocalError(
-        checkError.response?.data?.message ||
-          'Unable to verify account email. Please check your connection and try again.',
-      );
-    } finally {
-      setCheckingEmail(false);
-    }
+    // Go straight to the reset page. It answers the same way whether or not the email has
+    // an account, so checking first would tell anyone which addresses are registered.
+    navigate('/forgot-password', { state: { email } });
   };
 
   // User portal authentication: administrators must use the admin portal.
@@ -279,10 +261,9 @@ const LoginPage = () => {
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                disabled={checkingEmail}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors cursor-pointer"
               >
-                {checkingEmail ? 'Verifying...' : 'Forgot password?'}
+                Forgot password?
               </button>
             </div>
             <input

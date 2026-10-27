@@ -53,7 +53,7 @@ router.post('/submit', async (req, res) => {
 
 // ─── Admin: Get all applications (with optional filters) ──────────────────────
 // GET /api/join-us?status=pending&search=aruni&page=1&limit=20
-router.get('/', protect, authorize('admin', 'instructor'), async (req, res) => {
+router.get('/', protect, authorize('admin'), async (req, res) => {
   try {
     const { status, search, page = 1, limit = 50 } = req.query;
 
@@ -120,7 +120,7 @@ router.get('/', protect, authorize('admin', 'instructor'), async (req, res) => {
 
 // ─── Admin: Get recent applications (for dashboard widget) ─────────────────────
 // GET /api/join-us/recent?limit=5
-router.get('/recent', protect, authorize('admin', 'instructor'), async (req, res) => {
+router.get('/recent', protect, authorize('admin'), async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 5, 20);
     const submissions = await JoinUsSubmission.find()
@@ -158,7 +158,7 @@ router.get('/recent', protect, authorize('admin', 'instructor'), async (req, res
 
 // ─── Admin: Get single application by ID ───────────────────────────────────────
 // GET /api/join-us/:id
-router.get('/:id', protect, authorize('admin', 'instructor'), async (req, res) => {
+router.get('/:id', protect, authorize('admin'), async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(404).json({ success: false, message: 'Application not found.' });
@@ -226,14 +226,14 @@ const handleStatusUpdate = async (req, res) => {
   }
 };
 
-router.patch('/:id/status', protect, authorize('admin', 'instructor'), handleStatusUpdate);
-router.put('/:id/status', protect, authorize('admin', 'instructor'), handleStatusUpdate);
-router.patch('/submissions/:id/status', protect, authorize('admin', 'instructor'), handleStatusUpdate);
-router.put('/submissions/:id/status', protect, authorize('admin', 'instructor'), handleStatusUpdate);
+router.patch('/:id/status', protect, authorize('admin'), handleStatusUpdate);
+router.put('/:id/status', protect, authorize('admin'), handleStatusUpdate);
+router.patch('/submissions/:id/status', protect, authorize('admin'), handleStatusUpdate);
+router.put('/submissions/:id/status', protect, authorize('admin'), handleStatusUpdate);
 
 // ─── Admin: Delete a submission ────────────────────────────────────────────────
 // DELETE /api/join-us/:id
-router.delete('/:id', protect, authorize('admin', 'instructor'), async (req, res) => {
+router.delete('/:id', protect, authorize('admin'), async (req, res) => {
   try {
     const submission = await JoinUsSubmission.findByIdAndDelete(req.params.id);
     if (!submission) {

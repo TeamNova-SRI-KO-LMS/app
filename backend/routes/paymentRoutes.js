@@ -415,12 +415,15 @@ router.post(
 );
 
 // @route   PUT /api/payments/:id/complete
-// @desc    Mark payment as completed
-// @access  Private
+// @desc    Mark payment as completed. Administrators only: a student completing their own
+//          payment would gain paid content without paying. Card payments are completed by
+//          POST /confirm-course-payment after Stripe confirms them.
+// @access  Private/Admin
 router.put(
   '/:id/complete',
   [
     protect,
+    authorize('admin'),
     body('gatewayTransactionId')
       .optional()
       .isString()
@@ -434,10 +437,7 @@ router.put(
     try {
       const { gatewayTransactionId, gatewayResponse } = req.body;
 
-      const payment = await Payment.findOne({
-        _id: req.params.id,
-        user: req.user.id,
-      });
+      const payment = await Payment.findById(req.params.id);
 
       if (!payment) {
         return res.status(404).json({

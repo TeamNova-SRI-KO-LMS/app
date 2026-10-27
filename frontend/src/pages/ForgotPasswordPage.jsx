@@ -77,9 +77,7 @@ const ForgotPasswordPage = () => {
       if (!/^[a-f0-9]{64}$/.test(requestToken || '')) {
         setOtpSent(false);
         setVerificationCode(Array(OTP_LENGTH).fill(''));
-        throw new Error(
-          'This email is not registered previously. Please check your email or apply for membership.',
-        );
+        throw new Error('Unable to send the verification code.');
       }
 
       setResetRequestToken(requestToken);

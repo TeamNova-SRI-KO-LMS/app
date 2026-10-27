@@ -26,3 +26,7 @@ dist-ssr
 # Environment variables
 .env
 env
+# Test coverage and Playwright output
+coverage
+test-results
+playwright-report

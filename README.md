@@ -14,6 +14,10 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Backend coverage](https://img.shields.io/badge/backend_coverage-87.6%25_lines-brightgreen)
+![Frontend logic coverage](https://img.shields.io/badge/frontend_logic_coverage-95.0%25_lines-brightgreen)
+
+**Official live deployment:** [SRI-KO LMS](https://app-t7u8.vercel.app/) · **API health check:** [app-khaki-mu-55.vercel.app/api/health](https://app-khaki-mu-55.vercel.app/api/health)
 
 </div>
 
@@ -28,6 +32,7 @@
 - [Project Structure](#project-structure)
 - [Getting Started (Local Development)](#getting-started-local-development)
 - [Environment Variables](#environment-variables)
+- [Testing](#testing)
 - [Deploying to Vercel](#deploying-to-vercel)
 - [Attendance Module](#attendance-module)
 - [Support Assistant (Chatbot)](#support-assistant-chatbot)
@@ -270,6 +275,43 @@ Templates live in [`backend/env.example`](backend/env.example) and [`frontend/en
 | `VITE_SUPABASE_BUCKET` | | Default storage bucket. Default `courses`. |
 
 > `VITE_*` values are embedded into the frontend at **build time**. After changing them on Vercel, redeploy the frontend.
+
+---
+
+## Testing
+
+The suites never touch the database or the services in your `.env` files: the backend tests run against a throwaway in-memory MongoDB with `dotenv` disabled, and Stripe, Google Drive, Google sign-in and SMTP are replaced by test doubles.
+
+| Layer | Tool | Location | Command |
+| --- | --- | --- | --- |
+| Backend unit, integration and security | Jest, Supertest, mongodb-memory-server | `backend/tests/` | `cd backend && npm test` |
+| Backend coverage (fails below 80% lines) | Jest | `backend/coverage/` | `cd backend && npm run test:coverage` |
+| Backend password-reset flow | Node.js test runner | `backend/test/` | `cd backend && npm run test:node` |
+| Frontend unit (services, config, route guard, shared components) | Vitest, Testing Library | `frontend/src/__tests__/` | `cd frontend && npm test` |
+| End-to-end journeys (desktop and phone) | Playwright | `frontend/e2e/` | see below |
+| Load test (NFR-001 response time) | Node.js | `backend/tests/performance/` | `cd backend && npm run test:perf` |
+| Lint | ESLint | `backend/eslint.config.js`, `frontend/eslint.config.js` | `npm run lint` in either folder |
+
+**End-to-end tests** need a local stack with demonstration data (the seed script refuses any database that is not local):
+
+```bash
+# 1. Database and API (a local MongoDB on port 27017)
+cd backend
+MONGODB_URI=mongodb://127.0.0.1:27017/sriko_demo npm run seed:demo
+MONGODB_URI=mongodb://127.0.0.1:27017/sriko_demo JWT_SECRET=local-secret FRONTEND_URL=http://127.0.0.1:4174 PORT=5055 npm start
+
+# 2. Frontend build pointed at that API, then the tests
+cd frontend
+VITE_API_URL=http://127.0.0.1:5055/api npm run build
+npx vite preview --host 127.0.0.1 --port 4174 &
+npm run test:e2e
+```
+
+Demo accounts: `student@sriko.demo` and `admin@sriko.demo`, password `Demo@1234`.
+
+**Known defects are tested, not hidden.** A test marked `test.failing` and titled `[KNOWN DEFECT DEF-nn]` asserts the *correct* behaviour of a confirmed defect. It passes while the defect exists and fails as soon as the defect is fixed — remove `.failing` then.
+
+**CI** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push: lint of new and modified files, the frontend build, both unit/integration suites with coverage gates, and — for pull requests and pushes to `develop` and `main` — the Playwright journeys against a seeded MongoDB service and an `npm audit` gate on production dependencies.
 
 ---
 

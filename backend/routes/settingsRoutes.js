@@ -4,6 +4,61 @@ const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Secrets stay on the server: responses show a mask instead of the stored value, and an
+// update that sends the mask back (an unchanged form) keeps the stored value.
+const SECRET_FIELDS = {
+  emailSettings: ['smtpPass'],
+  paymentSettings: ['stripeSecretKey', 'paypalSecret'],
+};
+const SECRET_MASK = '********';
+
+const maskSection = (section, data) => {
+  if (!SECRET_FIELDS[section] || !data) {
+    return data;
+  }
+  const plain = typeof data.toObject === 'function' ? data.toObject() : { ...data };
+  SECRET_FIELDS[section].forEach((field) => {
+    if (plain[field]) {
+      plain[field] = SECRET_MASK;
+    }
+  });
+  return plain;
+};
+
+const maskSecrets = (settings) => {
+  const plain = typeof settings.toObject === 'function' ? settings.toObject() : { ...settings };
+  Object.keys(SECRET_FIELDS).forEach((section) => {
+    if (plain[section]) {
+      plain[section] = maskSection(section, plain[section]);
+    }
+  });
+  return plain;
+};
+
+// Replace masked secrets in incoming section data with the stored values
+const restoreMaskedSecrets = (section, data, stored) => {
+  if (!SECRET_FIELDS[section] || !data || typeof data !== 'object') {
+    return data;
+  }
+  const restored = { ...data };
+  SECRET_FIELDS[section].forEach((field) => {
+    if (restored[field] === SECRET_MASK) {
+      restored[field] = stored?.[section]?.[field];
+    }
+  });
+  return restored;
+};
+
+const restoreAllMaskedSecrets = (data, stored) => {
+  const restored = { ...data };
+  Object.keys(SECRET_FIELDS).forEach((section) => {
+    if (restored[section]) {
+      restored[section] = restoreMaskedSecrets(section, restored[section], stored);
+    }
+  });
+  return restored;
+};
+
 // @desc    Get all settings
 // @route   GET /api/admin/settings
 // @access  Private/Admin
@@ -18,7 +73,7 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
 
     res.status(200).json({
       success: true,
-      settings,
+      settings: maskSecrets(settings),
     });
   } catch (error) {
     console.error('Get settings error:', error);
@@ -34,12 +89,12 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
 // @access  Private/Admin
 router.put('/', protect, authorize('admin'), async (req, res) => {
   try {
+    let settings = await Settings.findOne();
+
     const updateData = {
-      ...req.body,
+      ...restoreAllMaskedSecrets(req.body, settings),
       lastUpdatedBy: req.user.id,
     };
-
-    let settings = await Settings.findOne();
 
     if (!settings) {
       // Create new settings if none exist
@@ -56,7 +111,7 @@ router.put('/', protect, authorize('admin'), async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Settings updated successfully',
-      settings,
+      settings: maskSecrets(settings),
     });
   } catch (error) {
     console.error('Update settings error:', error);
@@ -80,7 +135,7 @@ router.post('/reset', protect, authorize('admin'), async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Settings reset to default successfully',
-      settings: defaultSettings,
+      settings: maskSecrets(defaultSettings),
     });
   } catch (error) {
     console.error('Reset settings error:', error);
@@ -115,7 +170,7 @@ router.get('/:section', protect, authorize('admin'), async (req, res) => {
     res.status(200).json({
       success: true,
       section,
-      data: sectionData,
+      data: maskSection(section, sectionData),
     });
   } catch (error) {
     console.error('Get settings section error:', error);
@@ -132,13 +187,14 @@ router.get('/:section', protect, authorize('admin'), async (req, res) => {
 router.put('/:section', protect, authorize('admin'), async (req, res) => {
   try {
     const { section } = req.params;
-    const updateData = req.body;
 
     let settings = await Settings.findOne();
 
     if (!settings) {
       settings = await Settings.create({});
     }
+
+    const updateData = restoreMaskedSecrets(section, req.body, settings);
 
     // Update the specific section
     settings[section] = { ...settings[section], ...updateData };
@@ -149,7 +205,7 @@ router.put('/:section', protect, authorize('admin'), async (req, res) => {
     res.status(200).json({
       success: true,
       message: `${section} settings updated successfully`,
-      settings,
+      settings: maskSecrets(settings),
     });
   } catch (error) {
     console.error('Update settings section error:', error);
@@ -173,7 +229,7 @@ router.get('/export/json', protect, authorize('admin'), async (req, res) => {
 
     res.status(200).json({
       success: true,
-      settings,
+      settings: maskSecrets(settings),
       exportedAt: new Date().toISOString(),
     });
   } catch (error) {
@@ -199,19 +255,22 @@ router.post('/import', protect, authorize('admin'), async (req, res) => {
       });
     }
 
+    // An exported file carries masked secrets; keep the stored ones for those fields
+    const restored = restoreAllMaskedSecrets(settings, await Settings.findOne());
+
     // Delete existing settings
     await Settings.deleteMany({});
 
     // Create new settings with imported data
     const newSettings = await Settings.create({
-      ...settings,
+      ...restored,
       lastUpdatedBy: req.user.id,
     });
 
     res.status(200).json({
       success: true,
       message: 'Settings imported successfully',
-      settings: newSettings,
+      settings: maskSecrets(newSettings),
     });
   } catch (error) {
     console.error('Import settings error:', error);
