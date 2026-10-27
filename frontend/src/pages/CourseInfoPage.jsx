@@ -17,6 +17,44 @@ import assignmentService from '../services/assignmentService';
 import useAuth from '../context/useAuth';
 import { isVideoUrl } from '../utils/mediaUtils';
 
+// Helper functions for external links & YouTube redirection
+const isYouTubeUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  return /youtube\.com|youtu\.be/i.test(url);
+};
+
+const getMaterialLinkUrl = (material) => {
+  if (!material) return '';
+  let url = material.viewUrl || material.externalUrl || material.embedUrl || '';
+  if (!url || typeof url !== 'string') return '';
+  url = url.trim();
+
+  // If YouTube embed URL, convert to standard YouTube watch link for user redirection
+  if (url.includes('youtube.com/embed/')) {
+    const vid = url.split('youtube.com/embed/')[1]?.split('?')[0];
+    if (vid) {
+      url = `https://www.youtube.com/watch?v=${vid}`;
+    }
+  }
+
+  // Prepend https:// if protocol is missing
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+
+  return url;
+};
+
+const isLinkMaterial = (material) => {
+  if (!material) return false;
+  if (material.type === 'link') return true;
+  const rawUrl = (material.viewUrl || material.externalUrl || material.embedUrl || '').toLowerCase();
+  if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be') || rawUrl.includes('vimeo.com')) {
+    return true;
+  }
+  return false;
+};
+
 export default function CourseInfoPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -404,15 +442,29 @@ export default function CourseInfoPage() {
                                 {mat.type === 'video' && <Video className={`w-3.5 h-3.5 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />}
                                 {mat.type === 'pdf' && <FileText className={`w-3.5 h-3.5 ${isSelected ? 'text-red-600' : 'text-gray-400'}`} />}
                                 {mat.type === 'image' && <ImageIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-600' : 'text-gray-400'}`} />}
-                                {mat.type === 'link' && <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'link' && <ExternalLink className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
                               </div>
 
                               <span className="truncate">{mat.title}</span>
                             </div>
 
-                            <span className="text-[10px] font-mono text-gray-400 shrink-0 uppercase">
-                              {mat.type}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] font-mono text-gray-400 uppercase">
+                                {mat.type}
+                              </span>
+                              {mat.type === 'link' && getMaterialLinkUrl(mat) && (
+                                <a
+                                  href={getMaterialLinkUrl(mat)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-0.5 text-gray-400 hover:text-blue-600 transition"
+                                  title="Open link in new tab"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -528,40 +580,116 @@ export default function CourseInfoPage() {
             {/* Main Media Player / Viewer */}
             <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
               
-              {/* If Video: Native HTML5 Player for Supabase Videos or YouTube/Vimeo Embed */}
-              {selectedMaterial?.type === 'video' || selectedMaterial?.type === 'link' ? (
+              {/* If Link or YouTube Material: Render as an attractive Link / Hyperlink Showcase (not as a player) */}
+              {isLinkMaterial(selectedMaterial) ? (
+                <div className="relative w-full rounded-t-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-[#0d1527] to-slate-900 border-b border-gray-800 text-white p-6 sm:p-10 flex flex-col items-center justify-center text-center min-h-[380px]">
+                  {/* Ambient background glow */}
+                  <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
+                    isYouTubeUrl(getMaterialLinkUrl(selectedMaterial)) ? 'bg-red-600/15' : 'bg-blue-600/15'
+                  }`} />
+
+                  {/* Resource Badge */}
+                  {isYouTubeUrl(getMaterialLinkUrl(selectedMaterial)) ? (
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/25 text-red-400 text-xs font-bold tracking-wide mb-4 shadow-xs">
+                      <svg className="w-4 h-4 fill-current text-red-500 shrink-0" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                      <span>YouTube Lecture Link</span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-400 text-xs font-bold tracking-wide mb-4 shadow-xs">
+                      <ExternalLink className="w-4 h-4 text-blue-400 shrink-0" />
+                      <span>External Web Resource</span>
+                    </div>
+                  )}
+
+                  {/* Material Title */}
+                  <h3 className="text-xl sm:text-2xl font-black text-white mb-2 max-w-xl leading-tight">
+                    {selectedMaterial.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-6 max-w-md">
+                    {isYouTubeUrl(getMaterialLinkUrl(selectedMaterial))
+                      ? 'Click the hyperlink below to open and watch this lesson directly on YouTube.'
+                      : 'Click the hyperlink below to redirect and open this learning resource.'}
+                  </p>
+
+                  {/* Hyperlink Box with Direct Redirection & Copy Actions */}
+                  <div className="w-full max-w-xl bg-white/[0.06] hover:bg-white/[0.09] border border-white/15 hover:border-blue-400/50 rounded-2xl p-4 sm:p-5 transition-all shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+                    <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${
+                        isYouTubeUrl(getMaterialLinkUrl(selectedMaterial))
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      }`}>
+                        <ExternalLink className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                          Resource Hyperlink
+                        </span>
+                        <a
+                          href={getMaterialLinkUrl(selectedMaterial)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs sm:text-sm font-bold text-blue-400 hover:text-blue-300 underline underline-offset-4 decoration-blue-400/50 hover:decoration-blue-300 block truncate font-mono"
+                          title={getMaterialLinkUrl(selectedMaterial)}
+                        >
+                          {getMaterialLinkUrl(selectedMaterial)}
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = getMaterialLinkUrl(selectedMaterial);
+                          if (navigator.clipboard && url) {
+                            navigator.clipboard.writeText(url);
+                            toast.success('Link copied to clipboard!');
+                          }
+                        }}
+                        className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition cursor-pointer text-xs font-semibold"
+                        title="Copy link to clipboard"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                      <a
+                        href={getMaterialLinkUrl(selectedMaterial)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto ${
+                          isYouTubeUrl(getMaterialLinkUrl(selectedMaterial))
+                            ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-red-600/30'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
+                        }`}
+                      >
+                        <span>{isYouTubeUrl(getMaterialLinkUrl(selectedMaterial)) ? 'Watch on YouTube' : 'Redirect to Page'}</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-1.5 text-[11px] text-gray-400">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Clicking redirects to external lecture in a new tab</span>
+                  </div>
+                </div>
+              ) : selectedMaterial?.type === 'video' ? (
+                /* Native HTML5 Video Player for Supabase Videos */
                 <div className="relative aspect-video w-full bg-black rounded-t-3xl overflow-hidden flex items-center justify-center">
                   {selectedMaterial?.embedUrl || selectedMaterial?.viewUrl ? (
-                    (() => {
-                      const videoUrl = selectedMaterial.embedUrl || selectedMaterial.viewUrl;
-                      const isExternalEmbed = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') || videoUrl.includes('vimeo.com');
-
-                      if (!isExternalEmbed && (selectedMaterial.type === 'video' || videoUrl.includes('supabase.co') || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(videoUrl))) {
-                        return (
-                          <video
-                            key={videoUrl}
-                            controls
-                            playsInline
-                            controlsList="nodownload"
-                            preload="metadata"
-                            className="w-full h-full max-h-[600px] object-contain bg-black"
-                            src={videoUrl}
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        );
-                      }
-
-                      return (
-                        <iframe
-                          src={videoUrl}
-                          title={selectedMaterial.title}
-                          className="w-full h-full border-0"
-                          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                          allowFullScreen
-                        />
-                      );
-                    })()
+                    <video
+                      key={selectedMaterial.embedUrl || selectedMaterial.viewUrl}
+                      controls
+                      playsInline
+                      controlsList="nodownload"
+                      preload="metadata"
+                      className="w-full h-full max-h-[600px] object-contain bg-black"
+                      src={selectedMaterial.embedUrl || selectedMaterial.viewUrl}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
                       <PlayCircle className="w-16 h-16 text-blue-400 mb-3" />
@@ -670,6 +798,37 @@ export default function CourseInfoPage() {
                   )}
                 </div>
 
+                {/* Direct Hyperlink Box below title when link material */}
+                {isLinkMaterial(selectedMaterial) && getMaterialLinkUrl(selectedMaterial) && (
+                  <div className="mb-4 p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <ExternalLink size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block">External Resource URL</span>
+                        <a 
+                          href={getMaterialLinkUrl(selectedMaterial)} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline truncate block font-mono"
+                        >
+                          {getMaterialLinkUrl(selectedMaterial)}
+                        </a>
+                      </div>
+                    </div>
+                    <a
+                      href={getMaterialLinkUrl(selectedMaterial)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition shrink-0"
+                    >
+                      <span>Redirect to Page</span>
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
+                )}
+
                 {selectedMaterial?.description && (
                   <p className="text-xs sm:text-sm text-gray-600 leading-relaxed pt-2 border-t border-gray-100">
                     {selectedMaterial.description}
@@ -761,12 +920,12 @@ export default function CourseInfoPage() {
                           </a>
                         ) : (
                           <a 
-                            href={mat.viewUrl}
+                            href={getMaterialLinkUrl(mat) || mat.viewUrl}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
                           >
-                            <ExternalLink size={13} /> Open
+                            <ExternalLink size={13} /> Open Link
                           </a>
                         )}
                       </div>
