@@ -8,7 +8,13 @@
   },
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js",
+    "test:coverage": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --coverage",
+    "test:ci": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --coverage --ci --json --outputFile=coverage/test-results.json",
+    "lint": "eslint .",
+    "seed:demo": "node tests/fixtures/seedDemoData.js",
+    "test:perf": "node tests/performance/loadTest.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -26,6 +32,13 @@
     "stripe": "^23.0.0"
   },
   "devDependencies": {
-    "nodemon": "^1.14.10"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "jest": "^30.5.2",
+    "mongodb-memory-server-core": "^10.4.3",
+    "nodemon": "^1.14.10",
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.2.2"
   }
 }
