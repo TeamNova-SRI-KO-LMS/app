@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -7,7 +7,7 @@ import {
   CreditCard, 
   Bell, 
   Megaphone, 
-  Calendar,
+  Calendar, 
   MessageSquare, 
   Settings, 
   LogOut,
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import useAuth from '../context/useAuth';
 import { useNavigate } from 'react-router-dom';
+import UserAvatar from '../components/UserAvatar';
+import AdminProfileModal from './components/AdminProfileModal';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -42,6 +44,7 @@ const AdminSidebar = ({
 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -131,19 +134,29 @@ const AdminSidebar = ({
 
         {/* Bottom Profile / Logout Footer */}
         <div className="p-4 border-t border-gray-100 bg-white">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'A'}
-            </div>
-            <div className="overflow-hidden">
-              <h4 className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
+          <button
+            type="button"
+            onClick={() => setIsProfileModalOpen(true)}
+            className="w-full flex items-center gap-3 mb-3 p-1.5 -ml-1.5 rounded-xl hover:bg-gray-50 transition-colors text-left cursor-pointer group"
+            title="View Admin Profile"
+          >
+            <UserAvatar
+              user={user}
+              size="w-9 h-9"
+              iconSize={18}
+              showInitials={true}
+              className="ring-1 ring-gray-200 group-hover:ring-blue-400 transition-all shadow-2xs shrink-0"
+            />
+            <div className="overflow-hidden min-w-0 flex-1">
+              <h4 className="text-xs sm:text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
                 {user?.name || 'Admin User'}
               </h4>
-              <p className="text-[11px] text-gray-500 truncate capitalize">
-                {user?.role === 'admin' ? 'Administrator' : (user?.role || 'Administrator')}
+              <p className="text-[11px] text-gray-500 truncate capitalize flex items-center gap-1">
+                <span>{user?.role === 'admin' ? 'Administrator' : (user?.role || 'Administrator')}</span>
+                <span className="text-[9px] text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">• View</span>
               </p>
             </div>
-          </div>
+          </button>
 
           <button
             onClick={handleLogout}
@@ -154,6 +167,13 @@ const AdminSidebar = ({
           </button>
         </div>
       </aside>
+
+      {/* Admin Profile Details Modal */}
+      <AdminProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={user}
+      />
     </>
   );
 };
