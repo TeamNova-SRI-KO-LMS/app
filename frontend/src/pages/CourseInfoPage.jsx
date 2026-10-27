@@ -15,6 +15,45 @@ import apiService from '../services/apiService';
 import lectureService from '../services/lectureService';
 import assignmentService from '../services/assignmentService';
 import useAuth from '../context/useAuth';
+import { isVideoUrl } from '../utils/mediaUtils';
+
+// Helper functions for external links & YouTube redirection
+const isYouTubeUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  return /youtube\.com|youtu\.be/i.test(url);
+};
+
+const getMaterialLinkUrl = (material) => {
+  if (!material) return '';
+  let url = material.viewUrl || material.externalUrl || material.embedUrl || '';
+  if (!url || typeof url !== 'string') return '';
+  url = url.trim();
+
+  // If YouTube embed URL, convert to standard YouTube watch link for user redirection
+  if (url.includes('youtube.com/embed/')) {
+    const vid = url.split('youtube.com/embed/')[1]?.split('?')[0];
+    if (vid) {
+      url = `https://www.youtube.com/watch?v=${vid}`;
+    }
+  }
+
+  // Prepend https:// if protocol is missing
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+
+  return url;
+};
+
+const isLinkMaterial = (material) => {
+  if (!material) return false;
+  if (material.type === 'link') return true;
+  const rawUrl = (material.viewUrl || material.externalUrl || material.embedUrl || '').toLowerCase();
+  if (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be') || rawUrl.includes('vimeo.com')) {
+    return true;
+  }
+  return false;
+};
 
 export default function CourseInfoPage() {
   const { id } = useParams();
@@ -26,6 +65,7 @@ export default function CourseInfoPage() {
   const [course, setCourse] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [userSubmissions, setUserSubmissions] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -68,16 +108,16 @@ export default function CourseInfoPage() {
       // If no ID in route, try to find an enrolled course or redirect
       (async () => {
         try {
-          const res = await apiService.get('/courses');
+          const res = await apiService.get('/courses/my-courses');
           if (res.data?.courses?.length > 0) {
             navigate(`/course-info/${res.data.courses[0]._id}`, { replace: true });
           } else {
-            setError('No courses available yet.');
-            setLoading(false);
+            toast.error('You are not enrolled in any courses yet.');
+            navigate('/courses', { replace: true });
           }
         } catch {
-          setError('Failed to load courses.');
-          setLoading(false);
+          toast.error('Failed to load courses.');
+          navigate('/courses', { replace: true });
         }
       })();
       return;
@@ -86,17 +126,44 @@ export default function CourseInfoPage() {
     const loadClassroomData = async () => {
       try {
         setLoading(true);
-        const [courseRes, matsRes, assignRes] = await Promise.allSettled([
-          apiService.get(`/courses/${courseId}`),
+        setError(null);
+
+        // Fetch course details with access status
+        const courseRes = await apiService.get(`/courses/${courseId}`);
+        const courseData = courseRes.data?.course ?? null;
+
+        if (!courseData) {
+          setError('Course not found.');
+          setLoading(false);
+          return;
+        }
+
+        // Access check: Admin, course instructor, or enrolled student
+        const currentUserId = user?._id || user?.id;
+        const isAdmin = user?.role === 'admin';
+        const isInstructor = courseData?.instructor &&
+          (String(courseData.instructor._id || courseData.instructor) === String(currentUserId));
+        const isEnrolledInCourseDoc = Array.isArray(courseData?.enrolledStudents) &&
+          courseData.enrolledStudents.some(s => String(s._id || s.id || s) === String(currentUserId));
+        const isEnrolledInUserDoc = Array.isArray(user?.enrolledCourses) &&
+          user.enrolledCourses.some(c => String(c._id || c.id || c) === String(courseId));
+        const serverConfirmed = Boolean(courseRes.data?.isEnrolled);
+
+        const hasAccess = isAdmin || isInstructor || isEnrolledInCourseDoc || isEnrolledInUserDoc || serverConfirmed;
+
+        if (!hasAccess) {
+          toast.error('Access restricted: You must be enrolled in this course to access the classroom.');
+          navigate(`/courses/${courseId}`, { replace: true });
+          return;
+        }
+
+        setCourse(courseData);
+
+        const [matsRes, assignRes, mySubsRes] = await Promise.allSettled([
           lectureService.getCourseMaterials(courseId),
           assignmentService.getCourseAssignments(courseId),
+          assignmentService.getMyCourseSubmissions(courseId),
         ]);
-
-        let courseData = null;
-        if (courseRes.status === 'fulfilled') {
-          courseData = courseRes.value.data?.course ?? null;
-          setCourse(courseData);
-        }
 
         let matsData = [];
         if (matsRes.status === 'fulfilled') {
@@ -109,6 +176,28 @@ export default function CourseInfoPage() {
           assignData = assignRes.value?.assignments || [];
           setAssignments(assignData);
         }
+
+        // Map and load student's submissions and marks
+        const subsMap = {};
+        if (mySubsRes.status === 'fulfilled' && mySubsRes.value?.submissions?.length) {
+          mySubsRes.value.submissions.forEach((s) => {
+            const aId = typeof s.assignment === 'object' ? s.assignment?._id : s.assignment;
+            if (aId) subsMap[aId] = s;
+          });
+        }
+        if (assignData.length > 0 && Object.keys(subsMap).length === 0) {
+          await Promise.allSettled(
+            assignData.map(async (a) => {
+              try {
+                const sRes = await assignmentService.getMySubmission(a._id);
+                if (sRes?.submission) {
+                  subsMap[a._id] = sRes.submission;
+                }
+              } catch (_) {}
+            })
+          );
+        }
+        setUserSubmissions(subsMap);
 
         // Auto-select first available material or lesson
         if (matsData.length > 0) {
@@ -127,14 +216,19 @@ export default function CourseInfoPage() {
         }
       } catch (err) {
         console.error('Failed to load classroom data:', err);
-        setError('Failed to load classroom content.');
+        if (err?.response?.status === 403) {
+          toast.error('Access restricted: You must be enrolled in this course to access the classroom.');
+          navigate(`/courses/${courseId}`, { replace: true });
+        } else {
+          setError('Failed to load classroom content.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadClassroomData();
-  }, [id, navigate]);
+  }, [id, navigate, user]);
 
   // Handle lesson / material toggle completion
   const toggleComplete = (itemId) => {
@@ -177,13 +271,17 @@ export default function CourseInfoPage() {
       if (res?.submission) {
         setCurrentSubmission(res.submission);
         setSubmissionNote(res.submission.submissionNote || '');
+        setUserSubmissions(prev => ({
+          ...prev,
+          [assignment._id]: res.submission,
+        }));
       }
     } catch (err) {
       console.warn('Could not load submission:', err);
     }
   };
 
-  // Submit files to Google Drive for an assignment
+  // Submit files to Supabase Storage for an assignment
   const handleAssignmentSubmit = async (e) => {
     e.preventDefault();
     if (!activeAssignmentForSubmit) return;
@@ -208,9 +306,13 @@ export default function CourseInfoPage() {
       );
 
       setCurrentSubmission(res.submission);
+      setUserSubmissions(prev => ({
+        ...prev,
+        [activeAssignmentForSubmit._id]: res.submission,
+      }));
       setSubmissionStatusMsg({
         type: 'success',
-        text: 'Assignment submitted to Google Drive successfully! 🎉',
+        text: 'Assignment submitted to Supabase Cloud Storage successfully! 🎉',
       });
       setSubmissionFiles([]);
     } catch (err) {
@@ -248,10 +350,10 @@ export default function CourseInfoPage() {
           <h2 className="text-lg font-bold text-gray-900 mb-1">Classroom Unavailable</h2>
           <p className="text-xs text-gray-500 mb-6">{error || 'Course not found.'}</p>
           <Link 
-            to="/courses" 
+            to={id ? `/courses/${id}` : "/courses"} 
             className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition"
           >
-            ← Back to Courses
+            ← View Course &amp; Enroll
           </Link>
         </div>
       </div>
@@ -295,7 +397,7 @@ export default function CourseInfoPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* ================= LEFT SIDEBAR (Syllabus & Materials) ================= */}
-          <aside className="lg:col-span-3 bg-white rounded-3xl border border-gray-200/80 shadow-xs p-5 flex flex-col justify-between min-h-[780px]">
+          <aside className="lg:col-span-3 bg-white rounded-3xl border border-gray-200/80 shadow-xs p-5 flex flex-col">
             <div>
               {/* Course Title Card */}
               <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-gray-100">
@@ -372,15 +474,29 @@ export default function CourseInfoPage() {
                                 {mat.type === 'video' && <Video className={`w-3.5 h-3.5 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />}
                                 {mat.type === 'pdf' && <FileText className={`w-3.5 h-3.5 ${isSelected ? 'text-red-600' : 'text-gray-400'}`} />}
                                 {mat.type === 'image' && <ImageIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-600' : 'text-gray-400'}`} />}
-                                {mat.type === 'link' && <PlayCircle className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
+                                {mat.type === 'link' && <ExternalLink className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />}
                               </div>
 
                               <span className="truncate">{mat.title}</span>
                             </div>
 
-                            <span className="text-[10px] font-mono text-gray-400 shrink-0 uppercase">
-                              {mat.type}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-[10px] font-mono text-gray-400 uppercase">
+                                {mat.type}
+                              </span>
+                              {mat.type === 'link' && getMaterialLinkUrl(mat) && (
+                                <a
+                                  href={getMaterialLinkUrl(mat)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-0.5 text-gray-400 hover:text-blue-600 transition"
+                                  title="Open link in new tab"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -471,25 +587,6 @@ export default function CourseInfoPage() {
 
               </div>
             </div>
-
-            {/* Bottom Assignment Quick Launcher */}
-            <div className="pt-4 mt-4 border-t border-gray-100">
-              <button 
-                onClick={() => toast('Assignment submission is not available yet.')}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
-                onClick={() => {
-                  if (assignments.length > 0) {
-                    handleOpenAssignmentModal(assignments[0]);
-                  } else {
-                    alert('No assignments have been assigned for this course yet.');
-                  }
-                }}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-              >
-                <ClipboardList size={14} />
-                <span>Submit Course Assignment</span>
-              </button>
-            </div>
           </aside>
 
           {/* ================= CENTER MAIN CONTENT / PLAYER ================= */}
@@ -498,17 +595,116 @@ export default function CourseInfoPage() {
             {/* Main Media Player / Viewer */}
             <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
               
-              {/* If Video: Google Drive Video Embed or YouTube */}
-              {selectedMaterial?.type === 'video' || selectedMaterial?.type === 'link' ? (
-                <div className="relative aspect-video w-full bg-black">
-                  {selectedMaterial?.embedUrl ? (
-                    <iframe
-                      src={selectedMaterial.embedUrl}
-                      title={selectedMaterial.title}
-                      className="w-full h-full border-0"
-                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                      allowFullScreen
-                    />
+              {/* If Link or YouTube Material: Render as an attractive Link / Hyperlink Showcase (not as a player) */}
+              {isLinkMaterial(selectedMaterial) ? (
+                <div className="relative w-full rounded-t-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-[#0d1527] to-slate-900 border-b border-gray-800 text-white p-6 sm:p-10 flex flex-col items-center justify-center text-center min-h-[380px]">
+                  {/* Ambient background glow */}
+                  <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl pointer-events-none ${
+                    isYouTubeUrl(getMaterialLinkUrl(selectedMaterial)) ? 'bg-red-600/15' : 'bg-blue-600/15'
+                  }`} />
+
+                  {/* Resource Badge */}
+                  {isYouTubeUrl(getMaterialLinkUrl(selectedMaterial)) ? (
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/25 text-red-400 text-xs font-bold tracking-wide mb-4 shadow-xs">
+                      <svg className="w-4 h-4 fill-current text-red-500 shrink-0" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                      <span>YouTube Lecture Link</span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-400 text-xs font-bold tracking-wide mb-4 shadow-xs">
+                      <ExternalLink className="w-4 h-4 text-blue-400 shrink-0" />
+                      <span>External Web Resource</span>
+                    </div>
+                  )}
+
+                  {/* Material Title */}
+                  <h3 className="text-xl sm:text-2xl font-black text-white mb-2 max-w-xl leading-tight">
+                    {selectedMaterial.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-6 max-w-md">
+                    {isYouTubeUrl(getMaterialLinkUrl(selectedMaterial))
+                      ? 'Click the hyperlink below to open and watch this lesson directly on YouTube.'
+                      : 'Click the hyperlink below to redirect and open this learning resource.'}
+                  </p>
+
+                  {/* Hyperlink Box with Direct Redirection & Copy Actions */}
+                  <div className="w-full max-w-xl bg-white/[0.06] hover:bg-white/[0.09] border border-white/15 hover:border-blue-400/50 rounded-2xl p-4 sm:p-5 transition-all shadow-xl backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+                    <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-inner ${
+                        isYouTubeUrl(getMaterialLinkUrl(selectedMaterial))
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      }`}>
+                        <ExternalLink className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                          Resource Hyperlink
+                        </span>
+                        <a
+                          href={getMaterialLinkUrl(selectedMaterial)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs sm:text-sm font-bold text-blue-400 hover:text-blue-300 underline underline-offset-4 decoration-blue-400/50 hover:decoration-blue-300 block truncate font-mono"
+                          title={getMaterialLinkUrl(selectedMaterial)}
+                        >
+                          {getMaterialLinkUrl(selectedMaterial)}
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = getMaterialLinkUrl(selectedMaterial);
+                          if (navigator.clipboard && url) {
+                            navigator.clipboard.writeText(url);
+                            toast.success('Link copied to clipboard!');
+                          }
+                        }}
+                        className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition cursor-pointer text-xs font-semibold"
+                        title="Copy link to clipboard"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                      <a
+                        href={getMaterialLinkUrl(selectedMaterial)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto ${
+                          isYouTubeUrl(getMaterialLinkUrl(selectedMaterial))
+                            ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-red-600/30'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/30'
+                        }`}
+                      >
+                        <span>{isYouTubeUrl(getMaterialLinkUrl(selectedMaterial)) ? 'Watch on YouTube' : 'Redirect to Page'}</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-1.5 text-[11px] text-gray-400">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Clicking redirects to external lecture in a new tab</span>
+                  </div>
+                </div>
+              ) : selectedMaterial?.type === 'video' ? (
+                /* Native HTML5 Video Player for Supabase Videos */
+                <div className="relative aspect-video w-full bg-black rounded-t-3xl overflow-hidden flex items-center justify-center">
+                  {selectedMaterial?.embedUrl || selectedMaterial?.viewUrl ? (
+                    <video
+                      key={selectedMaterial.embedUrl || selectedMaterial.viewUrl}
+                      controls
+                      playsInline
+                      controlsList="nodownload"
+                      preload="metadata"
+                      className="w-full h-full max-h-[600px] object-contain bg-black"
+                      src={selectedMaterial.embedUrl || selectedMaterial.viewUrl}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
                       <PlayCircle className="w-16 h-16 text-blue-400 mb-3" />
@@ -567,11 +763,20 @@ export default function CourseInfoPage() {
                 /* Default Course Thumbnail preview */
                 <div className="relative aspect-video w-full bg-gray-950 flex items-center justify-center">
                   {course.thumbnail ? (
-                    <img 
-                      src={course.thumbnail} 
-                      alt={course.title}
-                      className="w-full h-full object-cover opacity-80" 
-                    />
+                    isVideoUrl(course.thumbnail) ? (
+                      <video
+                        src={course.thumbnail}
+                        controls
+                        className="w-full h-full object-contain"
+                        preload="metadata"
+                      />
+                    ) : (
+                      <img 
+                        src={course.thumbnail} 
+                        alt={course.title}
+                        className="w-full h-full object-cover opacity-80" 
+                      />
+                    )
                   ) : (
                     <div className="text-center text-white p-6">
                       <BookOpen className="w-16 h-16 text-blue-500 mx-auto mb-2" />
@@ -607,6 +812,37 @@ export default function CourseInfoPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Direct Hyperlink Box below title when link material */}
+                {isLinkMaterial(selectedMaterial) && getMaterialLinkUrl(selectedMaterial) && (
+                  <div className="mb-4 p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <ExternalLink size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] uppercase font-bold text-gray-400 block">External Resource URL</span>
+                        <a 
+                          href={getMaterialLinkUrl(selectedMaterial)} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline truncate block font-mono"
+                        >
+                          {getMaterialLinkUrl(selectedMaterial)}
+                        </a>
+                      </div>
+                    </div>
+                    <a
+                      href={getMaterialLinkUrl(selectedMaterial)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition shrink-0"
+                    >
+                      <span>Redirect to Page</span>
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
+                )}
 
                 {selectedMaterial?.description && (
                   <p className="text-xs sm:text-sm text-gray-600 leading-relaxed pt-2 border-t border-gray-100">
@@ -699,12 +935,12 @@ export default function CourseInfoPage() {
                           </a>
                         ) : (
                           <a 
-                            href={mat.viewUrl}
+                            href={getMaterialLinkUrl(mat) || mat.viewUrl}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition"
                           >
-                            <ExternalLink size={13} /> Open
+                            <ExternalLink size={13} /> Open Link
                           </a>
                         )}
                       </div>
@@ -754,32 +990,98 @@ export default function CourseInfoPage() {
                   {assignments.length === 0 ? (
                     <p className="text-xs text-gray-400">No assignments posted for this course yet.</p>
                   ) : (
-                    assignments.map((assign) => (
-                      <div 
-                        key={assign._id}
-                        className="p-4 bg-[#f8fafc] rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div>
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mb-1">
-                            {assign.maxScore} Max Points
-                          </span>
-                          <h4 className="text-xs sm:text-sm font-bold text-gray-900">{assign.title}</h4>
-                          <p className="text-xs text-gray-500 mt-0.5">{assign.description}</p>
-                          {assign.dueDate && (
-                            <p className="text-[10px] text-gray-400 mt-1">
-                              Due Date: {new Date(assign.dueDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
+                    assignments.map((assign) => {
+                      const sub = userSubmissions[assign._id];
+                      const isGraded = sub?.grade !== undefined && sub?.grade !== null;
+                      const isSubmitted = Boolean(sub);
 
-                        <button
-                          onClick={() => handleOpenAssignmentModal(assign)}
-                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
+                      return (
+                        <div 
+                          key={assign._id}
+                          className="p-4 bg-[#f8fafc] rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition hover:border-gray-200 hover:shadow-2xs"
                         >
-                          Submit Assignment 📤
-                        </button>
-                      </div>
-                    ))
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mb-1">
+                              {assign.maxScore} Max Points
+                            </span>
+                            <h4 className="text-xs sm:text-sm font-bold text-gray-900">{assign.title}</h4>
+                            <p className="text-xs text-gray-500 mt-0.5">{assign.description}</p>
+                            {assign.dueDate && (
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                Due Date: {new Date(assign.dueDate).toLocaleDateString()}
+                              </p>
+                            )}
+                            {isGraded && sub.feedback && (
+                              <p className="text-[11px] text-emerald-800 bg-emerald-50/70 border border-emerald-100 px-2.5 py-1 rounded-lg mt-2 inline-block">
+                                <span className="font-bold">Feedback:</span> "{sub.feedback}"
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                            {/* Submission Marks Badge next to Submit button */}
+                            {isGraded ? (
+                              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 shadow-2xs">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                  <Check size={14} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-[9px] uppercase font-black tracking-wider text-emerald-600 block leading-tight">
+                                    Submission Marks
+                                  </span>
+                                  <span className="text-sm font-black text-emerald-950 leading-none">
+                                    {sub.grade} <span className="text-xs font-semibold text-emerald-700">/ {assign.maxScore} pts</span>
+                                  </span>
+                                </div>
+                              </div>
+                            ) : isSubmitted ? (
+                              <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 shadow-2xs">
+                                <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                                  <Clock size={14} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-[9px] uppercase font-black tracking-wider text-blue-600 block leading-tight">
+                                    Submission Marks
+                                  </span>
+                                  <span className="text-xs font-bold text-blue-900 leading-none">
+                                    Pending Grading <span className="text-[10px] font-semibold text-blue-600">(-- / {assign.maxScore})</span>
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100/80 border border-gray-200 text-gray-600">
+                                <div className="w-7 h-7 rounded-lg bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-xs shrink-0">
+                                  <ClipboardList size={13} />
+                                </div>
+                                <div className="text-left">
+                                  <span className="text-[9px] uppercase font-black tracking-wider text-gray-400 block leading-tight">
+                                    Submission Marks
+                                  </span>
+                                  <span className="text-xs font-bold text-gray-600 leading-none">
+                                    Not Submitted <span className="text-[10px] font-medium text-gray-400">(-- / {assign.maxScore})</span>
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Submit / View Submission Button */}
+                            <button
+                              onClick={() => handleOpenAssignmentModal(assign)}
+                              className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                                isGraded
+                                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                                  : isSubmitted
+                                  ? 'bg-blue-600 hover:bg-blue-700'
+                                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                              }`}
+                            >
+                              <span>{isGraded ? 'View Submission' : isSubmitted ? 'Resubmit Files' : 'Submit Assignment'}</span>
+                              <span>📤</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
@@ -915,7 +1217,7 @@ export default function CourseInfoPage() {
                   )}
 
                   <div className="space-y-1.5 mt-2">
-                    <p className="text-[11px] font-bold text-gray-600">Submitted Files on Google Drive:</p>
+                    <p className="text-[11px] font-bold text-gray-600">Submitted Files on Supabase Cloud Storage:</p>
                     {currentSubmission.files?.map((f, i) => (
                       <div key={i} className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100 text-xs">
                         <span className="truncate text-gray-800 font-medium">{f.fileName}</span>
@@ -960,7 +1262,7 @@ export default function CourseInfoPage() {
                       : 'Choose files or drag & drop'}
                   </p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    PDF, DOCX, ZIP, JPG, PNG (Saved directly to Google Drive)
+                    PDF, DOCX, ZIP, JPG, PNG (Saved directly to Supabase Cloud Storage)
                   </p>
                 </div>
 
@@ -996,7 +1298,7 @@ export default function CourseInfoPage() {
                 {submittingAssignment && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-bold text-blue-600">
-                      <span>Uploading to Google Drive...</span>
+                      <span>Uploading to Supabase Cloud Storage...</span>
                       <span>{submissionProgress}%</span>
                     </div>
                     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
