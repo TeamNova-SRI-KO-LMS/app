@@ -67,7 +67,7 @@ test.describe('Visitor journeys', () => {
     await page.locator('textarea[name="message"]').fill('I would like to join the next EPS-TOPIK batch.');
     await page.locator('button[type="submit"]').click();
 
-    await expect(page.getByText('Thank you for your interest! We will contact you soon.')).toBeVisible();
+    await expect(page.getByText('Thank you for reaching out! We will get back to you shortly.')).toBeVisible();
   });
 
   test('TC-E2E-08 the support assistant answers a visitor from live course data [FR-021]', async ({ page }) => {
