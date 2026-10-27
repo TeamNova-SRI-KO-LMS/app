@@ -78,6 +78,23 @@ test.describe('Visitor journeys', () => {
     await expect(chat.getByText(/Korean for Beginners \(TOPIK I\) — Beginner · 12 weeks · LKR 15,000/)).toBeVisible();
   });
 
+  test('TC-E2E-25 the assistant explains what it can do, and its window can be enlarged and made smaller [FR-021][NFR-003]', async ({ page }) => {
+    await open(page, '/');
+
+    const chat = await askAssistant(page, 'what you can do');
+    await expect(chat.getByText(/I'm the SRI-KO assistant\. Ask me in your own words about:/)).toBeVisible();
+    const small = await chat.boundingBox();
+
+    await page.getByRole('button', { name: 'Enlarge chat' }).click();
+    await expect(chat).toHaveAttribute('data-size', 'large');
+    await expect.poll(async () => (await chat.boundingBox()).width).toBeGreaterThan(small.width + 150);
+    await expect.poll(async () => (await chat.boundingBox()).height).toBeGreaterThan(small.height);
+
+    await page.getByRole('button', { name: 'Make chat smaller' }).click();
+    await expect(chat).toHaveAttribute('data-size', 'small');
+    await expect.poll(async () => Math.round((await chat.boundingBox()).width)).toBe(Math.round(small.width));
+  });
+
   test('TC-E2E-09 protected pages send a visitor to the sign-in page [FR-002]', async ({ page }) => {
     await open(page, '/dashboard');
 
