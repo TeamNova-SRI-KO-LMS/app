@@ -2,9 +2,12 @@ const ChatbotEngine = require('../../../services/ChatbotEngine');
 const Settings = require('../../../models/Settings');
 const Certificate = require('../../../models/Certificate');
 const Progress = require('../../../models/Progress');
+const Assignment = require('../../../models/Assignment');
+const AssignmentSubmission = require('../../../models/AssignmentSubmission');
+const LectureMaterial = require('../../../models/LectureMaterial');
 const {
   createStudent, createInstructor, createAdmin, createCourse, enrol, createAttendance,
-  createAnnouncement, createEvent, createForum,
+  createAnnouncement, createEvent, createForum, createNotification,
 } = require('../../helpers/factories');
 
 const ask = (message, options) => ChatbotEngine.reply(message, options);
@@ -33,21 +36,61 @@ describe('Intent recognition', () => {
     expect(reply.intent).toBe('attendance');
   });
 
-  test('TC-UNIT-BOT-04 falls back to a helpful message with contact details [FR-021]', async () => {
+  test('TC-UNIT-BOT-04 falls back to a helpful message with the Contact page details [FR-021]', async () => {
     const reply = await ask('qwerty zxcvb');
 
     expect(reply.intent).toBe('fallback');
-    expect(reply.text).toContain("I'm not sure I understood that.");
-    expect(reply.links).toEqual([{ label: 'Contact us', to: '/contact' }]);
+    expect(reply.text).toContain("Sorry, I don't have an answer for that yet.");
+    expect(reply.text).toContain('+94 77 307 9412 · info@sriko-korean.com');
+    expect(reply.links).toEqual([{ label: 'Contact us', to: '/contact' }, { label: 'Help Center', to: '/help' }]);
+    expect(reply.suggestions).toContain('What can you do?');
   });
 
   test('TC-UNIT-BOT-05 handles thanks, goodbye and capability questions [FR-021]', async () => {
     expect((await ask('thanks a lot')).intent).toBe('thanks');
     expect((await ask('bye')).intent).toBe('goodbye');
     const help = await ask('what can you do?', { user: await createStudent() });
+    const guestHelp = await ask('what can you do?');
 
     expect(help.intent).toBe('capabilities');
-    expect(help.text).toContain('Your enrolled courses, progress and attendance');
+    expect(help.text).toContain('Your learning — your courses and progress, assignments and grades');
+    expect(help.suggestions).toContain('My assignments');
+    expect(guestHelp.text).toContain('(sign in for your own details)');
+  });
+
+  test('TC-UNIT-BOT-22 understands capability questions in other word orders and chat shorthand [FR-021]', async () => {
+    const questions = ['what you can do', 'What can u do?', 'what do you do', 'how can you help me', 'help', 'who are you', 'are you a bot?', 'what can I ask you', 'what services do you provide'];
+
+    const intents = await Promise.all(questions.map(async (question) => (await ask(question)).intent));
+
+    expect(intents).toEqual(questions.map(() => 'capabilities'));
+  });
+
+  test('TC-UNIT-BOT-23 answers the topic of a question phrased like a capability question [FR-021]', async () => {
+    const fees = await ask('what can you tell me about fees?');
+    const greetedHelp = await ask('hi, what can you do?');
+
+    expect(fees.intent).toBe('pricing');
+    expect(greetedHelp.intent).toBe('capabilities');
+    expect(greetedHelp.text.startsWith('Hi! ')).toBe(true);
+  });
+
+  test('TC-UNIT-BOT-24 tolerates typos and plurals in key terms [FR-021]', async () => {
+    expect((await ask('my atendance')).intent).toBe('attendance');
+    expect((await ask('certifcate')).intent).toBe('certificate');
+    expect((await ask('do you have evening classes?')).intent).toBe('schedule');
+    expect((await ask('do you have physical classes?')).intent).toBe('about');
+    expect((await ask('my classes', { user: await createStudent() })).intent).toBe('myCourses');
+  });
+
+  test('TC-UNIT-BOT-25 lets a core term outweigh generic words such as "when" or "due" [FR-021]', async () => {
+    const payment = await ask('When is the payment due?');
+    const failed = await ask('my payment failed');
+    const assignment = await ask('when is my assignment due?');
+
+    expect(payment.intent).toBe('payment');
+    expect(failed.text).toContain("you're only charged when the payment succeeds");
+    expect(assignment.intent).toBe('assignments');
   });
 });
 
@@ -139,15 +182,15 @@ describe('Answers built from live data', () => {
     expect(reply.text).toContain('• Korean for Beginners — 42% complete');
   });
 
-  // Phrase keywords are matched literally, and the plural "my courses" keyword is
-  // removed as a duplicate of "my course" — so the plain question lists the catalog.
-  test.failing('TC-UNIT-BOT-21 [KNOWN DEFECT DEF-12] "my courses" answers with the student\'s own courses [FR-005]', async () => {
+  // DEF-12 (fixed): phrases also match their singular form, so "my courses" matches "my course".
+  test('TC-UNIT-BOT-21 "my courses" answers with the student\'s own courses [FR-005]', async () => {
     const student = await createStudent();
     await enrol(student, await createCourse({ title: 'Korean for Beginners' }));
 
     const reply = await ask('my courses', { user: await student.constructor.findById(student._id) });
 
     expect(reply.intent).toBe('myCourses');
+    expect(reply.text).toContain('• Korean for Beginners — 0% complete');
   });
 
   test('TC-UNIT-BOT-14 reports certificates and completed courses [FR-005]', async () => {
@@ -231,5 +274,129 @@ describe('Answers built from live data', () => {
     const reply = await ask('contact');
 
     reply.links.forEach((link) => expect(link.to.startsWith('/')).toBe(true));
+  });
+});
+
+describe('Answers about the rest of the platform', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const enrolledStudent = async (course) => {
+    const student = await createStudent();
+    await enrol(student, course);
+    return student.constructor.findById(student._id);
+  };
+
+  test('TC-UNIT-BOT-26 lists a student\'s assignments by status, with grades [FR-020]', async () => {
+    const course = await createCourse({ title: 'Korean for Beginners' });
+    const student = await enrolledStudent(course);
+    const assign = (title, days, maxScore = 20) => Assignment.create({
+      course: course._id, title, description: 'Do it', dueDate: new Date(Date.now() + days * DAY), maxScore,
+    });
+    await assign('Write 10 sentences', 3, 50);
+    await assign('Hangul worksheet', -2);
+    const waiting = await assign('Self-introduction video', -5, 30);
+    const graded = await assign('Numbers drill', -9, 10);
+    await AssignmentSubmission.create([
+      { assignment: waiting._id, course: course._id, student: student._id, status: 'late' },
+      { assignment: graded._id, course: course._id, student: student._id, status: 'graded', grade: 9 },
+    ]);
+
+    const reply = await ask('my assignments', { user: student });
+
+    expect(reply.intent).toBe('assignments');
+    expect(reply.text).toContain('You have 4 assignments: 1 to do, 1 overdue, 1 waiting for a grade, 1 graded.');
+    expect(reply.text).toMatch(/• Write 10 sentences — due \w{3} \d{1,2}, \d{4}/);
+    expect(reply.text).toMatch(/• Hangul worksheet — overdue since \w{3} \d{1,2}, \d{4}/);
+    expect(reply.text).toContain('• Self-introduction video — submitted late, waiting for a grade');
+    expect(reply.text).toContain('• Numbers drill — graded: 9/10');
+    expect(reply.links[0]).toEqual({ label: 'Open classroom', to: `/course-info/${course._id}` });
+  });
+
+  test('TC-UNIT-BOT-27 explains assignments to guests and to students without any [FR-020]', async () => {
+    const guest = await ask('how do I submit my homework?');
+    const notEnrolled = await ask('my assignments', { user: await createStudent() });
+    const noneYet = await ask('my assignments', { user: await enrolledStudent(await createCourse()) });
+
+    expect(guest.text).toContain('up to 5 files, 50 MB each');
+    expect(guest.links[0]).toEqual({ label: 'Sign in', to: '/login' });
+    expect(notEnrolled.text).toContain("You're not enrolled in a course yet");
+    expect(noneYet.text).toContain("Your courses don't have any assignments yet.");
+  });
+
+  test('TC-UNIT-BOT-28 points to lesson videos and materials [FR-007]', async () => {
+    const course = await createCourse({ title: 'Korean for Beginners' });
+    await LectureMaterial.create([
+      { course: course._id, lessonTitle: 'Week 1', title: 'Intro video', type: 'video' },
+      { course: course._id, lessonTitle: 'Week 1', title: 'Hangul chart', type: 'pdf' },
+    ]);
+
+    const guest = await ask('how do I watch the lesson videos?');
+    const student = await ask('lesson videos', { user: await enrolledStudent(course) });
+
+    expect(guest.intent).toBe('materials');
+    expect(guest.text).toContain('free previews are open to everyone');
+    expect(student.text).toContain('• Korean for Beginners — 2 learning materials');
+    expect(student.links[0]).toEqual({ label: 'Open classroom', to: `/course-info/${course._id}` });
+  });
+
+  test('TC-UNIT-BOT-29 counts unread notifications with the same audience rules as the bell [FR-017]', async () => {
+    const student = await createStudent();
+    const other = await createStudent();
+    await createNotification({ title: 'New lesson published', targetAudience: 'all' });
+    await createNotification({ title: 'Student meeting', targetAudience: 'students' });
+    await createNotification({ title: 'Your grade is ready', targetAudience: 'specific_users', targetUsers: [student._id] });
+    await createNotification({ title: 'Someone else', targetAudience: 'specific_users', targetUsers: [other._id] });
+    await createNotification({ title: 'Already read', targetAudience: 'all', readBy: [{ user: student._id }] });
+
+    const reply = await ask('my notifications', { user: student });
+    const guest = await ask('notifications');
+
+    expect(reply.text).toContain('You have 3 unread notifications:');
+    expect(reply.text).not.toMatch(/Someone else|Already read/);
+    expect(guest.links).toEqual([{ label: 'Sign in', to: '/login' }]);
+  });
+
+  test('TC-UNIT-BOT-30 answers about the institute, profile, policies and technical problems [FR-021]', async () => {
+    await createCourse();
+
+    const about = await ask('tell me about SRI-KO');
+    const profile = await ask('how do I change my profile picture?', { user: await createStudent() });
+    const policies = await ask('privacy policy');
+    const support = await ask('the website is not working');
+
+    expect(about.text).toContain('Mr. Nandana Kekulawala');
+    expect(about.text).toContain('We currently offer 1 course on this platform.');
+    expect(profile.links).toEqual([{ label: 'Profile', to: '/profile' }, { label: 'Settings', to: '/settings' }]);
+    expect(policies.links).toEqual([{ label: 'Terms of Service', to: '/terms' }, { label: 'Privacy Policy', to: '/privacy' }]);
+    expect(support.text).toContain('Refresh the page');
+    expect(support.links).toContainEqual({ label: 'Help Center', to: '/help' });
+  });
+
+  test('TC-UNIT-BOT-31 gives the Contact page phone and hours when Settings has none [FR-022]', async () => {
+    const reply = await ask('what is your phone number?');
+
+    expect(reply.intent).toBe('contact');
+    expect(reply.text).toContain('• Phone: +94 77 307 9412');
+    expect(reply.text).toContain('Sat 9:00 AM – 1:00 PM');
+  });
+
+  test('TC-UNIT-BOT-32 teaches Korean particles and a self-introduction [FR-021]', async () => {
+    const particles = await ask('explain korean particles');
+    const introduction = await ask('how do I introduce myself in korean?');
+
+    expect(particles.text).toContain('은 / 는 — topic');
+    expect(introduction.text).toContain('스리랑카에서 왔어요');
+    expect(introduction.suggestions).not.toContain('Introduce myself in Korean');
+  });
+
+  test('TC-UNIT-BOT-33 links the forum page and tells guests how to join an event [FR-018][FR-019]', async () => {
+    await createForum({ title: 'Grammar corner' });
+    await createEvent({ title: 'Chuseok Celebration' });
+
+    const forum = await ask('discussion forum');
+    const events = await ask('upcoming events');
+
+    expect(forum.links).toEqual([{ label: 'Forum', to: '/forum' }, { label: 'Sign in', to: '/login' }]);
+    expect(events.text).toContain('choose Register Interest (sign in first)');
   });
 });
