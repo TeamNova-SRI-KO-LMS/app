@@ -7,6 +7,7 @@ const User = require('../../models/User');
 const Settings = require('../../models/Settings');
 const LectureMaterial = require('../../models/LectureMaterial');
 const Assignment = require('../../models/Assignment');
+const AssignmentSubmission = require('../../models/AssignmentSubmission');
 const {
   api, createStudent, createAdmin, createInstructor, createCourse, enrol, createEvent, authHeader, DEFAULT_PASSWORD,
 } = require('../helpers/factories');
@@ -154,55 +155,60 @@ describe('A04 Insecure design: payment and enrolment integrity', () => {
     expect(published.body.course.isPublished).toBe(true);
   });
 
-  // Assignment submissions accept any signed-in user and any file type.
-  test.failing('TC-SEC-A04-04 [KNOWN DEFECT DEF-15] only enrolled students can submit an assignment [OWASP-A04][FR-020]', async () => {
+  // DEF-15 (fixed on develop): a student who is not enrolled in the course cannot submit.
+  test('TC-SEC-A04-04 only enrolled students can submit an assignment [OWASP-A04][FR-020]', async () => {
     const course = await createCourse();
     const assignment = await Assignment.create({ course: course._id, title: 'Essay', description: 'Write' });
-    jest.spyOn(require('../../services/googleDriveService'), 'uploadToDrive');
 
     const res = await api().post(`/api/assignments/${assignment._id}/submit`).set(authHeader(await createStudent()))
       .attach('files', Buffer.from('MZ'), { filename: 'payload.exe', contentType: 'application/x-msdownload' });
 
     expect(res.status).toBe(403);
+    expect(await AssignmentSubmission.countDocuments()).toBe(0);
   });
 });
 
 describe('A01 Broken access control: course content', () => {
-  // DEF-03 (fixed): only the preview materials of a course are public.
+  // DEF-03 (fixed, DDP-#95): visitors see a paid course's outline, but no file or video
+  // address of a lesson outside the free previews.
   test('TC-SEC-A01-01 lecture materials of a paid course are not public [OWASP-A01][FR-007]', async () => {
     const course = await createCourse({ price: 25000 });
-    await LectureMaterial.create({ course: course._id, lessonTitle: 'Week 1', title: 'Full lesson video', type: 'video', viewUrl: 'https://drive.google.com/file/d/x/view' });
+    await LectureMaterial.create({
+      course: course._id, lessonTitle: 'Week 1', title: 'Full lesson video', type: 'video', driveFileId: 'videos/full.mp4',
+      viewUrl: 'https://cdn.example/videos/full.mp4', embedUrl: 'https://cdn.example/videos/full.mp4', downloadUrl: 'https://cdn.example/videos/full.mp4?download=full.mp4',
+    });
 
     const res = await api().get(`/api/lectures/course/${course._id}`);
 
-    expect(res.status === 200 ? res.body.materials : []).toHaveLength(0);
+    expect(res.body).toMatchObject({ hasFullAccess: false, materials: [{ title: 'Full lesson video', isLocked: true }] });
+    expect(JSON.stringify(res.body)).not.toMatch(/cdn\.example|videos\/full/);
   });
 
-  test('TC-SEC-A01-03 previews are public; all materials go to enrolled students, the instructor and administrators [OWASP-A01][FR-007]', async () => {
+  test('TC-SEC-A01-03 previews are public; every material opens for enrolled students, the instructor and administrators [OWASP-A01][FR-007]', async () => {
     const instructor = await createInstructor();
     const course = await createCourse({ price: 25000, instructor: instructor._id });
-    const preview = await LectureMaterial.create({ course: course._id, lessonTitle: 'Week 1', title: 'Introduction', type: 'video', viewUrl: 'https://drive.google.com/file/d/p/view', isPreview: true });
-    const lesson = await LectureMaterial.create({ course: course._id, lessonTitle: 'Week 1', title: 'Full lesson', type: 'pdf', viewUrl: 'https://drive.google.com/file/d/l/view' });
+    const preview = await LectureMaterial.create({ course: course._id, lessonTitle: 'Week 1', title: 'Introduction', type: 'video', viewUrl: 'https://cdn.example/intro.mp4', isPreview: true });
+    const lesson = await LectureMaterial.create({ course: course._id, lessonTitle: 'Week 1', title: 'Full lesson', type: 'pdf', viewUrl: 'https://cdn.example/lesson.pdf' });
     const enrolled = await createStudent();
     await enrol(enrolled, course);
     const outsider = await createStudent();
-    const titles = async (headers) => (await api().get(`/api/lectures/course/${course._id}`).set(headers)).body.materials.map((m) => m.title).sort();
+    const urls = async (headers) => Object.fromEntries((await api().get(`/api/lectures/course/${course._id}`).set(headers)).body.materials.map((m) => [m.title, m.viewUrl ?? null]));
 
-    expect(await titles({})).toEqual(['Introduction']);
-    expect(await titles(authHeader(outsider))).toEqual(['Introduction']);
+    expect(await urls({})).toEqual({ Introduction: 'https://cdn.example/intro.mp4', 'Full lesson': null });
+    expect(await urls(authHeader(outsider))).toEqual({ Introduction: 'https://cdn.example/intro.mp4', 'Full lesson': null });
     for (const user of [enrolled, instructor, await createAdmin()]) {
-      expect(await titles(authHeader(user))).toEqual(['Full lesson', 'Introduction']);
+      expect(await urls(authHeader(user))).toEqual({ Introduction: 'https://cdn.example/intro.mp4', 'Full lesson': 'https://cdn.example/lesson.pdf' });
     }
     expect((await api().get(`/api/lectures/${preview._id}`)).status).toBe(200);
-    expect((await api().get(`/api/lectures/${lesson._id}`)).status).toBe(401);
+    expect((await api().get(`/api/lectures/${lesson._id}`)).status).toBe(403);
     expect((await api().get(`/api/lectures/${lesson._id}`).set(authHeader(outsider))).status).toBe(403);
     expect((await api().get(`/api/lectures/${lesson._id}`).set(authHeader(enrolled))).status).toBe(200);
   });
 
-  test('TC-SEC-A01-04 assignment instructions and files are only shown to enrolled students and administrators [OWASP-A01][FR-020]', async () => {
+  test('TC-SEC-A01-04 assignment files are only shown to enrolled students and administrators [OWASP-A01][FR-020]', async () => {
     const course = await createCourse({ price: 25000 });
     const assignment = await Assignment.create({
-      course: course._id, title: 'Essay', description: 'Write 300 words about Chuseok', attachmentUrl: 'https://drive.google.com/file/d/a/view', weekNumber: 2,
+      course: course._id, title: 'Essay', description: 'Write 300 words about Chuseok', attachmentUrl: 'https://cdn.example/essay-brief.pdf', weekNumber: 2,
     });
     const enrolled = await createStudent();
     await enrol(enrolled, course);
@@ -212,12 +218,11 @@ describe('A01 Broken access control: course content', () => {
     const publicList = await list({});
     const studentList = await list(authHeader(enrolled));
 
-    expect(publicList.body).toMatchObject({ access: 'preview', assignments: [{ title: 'Essay', weekNumber: 2 }] });
-    expect(publicList.body.assignments[0]).not.toHaveProperty('description');
+    expect(publicList.body).toMatchObject({ hasFullAccess: false, assignments: [{ title: 'Essay', weekNumber: 2, isLocked: true }] });
     expect(publicList.body.assignments[0]).not.toHaveProperty('attachmentUrl');
-    expect((await list(authHeader(outsider))).body.access).toBe('preview');
-    expect(studentList.body).toMatchObject({ access: 'full', assignments: [{ description: 'Write 300 words about Chuseok' }] });
-    expect((await api().get(`/api/assignments/${assignment._id}`)).status).toBe(401);
+    expect((await list(authHeader(outsider))).body.hasFullAccess).toBe(false);
+    expect(studentList.body).toMatchObject({ hasFullAccess: true, assignments: [{ attachmentUrl: 'https://cdn.example/essay-brief.pdf' }] });
+    expect((await api().get(`/api/assignments/${assignment._id}`)).status).toBe(403);
     expect((await api().get(`/api/assignments/${assignment._id}`).set(authHeader(outsider))).status).toBe(403);
     expect((await api().get(`/api/assignments/${assignment._id}`).set(authHeader(enrolled))).status).toBe(200);
     expect((await api().get(`/api/assignments/${assignment._id}`).set(authHeader(await createAdmin()))).status).toBe(200);

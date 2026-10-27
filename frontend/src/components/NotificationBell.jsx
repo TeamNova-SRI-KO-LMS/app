@@ -10,7 +10,8 @@ import {
   AlertTriangle, 
   Info,
   Clock,
-  Sparkles
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useSocket } from '../context/SocketProvider';
@@ -60,7 +61,7 @@ export default function NotificationBell() {
 
   // Get icon and color scheme based on notification type & priority
   const getTypeConfig = (type, priority) => {
-    if (priority === 'urgent' || priority === 'high') {
+    if (priority === 'urgent') {
       return {
         icon: AlertTriangle,
         bg: 'bg-red-50 text-red-600',
@@ -68,6 +69,12 @@ export default function NotificationBell() {
       };
     }
     switch (type) {
+      case 'assignment':
+        return {
+          icon: FileText,
+          bg: 'bg-indigo-50 text-indigo-600',
+          dot: 'bg-indigo-500'
+        };
       case 'course_update':
         return {
           icon: BookOpen,

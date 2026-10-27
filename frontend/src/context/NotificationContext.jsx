@@ -107,7 +107,9 @@ export const NotificationProvider = ({ children }) => {
               <div className="flex items-start">
                 <div className="flex-shrink-0 pt-0.5">
                   <span className="text-xl">
-                    {notification.type === 'payment_due'
+                    {notification.type === 'assignment'
+                      ? '📝'
+                      : notification.type === 'payment_due'
                       ? '💳'
                       : notification.type === 'course_update'
                       ? '📚'
