@@ -26,3 +26,7 @@ Thumbs.db
 
 # Vercel CLI project links and pulled environment files (vercel link / vercel pull)
 .vercel
+
+# Final development report (LaTeX sources and build output, kept out of version control)
+final-report/
+final-report*.zip
