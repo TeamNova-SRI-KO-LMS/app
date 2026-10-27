@@ -2,7 +2,7 @@ const Settings = require('../../models/Settings');
 const User = require('../../models/User');
 const JoinUsSubmission = require('../../models/JoinUsSubmission');
 const {
-  api, createStudent, createAdmin, createCourse, enrol, createPayment, createJoinUsSubmission, authHeader,
+  api, createStudent, createInstructor, createAdmin, createCourse, enrol, createPayment, createJoinUsSubmission, authHeader,
 } = require('../helpers/factories');
 
 describe('System settings', () => {
@@ -157,7 +157,7 @@ describe('Join Us applications', () => {
     const stored = await JoinUsSubmission.findById(res.body.data.id);
 
     expect(res.status).toBe(201);
-    expect(stored).toMatchObject({ age: 24, status: 'pending', interests: ['Korean Language Basics'], userAgent: 'jest-agent' });
+    expect(stored).toMatchObject({ age: 24, status: 'new', interests: ['Korean Language Basics'], userAgent: 'jest-agent' });
   });
 
   test('TC-JOIN-02 accepts blank optional selections [FR-022]', async () => {
@@ -178,29 +178,31 @@ describe('Join Us applications', () => {
 
   test('TC-JOIN-04 lets administrators filter, search and page applications [FR-022]', async () => {
     const admin = await createAdmin();
-    await createJoinUsSubmission({ name: 'Ruwan', status: 'pending' });
-    await createJoinUsSubmission({ name: 'Sachini', status: 'contacted' });
+    await createJoinUsSubmission({ name: 'Ruwan', status: 'new' });
+    await createJoinUsSubmission({ name: 'Sachini', status: 'in_progress' });
 
-    const pending = await api().get('/api/join-us?status=PENDING').set(authHeader(admin));
+    const fresh = await api().get('/api/join-us?status=NEW').set(authHeader(admin));
+    const legacyFilter = await api().get('/api/join-us?status=contacted').set(authHeader(admin));
     const search = await api().get('/api/join-us?search=sach&status=ALL&page=1&limit=1').set(authHeader(admin));
     const recent = await api().get('/api/join-us/recent?limit=50').set(authHeader(admin));
 
-    expect(pending.body.data.map((s) => s.name)).toEqual(['Ruwan']);
-    expect(search.body).toMatchObject({ total: 1, pages: 1 });
-    expect(recent.body).toMatchObject({ total: 2, pending: 1 });
+    expect(fresh.body.data.map((s) => s.name)).toEqual(['Ruwan']);
+    expect(legacyFilter.body.data.map((s) => s.name)).toEqual(['Sachini']);
+    expect(search.body).toMatchObject({ total: 1, pages: 1, counts: { total: 2, new: 1, in_progress: 1, resolved: 0 } });
+    expect(recent.body).toMatchObject({ total: 2, new: 1, in_progress: 1, resolved: 0 });
   });
 
   test('TC-JOIN-05 moves an application through the pipeline and deletes it [FR-022]', async () => {
     const admin = await createAdmin();
     const submission = await createJoinUsSubmission();
 
-    const contacted = await api().patch(`/api/join-us/${submission._id}/status`).set(authHeader(admin)).send({ status: 'contacted' });
+    const contacted = await api().patch(`/api/join-us/${submission._id}/status`).set(authHeader(admin)).send({ status: 'in_progress' });
     const invalid = await api().patch(`/api/join-us/${submission._id}/status`).set(authHeader(admin)).send({ status: 'ghosted' });
     const deleted = await api().delete(`/api/join-us/${submission._id}`).set(authHeader(admin));
     const missingUpdate = await api().patch(`/api/join-us/${submission._id}/status`).set(authHeader(admin)).send({ status: 'enrolled' });
     const missingDelete = await api().delete(`/api/join-us/${submission._id}`).set(authHeader(admin));
 
-    expect(contacted.body.data.status).toBe('contacted');
+    expect(contacted.body.data.status).toBe('in_progress');
     expect(contacted.body.data.contactedAt).toBeDefined();
     expect(invalid.status).toBe(400);
     expect(deleted.status).toBe(200);
@@ -208,11 +210,19 @@ describe('Join Us applications', () => {
     expect(missingDelete.status).toBe(404);
   });
 
+  // Instructors can register themselves, so they must not see applicants' contact details.
   test('TC-JOIN-06 applications are visible to administrators only [FR-022][OWASP-A01]', async () => {
     const student = await createStudent();
+    const instructor = await createInstructor();
+    const submission = await createJoinUsSubmission();
 
     expect((await api().get('/api/join-us').set(authHeader(student))).status).toBe(403);
+    expect((await api().get('/api/join-us').set(authHeader(instructor))).status).toBe(403);
+    expect((await api().get(`/api/join-us/${submission._id}`).set(authHeader(instructor))).status).toBe(403);
+    expect((await api().patch(`/api/join-us/${submission._id}/status`).set(authHeader(instructor)).send({ status: 'resolved' })).status).toBe(403);
+    expect((await api().delete(`/api/join-us/${submission._id}`).set(authHeader(instructor))).status).toBe(403);
     expect((await api().get('/api/join-us')).status).toBe(401);
+    expect(await JoinUsSubmission.countDocuments()).toBe(1);
   });
 
   test('TC-JOIN-07 answers 500 when the application store fails [NFR-002]', async () => {

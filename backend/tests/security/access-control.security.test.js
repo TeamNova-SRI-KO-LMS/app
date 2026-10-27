@@ -17,16 +17,19 @@ GET /api/attendance/admin/overview | GET /api/attendance/admin/records | GET /ap
 GET /api/admin/analytics | GET /api/admin/analytics/export
 GET /api/events/stats | GET /api/events/all | GET /api/events/admin/all | POST /api/events | PUT /api/events/:id | DELETE /api/events/:id
 PUT /api/events/:id/pin | PATCH /api/events/:id/pin | PUT /api/events/:id/active | PATCH /api/events/:id/active
-GET /api/join-us | GET /api/join-us/recent | PATCH /api/join-us/:id/status | DELETE /api/join-us/:id
-POST /api/lectures/upload | POST /api/lectures/upload-thumbnail | POST /api/lectures/link | DELETE /api/lectures/:id
-POST /api/assignments | GET /api/assignments/:id/submissions | PATCH /api/assignments/submissions/:submissionId/grade | DELETE /api/assignments/:id
+GET /api/join-us | GET /api/join-us/recent | GET /api/join-us/:id | DELETE /api/join-us/:id
+PATCH /api/join-us/:id/status | PUT /api/join-us/:id/status | PATCH /api/join-us/submissions/:id/status | PUT /api/join-us/submissions/:id/status
+POST /api/lectures/upload | POST /api/lectures/upload-thumbnail | POST /api/lectures/link | PATCH /api/lectures/:id/toggle-preview | DELETE /api/lectures/:id
+POST /api/assignments | GET /api/assignments/course/:courseId/submissions | GET /api/assignments/:id/submissions
+PATCH /api/assignments/submissions/:submissionId/grade | DELETE /api/assignments/:id
 `;
 
 const SIGNED_IN = `
 GET /api/auth/me
 GET /api/users/dashboard | GET /api/users/attendance | POST /api/users/attendance | GET /api/users/profile | PUT /api/users/profile
 PUT /api/users/notifications | PUT /api/users/privacy | POST /api/users/avatar | DELETE /api/users/avatar | PUT /api/users/password
-GET /api/courses/my-courses | POST /api/courses/:id/enroll | DELETE /api/courses/:id/enroll | POST /api/courses/:id/reviews | POST /api/courses/:id/complete
+GET /api/courses/my-courses | GET /api/courses/:id/verify-access | POST /api/courses/:id/enroll | DELETE /api/courses/:id/enroll
+POST /api/courses/:id/reviews | POST /api/courses/:id/complete
 POST /api/courses | PUT /api/courses/:id | DELETE /api/courses/:id
 GET /api/subscriptions/current | POST /api/subscriptions/create | PUT /api/subscriptions/upgrade | PUT /api/subscriptions/cancel
 GET /api/subscriptions/usage | GET /api/subscriptions/payments | GET /api/subscriptions/invoice/:id
@@ -40,7 +43,7 @@ POST /api/forums/:id/posts | POST /api/forums/posts/:postId/reply | POST /api/fo
 GET /api/attendance/my-attendance | GET /api/attendance/monthly | GET /api/attendance/enrolled-courses | POST /api/attendance
 PUT /api/attendance/:id | DELETE /api/attendance/:id
 POST /api/events/:id/attend | DELETE /api/events/:id/attend
-POST /api/assignments/:id/submit | GET /api/assignments/:id/my-submission
+POST /api/assignments/:id/submit | GET /api/assignments/:id/my-submission | GET /api/assignments/course/:courseId/my-submissions
 GET /api/chat/history | DELETE /api/chat/history
 `;
 
@@ -72,7 +75,7 @@ describe('Endpoint inventory', () => {
     const inventory = endpointInventory().map((endpoint) => `${endpoint.method} ${endpoint.path}`);
     const classified = [...adminOnly, ...signedIn, ...publicEndpoints].map((endpoint) => endpoint.key);
 
-    expect(inventory.length).toBe(155);
+    expect(inventory.length).toBe(163);
     expect(new Set(classified).size).toBe(classified.length);
     expect([...classified].sort()).toEqual([...inventory].sort());
   });
