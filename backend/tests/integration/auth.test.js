@@ -178,12 +178,21 @@ describe('Password reset with an emailed one-time code', () => {
 
   test('TC-AUTH-18 answers identically for unknown addresses so accounts cannot be enumerated [OWASP-A07]', async () => {
     await createStudent({ email: 'reset@example.com' });
+    await createStudent({ email: 'gone@example.com', isActive: false });
+    const shape = ({ status, body }) => ({
+      status, keys: Object.keys(body).sort(), success: body.success, message: body.message, token: /^[a-f0-9]{64}$/.test(body.resetRequestToken),
+    });
 
     const known = await requestCode('reset@example.com');
     const unknown = await requestCode('nobody@example.com');
+    const deactivated = await requestCode('gone@example.com');
+    const guess = await api().post('/api/auth/verify-reset-otp').send({ resetRequestToken: unknown.body.resetRequestToken, otp: '123456' });
 
-    expect(unknown.status).toBe(known.status);
-    expect(unknown.body).toEqual(known.body);
+    expect(shape(unknown)).toEqual(shape(known));
+    expect(shape(deactivated)).toEqual(shape(known));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(guess.status).toBe(400);
+    expect(guess.body.message).toBe('Invalid or expired verification code');
   });
 
   test('TC-AUTH-19 rejects a malformed email address [FR-023]', async () => {
@@ -204,10 +213,10 @@ describe('Password reset with an emailed one-time code', () => {
 
   test('TC-AUTH-21 completes the reset: verify the code, set a new password, sign in [FR-023]', async () => {
     await createStudent({ email: 'reset@example.com' });
-    await requestCode('reset@example.com');
+    const requested = await requestCode('reset@example.com');
     const otp = send.mock.calls[0][1];
 
-    const verified = await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp });
+    const verified = await api().post('/api/auth/verify-reset-otp').send({ resetRequestToken: requested.body.resetRequestToken, otp });
     const reset = await api().post('/api/auth/reset-password').send({ resetToken: verified.body.resetToken, password: 'NewPassword456' });
     const oldLogin = await login({ email: 'reset@example.com', password: DEFAULT_PASSWORD });
     const newLogin = await login({ email: 'reset@example.com', password: 'NewPassword456' });
@@ -220,24 +229,29 @@ describe('Password reset with an emailed one-time code', () => {
 
   test('TC-AUTH-22 rejects a wrong or expired code [FR-023]', async () => {
     const user = await createStudent({ email: 'reset@example.com' });
-    await requestCode('reset@example.com');
+    const { resetRequestToken } = (await requestCode('reset@example.com')).body;
     const otp = send.mock.calls[0][1];
     const wrong = otp === '111111' ? '222222' : '111111';
+    const verify = (code, token = resetRequestToken) => api().post('/api/auth/verify-reset-otp').send({ resetRequestToken: token, otp: code });
 
-    const wrongCode = await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp: wrong });
+    const wrongCode = await verify(wrong);
     await User.updateOne({ _id: user._id }, { resetPasswordExpire: new Date(Date.now() - 1000) });
-    const expired = await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp });
-    const malformed = await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp: '12ab' });
+    const expired = await verify(otp);
+    const malformed = await verify('12ab');
+    const withoutRequest = await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp });
 
     expect(wrongCode.status).toBe(400);
+    expect(wrongCode.body.message).toBe('Invalid or expired verification code');
     expect(expired.status).toBe(400);
+    expect(expired.body.message).toBe('Invalid or expired verification code');
     expect(malformed.status).toBe(400);
+    expect(withoutRequest.status).toBe(400);
   });
 
   test('TC-AUTH-23 the reset credential cannot be reused or replaced by a login token [FR-023]', async () => {
     const user = await createStudent({ email: 'reset@example.com' });
-    await requestCode('reset@example.com');
-    const verified = await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp: send.mock.calls[0][1] });
+    const requested = await requestCode('reset@example.com');
+    const verified = await api().post('/api/auth/verify-reset-otp').send({ resetRequestToken: requested.body.resetRequestToken, otp: send.mock.calls[0][1] });
 
     const first = await api().post('/api/auth/reset-password').send({ resetToken: verified.body.resetToken, password: 'NewPassword456' });
     const replay = await api().post('/api/auth/reset-password').send({ resetToken: verified.body.resetToken, password: 'Another789' });
@@ -257,7 +271,7 @@ describe('Password reset with an emailed one-time code', () => {
     jest.spyOn(User, 'findOne').mockImplementation(() => { throw new Error('down'); });
 
     expect((await requestCode('reset@example.com')).status).toBe(500);
-    expect((await api().post('/api/auth/verify-reset-otp').send({ email: 'reset@example.com', otp: '123456' })).status).toBe(500);
+    expect((await api().post('/api/auth/verify-reset-otp').send({ resetRequestToken: 'a'.repeat(64), otp: '123456' })).status).toBe(500);
   });
 });
 
