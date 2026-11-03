@@ -429,11 +429,6 @@ export default function CourseDetails() {
 
             {/* Instructor mini */}
             <div className="flex items-center gap-3">
-              <img
-                src={instructorAvatar()}
-                alt={instructorName()}
-                className="w-10 h-10 rounded-full object-cover bg-white/20 border border-white/40"
-              />
               <div>
                 <p className="text-sm font-bold text-white leading-tight">{instructorName()}</p>
                 <p className="text-xs text-white/80">Lead Instructor</p>
