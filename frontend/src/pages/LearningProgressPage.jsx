@@ -202,31 +202,40 @@ const LearningProgressPage = () => {
           <div className="p-6">
             {enrolledCourses.length > 0 ? (
               <div className="space-y-4">
-                {enrolledCourses.map((course) => (
-                  <div key={course._id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900">{course.title}</h4>
-                      <span className="text-sm text-gray-600">
-                        {course.progress?.completedLessons || 0} / {course.progress?.totalLessons || 0} lessons
-                      </span>
+                {enrolledCourses.map((course) => {
+                  const completed = typeof course.progress === 'object'
+                    ? (course.progress?.completedLessons ?? 0)
+                    : (course.completedLessons ?? 0);
+                  const total = typeof course.progress === 'object'
+                    ? (course.progress?.totalLessons ?? 0)
+                    : (course.totalLessons ?? 0);
+                  const percent = typeof course.progress === 'number'
+                    ? course.progress
+                    : getProgressPercentage(completed, total);
+
+                  return (
+                    <div key={course._id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-gray-900">{course.title}</h4>
+                        <span className="text-sm text-gray-600">
+                          {completed} / {total} lessons
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${percent}%`
+                          }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-500">
+                        <span>{percent}% Complete</span>
+                        <span>{percent === 100 ? 'Certificate Earned' : 'In Progress'}</span>
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${getProgressPercentage(
-                            course.progress?.completedLessons || 0,
-                            course.progress?.totalLessons || 0
-                          )}%`
-                        }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>{getProgressPercentage(course.progress?.completedLessons || 0, course.progress?.totalLessons || 0)}% Complete</span>
-                      <span>{course.progress?.completedLessons === course.progress?.totalLessons ? 'Certificate Earned' : 'In Progress'}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8">

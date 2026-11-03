@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { 
   BookOpen, CheckCircle2, PlayCircle, Circle, Lock, 
@@ -159,6 +159,16 @@ export default function CourseInfoPage() {
 
         setCourse(courseData);
 
+        // Fetch student's learning progress for this course
+        try {
+          const progRes = await apiService.get(`/courses/${courseId}/progress`);
+          if (progRes.data?.progress?.completedItemIds) {
+            setCompletedItemIds(progRes.data.progress.completedItemIds.map(String));
+          }
+        } catch (progErr) {
+          console.warn('Could not load course progress:', progErr);
+        }
+
         const [matsRes, assignRes, mySubsRes] = await Promise.allSettled([
           lectureService.getCourseMaterials(courseId),
           assignmentService.getCourseAssignments(courseId),
@@ -205,7 +215,7 @@ export default function CourseInfoPage() {
         } else if (courseData?.curriculum?.[0]?.lessons?.[0]) {
           const firstLesson = courseData.curriculum[0].lessons[0];
           setSelectedMaterial({
-            _id: 'lesson-0',
+            _id: firstLesson._id ? String(firstLesson._id) : 'curriculum-0-0',
             title: firstLesson.title,
             type: firstLesson.type || 'video',
             description: courseData.description,
@@ -231,10 +241,31 @@ export default function CourseInfoPage() {
   }, [id, navigate, user]);
 
   // Handle lesson / material toggle completion
-  const toggleComplete = (itemId) => {
-    setCompletedItemIds(prev => 
-      prev.includes(itemId) ? prev.filter(i => i !== itemId) : [...prev, itemId]
-    );
+  const toggleComplete = async (itemId) => {
+    const stringId = String(itemId);
+    const updated = completedItemIds.includes(stringId)
+      ? completedItemIds.filter(i => String(i) !== stringId)
+      : [...completedItemIds, stringId];
+
+    setCompletedItemIds(updated);
+
+    const validCompleted = updated.filter(id => allItemIds.includes(String(id)));
+    const newPercent = allItemIds.length > 0
+      ? (validCompleted.length >= allItemIds.length ? 100 : Math.min(99, Math.round((validCompleted.length / allItemIds.length) * 100)))
+      : 0;
+
+    const courseId = id || course?._id;
+    if (courseId) {
+      try {
+        await apiService.put(`/courses/${courseId}/progress`, {
+          completedItemIds: updated,
+          totalCount: allItemIds.length,
+          progressPercent: newPercent,
+        });
+      } catch (err) {
+        console.error('Failed to sync progress to server:', err);
+      }
+    }
   };
 
   const handleAddNote = (e) => {
@@ -315,6 +346,25 @@ export default function CourseInfoPage() {
         text: 'Assignment submitted to Supabase Cloud Storage successfully! 🎉',
       });
       setSubmissionFiles([]);
+
+      // Automatically mark assignment as completed and sync progress
+      const aId = String(activeAssignmentForSubmit._id);
+      if (!completedItemIds.includes(aId)) {
+        const updated = [...completedItemIds, aId];
+        setCompletedItemIds(updated);
+        const validCompleted = updated.filter(i => allItemIds.includes(String(i)));
+        const newPercent = allItemIds.length > 0
+          ? (validCompleted.length >= allItemIds.length ? 100 : Math.min(99, Math.round((validCompleted.length / allItemIds.length) * 100)))
+          : 0;
+        const courseId = id || course?._id;
+        if (courseId) {
+          apiService.put(`/courses/${courseId}/progress`, {
+            completedItemIds: updated,
+            totalCount: allItemIds.length,
+            progressPercent: newPercent,
+          }).catch(() => {});
+        }
+      }
     } catch (err) {
       console.error('Assignment submission error:', err);
       setSubmissionStatusMsg({
@@ -327,9 +377,34 @@ export default function CourseInfoPage() {
     }
   };
 
-  // Calculate dynamic course progress percentage
-  const totalCount = (materials.length || 0) + (assignments.length || 0) || 1;
-  const progressPercent = Math.min(100, Math.round((completedItemIds.length / totalCount) * 100));
+  // Collect all trackable module/lesson IDs across curriculum lessons, lecture materials, and assignments
+  const allItemIds = useMemo(() => {
+    const ids = [];
+    (materials || []).forEach((mat) => {
+      if (mat._id) ids.push(String(mat._id));
+    });
+    (course?.curriculum || []).forEach((week, widx) => {
+      (week.lessons || []).forEach((lesson, lidx) => {
+        ids.push(lesson._id ? String(lesson._id) : `curriculum-${widx}-${lidx}`);
+      });
+    });
+    (assignments || []).forEach((assign) => {
+      if (assign._id) ids.push(String(assign._id));
+    });
+    return ids;
+  }, [materials, course, assignments]);
+
+  const totalCount = allItemIds.length;
+  const completedValidIds = completedItemIds.filter(id => allItemIds.includes(String(id)));
+  const completedCount = completedValidIds.length;
+
+  // Calculate dynamic course progress percentage:
+  // - Starts at 0% when user buys/enrolls
+  // - Increases step-by-step as each module is completed
+  // - Reaches 100% ONLY when ALL modules are completed (completedCount >= totalCount)
+  const progressPercent = totalCount > 0
+    ? (completedCount >= totalCount ? 100 : Math.min(99, Math.round((completedCount / totalCount) * 100)))
+    : 0;
 
   if (loading) {
     return (
@@ -427,7 +502,7 @@ export default function CourseInfoPage() {
                   />
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1.5 flex justify-between">
-                  <span>{completedItemIds.length} of {totalCount} completed</span>
+                  <span>{completedCount} of {totalCount} completed</span>
                   <span>Keep going! 🔥</span>
                 </div>
               </div>
@@ -511,34 +586,51 @@ export default function CourseInfoPage() {
                       Assignments ({assignments.length})
                     </div>
                     <div className="space-y-1.5">
-                      {assignments.map((assign) => (
-                        <div 
-                          key={assign._id}
-                          onClick={() => handleOpenAssignmentModal(assign)}
-                          className="w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs bg-amber-50/40 hover:bg-amber-50 border border-amber-200/50 text-amber-900 transition-all cursor-pointer font-medium"
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <ClipboardList className="w-4 h-4 text-amber-600 shrink-0" />
-                            <span className="truncate">{assign.title}</span>
+                      {assignments.map((assign) => {
+                        const isDone = completedItemIds.includes(String(assign._id)) || Boolean(userSubmissions[assign._id]);
+                        return (
+                          <div 
+                            key={assign._id}
+                            onClick={() => handleOpenAssignmentModal(assign)}
+                            className="w-full flex items-center justify-between p-2.5 rounded-xl text-left text-xs bg-amber-50/40 hover:bg-amber-50 border border-amber-200/50 text-amber-900 transition-all cursor-pointer font-medium"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleComplete(assign._id); }}
+                                className="shrink-0 text-gray-400 hover:text-emerald-600 transition"
+                                title={isDone ? 'Mark Incomplete' : 'Mark Completed'}
+                              >
+                                {isDone ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                ) : (
+                                  <Circle className="w-4 h-4" />
+                                )}
+                              </button>
+                              <ClipboardList className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span className="truncate">{assign.title}</span>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                              isDone ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
+                            }`}>
+                              {isDone ? 'Done ✅' : 'Submit 📤'}
+                            </span>
                           </div>
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md shrink-0">
-                            Submit 📤
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* 3. Default Curriculum Fallback if no Drive materials uploaded yet */}
-                {materials.length === 0 && (course.curriculum || []).map((week, widx) => (
+                {/* 3. Course Curriculum Modules & Lessons */}
+                {(course.curriculum || []).map((week, widx) => (
                   <div key={widx}>
                     <div className="text-[10px] font-black text-gray-400 tracking-wider uppercase mb-2">
                       {week.title || `Week ${widx + 1}`}
                     </div>
                     <div className="space-y-1.5">
                       {(week.lessons || []).map((lesson, lidx) => {
-                        const lessonKey = `curriculum-${widx}-${lidx}`;
+                        const lessonKey = lesson._id ? String(lesson._id) : `curriculum-${widx}-${lidx}`;
                         const isSelected = selectedMaterial?._id === lessonKey;
                         const isDone = completedItemIds.includes(lessonKey);
 
@@ -802,13 +894,13 @@ export default function CourseInfoPage() {
                     <button
                       onClick={() => toggleComplete(selectedMaterial._id)}
                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-                        completedItemIds.includes(selectedMaterial._id)
+                        completedItemIds.includes(String(selectedMaterial._id))
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20'
                       }`}
                     >
                       <CheckCircle2 size={15} />
-                      <span>{completedItemIds.includes(selectedMaterial._id) ? 'Completed' : 'Mark as Complete'}</span>
+                      <span>{completedItemIds.includes(String(selectedMaterial._id)) ? 'Completed' : 'Mark as Complete'}</span>
                     </button>
                   )}
                 </div>
