@@ -298,14 +298,9 @@ const CourseDetailPage = () => {
               </div>
 
               {/* Instructor */}
-              <div className="flex items-center">
-                <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-bold">
-                  {course.instructor?.name?.charAt(0)?.toUpperCase() || 'I'}
-                </div>
-                <div className="ml-4">
-                  <p className="text-white font-medium">{course.instructor?.name || 'Instructor'}</p>
-                  <p className="text-blue-200 text-sm">Course Instructor</p>
-                </div>
+              <div>
+                <p className="text-white font-medium">{course.instructor?.name || 'Instructor'}</p>
+                <p className="text-blue-200 text-sm">Course Instructor</p>
               </div>
             </div>
 

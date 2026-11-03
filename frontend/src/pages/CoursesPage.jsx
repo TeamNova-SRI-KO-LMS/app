@@ -91,10 +91,6 @@ export default function Courses() {
   const instructorName = (course) =>
     course.instructor?.name ?? 'SRI-KO Instructor';
 
-  const instructorAvatar = (course) =>
-    course.instructor?.avatar ??
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${instructorName(course)}`;
-
   const studentCount = (course) => {
     const n = course.enrolledStudents?.length ?? 0;
     return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
@@ -302,12 +298,7 @@ export default function Courses() {
                     </h3>
 
                     {/* Instructor */}
-                    <div className="flex items-center gap-2 mt-auto mb-4">
-                      <img
-                        src={instructorAvatar(course)}
-                        alt={instructorName(course)}
-                        className="w-6 h-6 rounded-full object-cover"
-                      />
+                    <div className="mt-auto mb-4">
                       <span className="text-sm text-gray-600 font-medium">{instructorName(course)}</span>
                     </div>
 

@@ -197,7 +197,7 @@ export default function MyCoursesPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12">
               {courses.map((course) => {
-              const progressVal = course.progress ?? 45;
+              const progressVal = Math.min(100, Math.max(0, Math.round(course.progress ?? 0)));
               const courseId = course._id || course.id;
               const learnLink = courseId.startsWith('editorial-')
                 ? `/courses`

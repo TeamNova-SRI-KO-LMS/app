@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const User = require('../models/User');
@@ -86,7 +87,28 @@ router.get('/my-courses', protect, async (req, res) => {
       _id: { $in: user.enrolledCourses }
     }).populate('instructor', 'name avatar');
 
-    res.status(200).json({ success: true, courses });
+    // Attach student's actual learning progress from Progress records
+    const progressRecords = await Progress.find({
+      student: userId,
+      course: { $in: user.enrolledCourses }
+    }).lean();
+
+    const progressMap = {};
+    progressRecords.forEach(pr => {
+      if (pr.course) {
+        progressMap[pr.course.toString()] = pr;
+      }
+    });
+
+    const enrichedCourses = courses.map(course => {
+      const courseObj = course.toObject();
+      const pr = progressMap[course._id.toString()];
+      courseObj.progress = pr ? (pr.overallProgress ?? 0) : 0;
+      courseObj.isCompleted = pr ? (pr.isCompleted || pr.overallProgress === 100) : false;
+      return courseObj;
+    });
+
+    res.status(200).json({ success: true, courses: enrichedCourses });
   } catch (error) {
     console.error('Error in my-courses endpoint:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -588,6 +610,111 @@ router.post('/:id/complete', protect, authorize('student'), async (req, res) => 
   } catch (error) {
     console.error('Error completing course:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Get student progress for a course
+// @route   GET /api/courses/:id/progress
+// @access  Private
+router.get('/:id/progress', protect, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    let progress = await Progress.findOne({ student: req.user.id, course: courseId });
+
+    if (!progress) {
+      const isEnrolled = (Array.isArray(req.user.enrolledCourses) && req.user.enrolledCourses.some(c => c.toString() === courseId)) ||
+        await Course.exists({ _id: courseId, enrolledStudents: req.user.id });
+
+      if (isEnrolled) {
+        progress = await Progress.create({
+          student: req.user.id,
+          course: courseId,
+          currentWeek: 1,
+          overallProgress: 0,
+          completedItemIds: [],
+          completedLessons: [],
+          isCompleted: false,
+        });
+      }
+    }
+
+    const completedIds = Array.isArray(progress?.completedItemIds) && progress.completedItemIds.length > 0
+      ? progress.completedItemIds
+      : (progress?.completedLessons || []).map(l => String(l.lesson || l));
+
+    res.status(200).json({
+      success: true,
+      progress: {
+        overallProgress: progress ? (progress.overallProgress ?? 0) : 0,
+        completedItemIds: completedIds,
+        isCompleted: progress ? (progress.isCompleted || progress.overallProgress === 100) : false,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching course progress:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// @desc    Update student progress for a course
+// @route   PUT /api/courses/:id/progress
+// @access  Private
+router.put('/:id/progress', protect, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const { completedItemIds, totalCount, progressPercent } = req.body;
+
+    let progress = await Progress.findOne({ student: req.user.id, course: courseId });
+
+    if (!progress) {
+      progress = new Progress({
+        student: req.user.id,
+        course: courseId,
+        currentWeek: 1,
+        overallProgress: 0,
+      });
+    }
+
+    const itemIds = Array.isArray(completedItemIds) ? completedItemIds.map(String) : [];
+    const total = typeof totalCount === 'number' && totalCount > 0 ? totalCount : itemIds.length;
+
+    let percent = 0;
+    if (typeof progressPercent === 'number' && progressPercent >= 0 && progressPercent <= 100) {
+      percent = progressPercent;
+    } else if (total > 0) {
+      // 100% is only possible if all items are completed
+      percent = itemIds.length >= total ? 100 : Math.min(99, Math.round((itemIds.length / total) * 100));
+    }
+
+    progress.completedItemIds = itemIds;
+    progress.completedLessons = itemIds.map(id => ({
+      lesson: mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id,
+      completedAt: new Date(),
+    }));
+    progress.overallProgress = percent;
+    progress.lastAccessed = new Date();
+
+    if (percent === 100 && total > 0 && itemIds.length >= total) {
+      progress.isCompleted = true;
+      if (!progress.completionDate) progress.completionDate = new Date();
+    } else {
+      progress.isCompleted = false;
+      progress.completionDate = undefined;
+    }
+
+    await progress.save();
+
+    res.status(200).json({
+      success: true,
+      progress: {
+        overallProgress: progress.overallProgress,
+        completedItemIds: progress.completedItemIds,
+        isCompleted: progress.isCompleted,
+      }
+    });
+  } catch (error) {
+    console.error('Error updating course progress:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 

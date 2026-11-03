@@ -13,13 +13,16 @@ const progressSchema = new mongoose.Schema({
   },
   completedLessons: [{
     lesson: {
-      type: mongoose.Schema.Types.ObjectId
+      type: mongoose.Schema.Types.Mixed
     },
     completedAt: {
       type: Date,
       default: Date.now
     },
     score: Number
+  }],
+  completedItemIds: [{
+    type: String
   }],
   currentWeek: {
     type: Number,
