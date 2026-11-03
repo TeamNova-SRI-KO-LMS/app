@@ -24,5 +24,6 @@ export const clearChatHistory = async () => {
   return response.data;
 };
 
-export const GUEST_SUGGESTIONS = ['What courses do you offer?', 'How much are the courses?', 'How do I enroll?', 'Contact details'];
-export const STUDENT_SUGGESTIONS = ['My attendance', 'My courses and progress', 'What courses do you offer?', 'Latest announcements'];
+// Same starter suggestions as the server (ChatbotEngine.suggestionsFor)
+export const GUEST_SUGGESTIONS = ['What can you do?', 'What courses do you offer?', 'How much are the courses?', 'How do I enroll?'];
+export const STUDENT_SUGGESTIONS = ['What can you do?', 'My courses and progress', 'My assignments', 'My attendance'];

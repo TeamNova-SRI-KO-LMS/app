@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Bot, Loader2, RefreshCw, Send, Sparkles, User, X } from 'lucide-react';
+import { ArrowUpRight, Bot, Loader2, Maximize2, Minimize2, RefreshCw, Send, Sparkles, User, X } from 'lucide-react';
 import useAuth from '../context/useAuth';
 import {
   GUEST_SUGGESTIONS,
@@ -11,6 +11,7 @@ import {
 } from '../services/chatService';
 
 const GUEST_STORAGE_KEY = 'sriko-chat-guest';
+const SIZE_STORAGE_KEY = 'sriko-chat-size';
 const MAX_MESSAGE_LENGTH = 500;
 
 const firstNameOf = (user) => (user?.name || '').trim().split(/\s+/)[0] || '';
@@ -20,10 +21,27 @@ const welcomeMessage = (user) => {
   return {
     id: `welcome-${Date.now()}`,
     sender: 'ai',
-    text: `Annyeonghaseyo${firstName ? `, ${firstName}` : ''}! 👋 Welcome to SRI-KO Foreign Language Training Center. Ask me about courses, fees, enrollment${user ? ', your attendance and progress' : ''}, or Korean basics.`,
+    text: `Annyeonghaseyo${firstName ? `, ${firstName}` : ''}! 👋 Welcome to SRI-KO Foreign Language Training Center. Ask me about courses and fees, enrolling, ${user ? 'your courses, assignments, attendance and progress' : 'lessons and assignments'}, events, or Korean basics. Tap "What can you do?" to see everything I can help with.`,
     links: [],
     timestamp: new Date().toISOString(),
   };
+};
+
+// The chosen window size is a per-browser preference
+const readExpanded = () => {
+  try {
+    return localStorage.getItem(SIZE_STORAGE_KEY) === 'large';
+  } catch {
+    return false;
+  }
+};
+
+const writeExpanded = (expanded) => {
+  try {
+    localStorage.setItem(SIZE_STORAGE_KEY, expanded ? 'large' : 'small');
+  } catch {
+    // Storage unavailable: the size still applies until the page is reloaded
+  }
 };
 
 // Guests keep their conversation for this browser tab; signed-in users' chats are saved on the server.
@@ -93,6 +111,7 @@ const FloatingAiSupport = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(readExpanded);
   const [chat, setChat] = useState({ ownerKey: null, messages: [], suggestions: [], courseId: null });
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -211,6 +230,12 @@ const FloatingAiSupport = () => {
     if (window.innerWidth < 640) setIsOpen(false);
   };
 
+  const toggleSize = () => {
+    const next = !isExpanded;
+    setIsExpanded(next);
+    writeExpanded(next);
+  };
+
   // Hide the assistant for admins and on the admin portal
   const isAdmin = user?.role === 'admin' || hasAdminSession();
   const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname === '/adminLogin';
@@ -225,7 +250,12 @@ const FloatingAiSupport = () => {
         <div
           role="dialog"
           aria-label="SRI-KO AI Support chat"
-          className="w-[calc(100vw-24px)] xs:w-[340px] sm:w-[380px] h-[460px] sm:h-[500px] max-h-[calc(100vh-100px)] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300 origin-top-right"
+          data-size={isExpanded ? 'large' : 'small'}
+          className={`${
+            isExpanded
+              ? 'w-[calc(100vw-24px)] sm:w-[600px] lg:w-[720px] h-[calc(100vh-100px)] sm:h-[calc(100vh-130px)] max-h-[880px]'
+              : 'w-[calc(100vw-24px)] xs:w-[340px] sm:w-[380px] h-[460px] sm:h-[500px] max-h-[calc(100vh-100px)]'
+          } bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200/80 flex flex-col overflow-hidden transition-[width,height] animate-in fade-in slide-in-from-top-3 duration-300 origin-top-right`}
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white px-4 sm:px-5 py-3 sm:py-3.5 flex items-center justify-between shadow-md relative">
@@ -246,6 +276,15 @@ const FloatingAiSupport = () => {
             </div>
 
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={toggleSize}
+                title={isExpanded ? 'Make chat smaller' : 'Enlarge chat'}
+                aria-label={isExpanded ? 'Make chat smaller' : 'Enlarge chat'}
+                className="p-1.5 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              >
+                {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
               <button
                 onClick={handleResetChat}
                 title="New conversation"

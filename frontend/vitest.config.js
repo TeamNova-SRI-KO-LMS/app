@@ -30,6 +30,7 @@ export default defineConfig({
         'src/components/ConfirmDialog.jsx',
         'src/components/LoadingSpinner.jsx',
         'src/components/ScrollToTop.jsx',
+        'src/components/FloatingAiSupport.jsx',
       ],
       thresholds: {
         lines: 80,

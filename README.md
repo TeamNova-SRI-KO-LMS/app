@@ -14,8 +14,8 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Backend coverage](https://img.shields.io/badge/backend_coverage-87.6%25_lines-brightgreen)
-![Frontend logic coverage](https://img.shields.io/badge/frontend_logic_coverage-95.0%25_lines-brightgreen)
+![Backend coverage](https://img.shields.io/badge/backend_coverage-87.9%25_lines-brightgreen)
+![Frontend logic coverage](https://img.shields.io/badge/frontend_logic_coverage-94.2%25_lines-brightgreen)
 
 **Official live deployment:** [SRI-KO LMS](https://app-t7u8.vercel.app/) · **API health check:** [app-khaki-mu-55.vercel.app/api/health](https://app-khaki-mu-55.vercel.app/api/health)
 
@@ -371,25 +371,33 @@ The admin view is read-only; only students mark attendance.
 
 ## Support Assistant (Chatbot)
 
-The floating **SRI-KO AI Support** widget and the **Help Center** chat share one assistant. It runs entirely on the backend (`backend/services/ChatbotEngine.js`) with **no paid AI service**: questions are matched to topics by keyword scoring (English and common Korean keywords), and every answer about the platform is built from **live database data**.
+The floating **SRI-KO AI Support** widget and the **Help Center** chat share one assistant. It runs entirely on the backend (`backend/services/ChatbotEngine.js`) with **no paid or external AI service**: questions are matched to topics by keyword scoring (English and common Korean keywords), and every answer about the platform is built from **live database data**.
 
 | Topic | Example questions | Data source |
 | --- | --- | --- |
+| What it can do | "What can you do?", "what you can do", "How can you help me?" | Topic list, tailored to guests or students |
 | Courses | "What courses do you offer?", "Beginner courses" | Published courses |
 | Fees | "How much is the business course?" | Course prices |
-| Payment & refunds | "Can I pay by card?", "Do you offer refunds?" | How checkout works, refund policy |
+| Payment & refunds | "Can I pay by card?", "My payment failed", "Do you offer refunds?" | How checkout works, refund policy |
 | Enrollment | "How do I enroll?" | Step-by-step guide |
-| My attendance | "What is my attendance rate?" | The signed-in student's records |
 | My courses | "My courses and progress" | Enrollments and progress |
-| Announcements & events | "Latest announcements" | Active announcements and events |
-| Contact | "Phone number", "Where are you located?" | Admin Settings (falls back to the site's published details) |
-| Account help | "I forgot my password" | Password-reset and sign-in guidance |
-| Korean basics | "Explain Hangul", "Formal vs informal Korean", "What is TOPIK?" | Built-in learning notes |
+| Assignments | "My assignments", "When is my assignment due?", "My grades" | The student's assignments, submissions and grades |
+| Lessons & materials | "Lesson videos", "How do I download the notes?" | Lecture materials per enrolled course |
+| My attendance | "What is my attendance rate?" | The signed-in student's records |
+| Certificates & notifications | "Do I have a certificate?", "My notifications" | Certificates, completed courses, unread notifications |
+| Announcements, events & forum | "Latest announcements", "Upcoming events", "Is there a forum?" | Active announcements, events and forum topics |
+| Account & profile | "I forgot my password", "Change my profile picture" | Password-reset, sign-in and Settings guidance |
+| About & contact | "Tell me about SRI-KO", "Phone number", "Where are you located?" | About page; admin Settings, falling back to the Contact page details |
+| Policies & problems | "Privacy policy", "The site is not working" | Terms, Privacy Policy, troubleshooting steps |
+| Korean basics | "Explain Hangul", "Formal vs informal Korean", "Korean particles", "What is TOPIK?" | Built-in learning notes |
 
+- Questions can be phrased freely: word order, chat shorthand ("u"), plurals and small typos in key words ("attendence") are understood. "What can you do?" style questions only answer that when the question has no more specific topic, so "what can you tell me about fees?" is answered as a fees question.
 - Replies include **suggested follow-up questions** and **links** to the relevant pages, and follow-ups such as "How much is it?" remember the course just discussed.
 - **Signed-in users** get personal answers, and their conversation is saved (`ChatSession` collection) and restored on any device; **guests'** conversations are kept for the current browser tab only.
+- The chat window can be **enlarged or made smaller** with the button in its header; the browser remembers the choice.
 - Messages are limited to 500 characters and 20 per minute per user or visitor.
-- To add a topic, add an entry to `INTENTS` and a matching function in `RESPONDERS` in `ChatbotEngine.js`.
+- To add a topic, add an entry to `TOPICAL_INTENTS` and a matching function in `RESPONDERS` in `ChatbotEngine.js`.
+- A generative AI provider (such as the Gemini API) is deliberately not used: its terms do not allow services likely to be used by people under 18, and free-tier prompts are used for training and may be read by reviewers, so students' personal data cannot be sent to it.
 
 ---
 

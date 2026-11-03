@@ -229,7 +229,8 @@ describe('chatService', () => {
     expect(history.url).toBe('/chat/history');
     expect(cleared.url).toBe('/chat/history');
     expect(chatService.GUEST_SUGGESTIONS).toHaveLength(4);
-    expect(chatService.STUDENT_SUGGESTIONS[0]).toBe('My attendance');
+    expect(chatService.STUDENT_SUGGESTIONS[0]).toBe('What can you do?');
+    expect(chatService.STUDENT_SUGGESTIONS).toContain('My attendance');
   });
 });
 

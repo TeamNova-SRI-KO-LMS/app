@@ -6,6 +6,10 @@ const Progress = require('../models/Progress');
 const Certificate = require('../models/Certificate');
 const Attendance = require('../models/Attendance');
 const DiscussionForum = require('../models/DiscussionForum');
+const Assignment = require('../models/Assignment');
+const AssignmentSubmission = require('../models/AssignmentSubmission');
+const LectureMaterial = require('../models/LectureMaterial');
+const Notification = require('../models/Notification');
 const { summarizeAttendance, toAttendanceDay } = require('../utils/attendance');
 
 /**
@@ -13,24 +17,24 @@ const { summarizeAttendance, toAttendanceDay } = require('../utils/attendance');
  * Free, rule-based assistant behind the SRI-KO support chat. It needs no external
  * AI service: questions are matched to intents by keyword scoring, and every
  * answer about the platform is built from live MongoDB data (courses, fees,
- * announcements, events, and the signed-in student's own courses and attendance).
- * The only static knowledge is how the site works and Korean-language basics.
+ * announcements, events, and the signed-in student's own courses, assignments,
+ * attendance and notifications). The only static knowledge is how the site works,
+ * what the About page says about the institute, and Korean-language basics.
  */
 
-// Shown when the admin has not filled in contact details under Settings (matches the site footer)
+// Shown when the admin has not saved contact details in Settings (matches the Contact page)
 const SITE_CONTACT = {
-  phone: '+94 11 234 5678',
-  mobile: '+94 77 123 4567',
+  phone: '+94 77 307 9412',
   email: 'info@sriko-korean.com',
   admissionsEmail: 'admissions@sriko-korean.com',
   address: '123 Education Street, Colombo 07, Sri Lanka',
-  hours: 'Mon – Fri, 9:00 AM – 6:00 PM',
+  hours: 'Mon – Fri 9:00 AM – 6:00 PM, Sat 9:00 AM – 1:00 PM (closed on Sundays)',
 };
 
 const DEFAULT_TIMEZONE = 'Asia/Colombo';
 
-const GUEST_SUGGESTIONS = ['What courses do you offer?', 'How much are the courses?', 'How do I enroll?', 'Contact details'];
-const STUDENT_SUGGESTIONS = ['My attendance', 'My courses and progress', 'What courses do you offer?', 'Latest announcements'];
+const GUEST_SUGGESTIONS = ['What can you do?', 'What courses do you offer?', 'How much are the courses?', 'How do I enroll?'];
+const STUDENT_SUGGESTIONS = ['What can you do?', 'My courses and progress', 'My assignments', 'My attendance'];
 
 const LEVEL_LABELS = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
 
@@ -52,6 +56,12 @@ const CATEGORY_SYNONYMS = {
 
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
 
+// Chat shorthand, expanded before matching ("what can u do")
+const SHORTHAND = {
+  u: 'you', ur: 'your', r: 'are', pls: 'please', plz: 'please', thx: 'thanks', thnx: 'thanks',
+  wat: 'what', wht: 'what', hw: 'how', abt: 'about', pwd: 'password', pw: 'password',
+};
+
 const normalize = (text) => String(text || '')
   .toLowerCase()
   .normalize('NFKC')
@@ -60,17 +70,29 @@ const normalize = (text) => String(text || '')
   .replace(/\s+/g, ' ')
   .trim();
 
-const singular = (word) => (word.length > 3 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word);
+// classes → class, batches → batch, policies → policy, courses → course; leaves "status" alone
+const singular = (word) => {
+  if (word.length <= 3 || !word.endsWith('s') || /(ss|us|is)$/.test(word)) return word;
+  if (/(sses|ches|shes|xes|zes)$/.test(word)) return word.slice(0, -2);
+  if (word.endsWith('ies') && word.length > 4) return `${word.slice(0, -3)}y`;
+  return word.slice(0, -1);
+};
 
 const analyze = (message) => {
-  const text = normalize(message);
-  const words = text ? text.split(' ') : [];
+  const normalized = normalize(message);
+  const words = normalized ? normalized.split(' ').map((word) => SHORTHAND[word] || word) : [];
+  const text = words.join(' ');
   return {
     text,
+    words,
     padded: ` ${text} `,
+    // Lets the phrase "my course" match "my courses"
+    singularPadded: ` ${words.map(singular).join(' ')} `,
     tokens: new Set(words.flatMap((word) => [word, singular(word)])),
   };
 };
+
+const singularPhrase = (phrase) => phrase.split(' ').map(singular).join(' ');
 
 // Korean attaches particles to words (출석률이), so Hangul keywords match as substrings;
 // phrases match on word boundaries and single words match whole tokens.
@@ -79,56 +101,205 @@ const matchesKeyword = (input, keyword) => {
     return input.text.includes(keyword);
   }
   if (keyword.includes(' ')) {
-    return input.padded.includes(` ${keyword} `);
+    return input.padded.includes(` ${keyword} `) || input.singularPadded.includes(` ${singularPhrase(keyword)} `);
   }
   return input.tokens.has(keyword);
 };
 
 const matchesAny = (input, keywords) => keywords.some((keyword) => matchesKeyword(input, keyword));
 
-// Order matters: on equal scores the earlier (more specific) intent wins.
-const INTENTS = [
-  { name: 'account', keywords: ['password', 'forgot', 'reset', 'login', 'log in', 'sign in', 'signin', 'account', 'otp', 'verification code', 'locked out', '비밀번호', '로그인'] },
-  { name: 'attendance', keywords: ['attendance', 'attend', 'attended', 'present', 'absent', 'absence', 'absences', 'late', 'excused', 'mark attendance', 'attendance rate', '출석', '결석'] },
-  { name: 'myCourses', keywords: ['my course', 'my courses', 'my class', 'my classes', 'enrolled', 'my progress', 'progress', 'continue learning', 'my lessons', 'my learning'] },
-  { name: 'certificate', keywords: ['certificate', 'certificates', 'certification', 'certified', 'diploma', '수료증'] },
-  { name: 'forum', keywords: ['forum', 'forums', 'discussion', 'discussions', 'community', 'classmates', '토론'] },
-  { name: 'events', keywords: ['event', 'events', 'workshop', 'workshops', 'seminar', 'seminars', 'webinar', 'meetup', '행사', '이벤트'] },
-  { name: 'announcements', keywords: ['announcement', 'announcements', 'news', 'notice', 'notices', 'whats new', 'latest update', 'latest updates', '공지'] },
-  { name: 'payment', keywords: ['pay', 'paying', 'payment', 'payments', 'card', 'credit card', 'debit card', 'visa', 'mastercard', 'stripe', 'checkout', 'bank transfer', 'receipt', 'refund', 'refunds', 'money back', 'invoice', '결제', '환불'] },
-  { name: 'pricing', keywords: ['price', 'prices', 'pricing', 'cost', 'costs', 'fee', 'fees', 'how much', 'expensive', 'cheap', 'cheapest', 'free', 'lkr', 'rupees', 'tuition', 'discount', '가격', '비용', '수강료'] },
-  { name: 'enroll', keywords: ['enroll', 'enrol', 'enrolling', 'enrollment', 'enrolment', 'register', 'registration', 'sign up', 'signup', 'join', 'apply', 'application', 'admission', 'admissions', 'get started', '등록', '신청', '가입'] },
-  { name: 'schedule', keywords: ['schedule', 'schedules', 'timetable', 'timing', 'timings', 'when', 'duration', 'how long', 'weeks', 'batch', 'batches', 'intake', 'weekend', 'weekday', 'start date', 'class time', '일정', '시간표'] },
-  { name: 'contact', keywords: ['contact', 'phone', 'call', 'telephone', 'email', 'mail', 'address', 'location', 'located', 'where', 'office', 'visit', 'whatsapp', 'reach', 'office hours', 'opening hours', 'talk to', 'human', 'staff', '연락', '주소', '전화'] },
-  { name: 'koreanBasics', keywords: ['korean basics', 'korean language basics', 'hangul', 'hangeul', 'alphabet', 'letters', 'consonant', 'consonants', 'vowel', 'vowels', 'pronunciation', 'pronounce', 'batchim', 'honorific', 'honorifics', 'formal', 'informal', 'polite', 'politeness', 'speech level', 'speech levels', 'banmal', 'jondaetmal', 'phrase', 'phrases', 'how do you say', 'how to say', 'in korean', 'korean numbers', 'numbers', 'counting', 'topik', 'eps topik', 'exam', '한글', '존댓말', '반말', '발음', '받침', '숫자'] },
-  { name: 'courses', keywords: ['course', 'courses', 'class', 'classes', 'program', 'programs', 'programme', 'curriculum', 'lesson', 'lessons', 'syllabus', 'beginner', 'intermediate', 'advanced', 'level', 'levels', 'offer', 'catalog', 'learn korean', 'study korean', 'learning korean', '강좌', '강의', '수업', '과정'] },
-  { name: 'capabilities', keywords: ['help', 'what can you do', 'who are you', 'what are you', 'menu', 'options', 'features'] },
-  { name: 'greeting', weight: 0.5, keywords: ['hi', 'hello', 'hey', 'hiya', 'howdy', 'good morning', 'good afternoon', 'good evening', 'annyeong', 'annyeonghaseyo', '안녕하세요'] },
-  { name: 'thanks', weight: 0.5, keywords: ['thanks', 'thank', 'thx', 'appreciate', 'appreciated', '감사', '고마워', '고맙습니다'] },
-  { name: 'goodbye', weight: 0.5, keywords: ['bye', 'goodbye', 'see you', 'see ya', 'good night', '안녕히'] },
+// Optimal string alignment distance: insertions, deletions, substitutions and swaps
+const editDistance = (a, b) => {
+  const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j += 1) rows[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        rows[i][j] = Math.min(rows[i][j], rows[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return rows[a.length][b.length];
+};
+
+// Typos such as "attendence" or "certifcate": a word that starts with the same letter
+// may be one edit away from a core term (two edits for terms of nine letters or more).
+const matchesWithTypo = (input, term) => {
+  const allowed = term.length >= 9 ? 2 : 1;
+  return input.words.some((word) => {
+    const candidate = singular(word);
+    return candidate.length >= 5
+      && candidate[0] === term[0]
+      && Math.abs(candidate.length - term.length) <= allowed
+      && editDistance(candidate, term) <= allowed;
+  });
+};
+
+// Topical intents, ordered so that on equal scores the earlier (more specific) one wins.
+// `core` lists the intent's own domain terms: they outweigh generic words such as
+// "when" or "due", and they still match when misspelled.
+const TOPICAL_INTENTS = [
+  {
+    name: 'account',
+    keywords: ['password', 'forgot', 'reset', 'login', 'log in', 'sign in', 'signin', 'sign out', 'logout', 'account', 'otp', 'verification code', 'locked out', 'google sign in', 'cant log in', 'cannot log in', '비밀번호', '로그인'],
+    core: ['password', 'account', 'login'],
+  },
+  {
+    name: 'attendance',
+    keywords: ['attendance', 'attend', 'attended', 'present', 'absent', 'absence', 'absences', 'late', 'excused', 'mark attendance', 'attendance rate', '출석', '결석'],
+    core: ['attendance'],
+  },
+  {
+    name: 'assignments',
+    keywords: ['assignment', 'homework', 'submit', 'submission', 'submitted', 'resubmit', 'deadline', 'grade', 'graded', 'grading', 'my marks', 'my score', 'my result', '과제', '숙제', '제출'],
+    core: ['assignment', 'homework', 'submission'],
+  },
+  {
+    name: 'materials',
+    keywords: ['video', 'lecture', 'material', 'pdf', 'download', 'notes', 'slides', 'recording', 'watch', 'free preview', 'preview', 'locked', 'classroom', 'study material', 'lesson video', 'not playing', '영상', '자료'],
+    core: ['video', 'lecture', 'material', 'recording', 'classroom'],
+  },
+  { name: 'myCourses', keywords: ['my course', 'my class', 'enrolled', 'my progress', 'progress', 'continue learning', 'my lesson', 'my learning', 'my dashboard', 'dashboard'] },
+  {
+    name: 'certificate',
+    keywords: ['certificate', 'certification', 'certified', 'diploma', '수료증'],
+    core: ['certificate'],
+  },
+  {
+    name: 'notifications',
+    keywords: ['notification', 'alert', 'unread', 'bell', 'inbox', 'reminder', '알림'],
+    core: ['notification'],
+  },
+  {
+    name: 'profile',
+    keywords: ['profile', 'avatar', 'profile picture', 'profile photo', 'my photo', 'my picture', 'my name', 'my details', 'personal details', 'update my', 'change my', 'settings', 'privacy', 'delete my account', 'close my account', '프로필'],
+    core: ['profile', 'avatar'],
+  },
+  {
+    name: 'forum',
+    keywords: ['forum', 'discussion', 'community', 'classmates', 'ask other students', '토론'],
+    core: ['forum', 'discussion'],
+  },
+  {
+    name: 'events',
+    keywords: ['event', 'workshop', 'seminar', 'webinar', 'meetup', 'register interest', 'celebration', '행사', '이벤트'],
+    core: ['event', 'workshop', 'seminar'],
+  },
+  {
+    name: 'announcements',
+    keywords: ['announcement', 'news', 'notice', 'whats new', 'latest update', '공지'],
+    core: ['announcement'],
+  },
+  {
+    name: 'payment',
+    keywords: ['pay', 'paying', 'payment', 'card', 'credit card', 'debit card', 'visa', 'mastercard', 'stripe', 'checkout', 'bank transfer', 'receipt', 'refund', 'money back', 'invoice', 'payment failed', 'declined', '결제', '환불'],
+    core: ['payment', 'refund', 'receipt', 'invoice'],
+  },
+  {
+    name: 'pricing',
+    keywords: ['price', 'pricing', 'cost', 'fee', 'how much', 'expensive', 'cheap', 'cheapest', 'free', 'lkr', 'rupees', 'tuition', 'discount', 'subscription', 'subscribe', 'monthly', 'installment', '가격', '비용', '수강료'],
+    core: ['price', 'pricing', 'fee', 'tuition'],
+  },
+  {
+    name: 'enroll',
+    keywords: ['enroll', 'enrol', 'enrolling', 'enrollment', 'enrolment', 'register', 'registration', 'sign up', 'signup', 'join', 'apply', 'application', 'admission', 'get started', 'create an account', '등록', '신청', '가입'],
+    core: ['enroll', 'enrol', 'enrollment', 'registration', 'register'],
+  },
+  {
+    name: 'schedule',
+    keywords: ['schedule', 'timetable', 'timing', 'when', 'duration', 'how long', 'weeks', 'batch', 'intake', 'weekend', 'weekday', 'start date', 'class time', 'evening class', 'night class', 'morning class', 'weekend class', '일정', '시간표'],
+    core: ['schedule', 'timetable'],
+  },
+  {
+    name: 'contact',
+    keywords: ['contact', 'phone', 'call', 'telephone', 'email', 'mail', 'address', 'location', 'located', 'where', 'office', 'visit', 'whatsapp', 'reach', 'office hours', 'opening hours', 'talk to', 'human', 'staff', 'map', 'directions', '연락', '주소', '전화'],
+    core: ['contact', 'address', 'location', 'phone', 'email'],
+  },
+  {
+    name: 'policies',
+    keywords: ['privacy policy', 'terms', 'terms of service', 'terms and conditions', 'policy', 'policies'],
+  },
+  {
+    name: 'support',
+    keywords: ['not working', 'doesnt work', 'does not work', 'error', 'problem', 'issue', 'bug', 'broken', 'crash', 'slow', 'not loading', 'blank page', 'stuck', 'trouble', 'technical support', 'something went wrong'],
+  },
+  {
+    name: 'koreanBasics',
+    keywords: ['korean basics', 'korean language basics', 'hangul', 'hangeul', 'alphabet', 'letters', 'consonant', 'vowel', 'pronunciation', 'pronounce', 'batchim', 'honorific', 'formal', 'informal', 'polite', 'politeness', 'speech level', 'banmal', 'jondaetmal', 'phrase', 'how do you say', 'how to say', 'in korean', 'korean numbers', 'numbers', 'counting', 'particle', 'self introduction', 'introduce myself', 'topik', 'eps topik', 'exam', '한글', '존댓말', '반말', '발음', '받침', '숫자', '조사', '자기소개'],
+    core: ['hangul', 'alphabet', 'pronunciation', 'honorific', 'topik'],
+  },
+  {
+    name: 'courses',
+    keywords: ['course', 'class', 'program', 'programme', 'curriculum', 'lesson', 'syllabus', 'beginner', 'intermediate', 'advanced', 'level', 'offer', 'catalog', 'learn korean', 'study korean', 'learning korean', '강좌', '강의', '수업', '과정'],
+    core: ['course', 'curriculum', 'syllabus'],
+  },
+  {
+    name: 'about',
+    keywords: ['about you', 'about sri ko', 'about sriko', 'about the institute', 'about your institute', 'about us', 'what is sri ko', 'what is sriko', 'who owns', 'institute', 'institution', 'teacher', 'instructor', 'lecturer', 'tutor', 'who teaches', 'nandana', 'kekulawala', 'mission', 'vision', 'why choose', 'physical class', 'online class', 'in person', 'face to face', 'centre', 'center'],
+    core: ['institute', 'instructor', 'teacher'],
+  },
+];
+
+// Social intents only answer when nothing topical matched, in this order, so
+// "what can you tell me about fees?" is answered as a fees question.
+const CAPABILITY_PATTERNS = [
+  /\b(what|which)\b.*\b(can|could|do|will)\b.*\byou\b.*\b(do|help|answer|offer|tell|support|handle|provide|know)\b/,
+  /\bwhat\s+is\s+this\b/,
+  /\bwhat\b.*\byou\b.*\b(can|could)\b.*\b(do|help|answer)\b/,
+  /\bhow\b.*\b(can|could|do|will|would)\b.*\byou\b.*\b(help|assist|work)\b/,
+  /\bwhat\b.*\b(can|could|should)\b.*\bi\b.*\bask\b/,
+  /\b(who|what)\s+are\s+you\b/,
+  /\bare\s+you\s+(a\s+|an\s+)?(bot|robot|human|real|person|ai|chatbot|machine)\b/,
+  /\b(introduce|tell\s+me\s+about)\s+yourself\b/,
+  /\bhow\b.*\b(does|do)\b.*\b(this|it|you)\b.*\bwork\b/,
+  /\byour\s+(features|capabilities|abilities|skills|functions|services)\b/,
+];
+
+const SOCIAL_INTENTS = [
+  { name: 'capabilities', keywords: ['help', 'menu', 'options', 'features', 'capabilities', 'abilities', 'commands', 'what can you do', '도와줘', '도와주세요'], patterns: CAPABILITY_PATTERNS },
+  { name: 'thanks', keywords: ['thanks', 'thank', 'appreciate', 'appreciated', '감사', '고마워', '고맙습니다'] },
+  { name: 'goodbye', keywords: ['bye', 'goodbye', 'see you', 'see ya', 'good night', '안녕히'] },
+  { name: 'greeting', keywords: ['hi', 'hello', 'hey', 'hiya', 'howdy', 'good morning', 'good afternoon', 'good evening', 'annyeong', 'annyeonghaseyo', '안녕하세요'] },
 ];
 
 // "courses" already matches the keyword "course" (tokens include singular forms),
 // so drop listed plurals to avoid scoring the same word twice.
-INTENTS.forEach((intent) => {
-  intent.keywords = intent.keywords.filter(
-    (keyword) => !(keyword.endsWith('s') && intent.keywords.includes(keyword.slice(0, -1))),
-  );
+[...TOPICAL_INTENTS, ...SOCIAL_INTENTS].forEach((intent) => {
+  intent.keywords = intent.keywords.filter((keyword) => {
+    const base = singularPhrase(keyword);
+    return base === keyword || !intent.keywords.includes(base);
+  });
 });
 
-const rankIntents = (input) => INTENTS
-  .map((intent, index) => {
-    const score = intent.keywords.reduce(
-      (total, keyword) => total + (matchesKeyword(input, keyword) ? (keyword.includes(' ') ? 2 : 1) : 0),
-      0,
-    );
-    return { name: intent.name, score: score * (intent.weight || 1), index };
-  })
-  .filter((intent) => intent.score > 0)
-  .sort((a, b) => b.score - a.score || a.index - b.index);
+// A phrase scores 2, a core term 1.5, any other keyword 1 and a misspelled core term 0.75
+const scoreIntent = (input, intent) => {
+  const core = intent.core || [];
+  let score = 0;
+  intent.keywords.forEach((keyword) => {
+    if (matchesKeyword(input, keyword)) {
+      score += keyword.includes(' ') ? 2 : core.includes(keyword) ? 1.5 : 1;
+    }
+  });
+  core.forEach((term) => {
+    if (!input.tokens.has(term) && matchesWithTypo(input, term)) score += 0.75;
+  });
+  if ((intent.patterns || []).some((pattern) => pattern.test(input.text))) score += 2;
+  return score;
+};
+
+const rankIntents = (input) => {
+  const topical = TOPICAL_INTENTS
+    .map((intent, index) => ({ name: intent.name, score: scoreIntent(input, intent), index }))
+    .filter((intent) => intent.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+  const social = SOCIAL_INTENTS.filter((intent) => scoreIntent(input, intent) > 0).map((intent) => intent.name);
+  return { topical, social };
+};
 
 // Intents that can be about one specific course
-const COURSE_AWARE_INTENTS = new Set(['courses', 'pricing', 'enroll', 'schedule', 'payment', 'fallback']);
+const COURSE_AWARE_INTENTS = new Set(['courses', 'pricing', 'enroll', 'schedule', 'payment', 'materials', 'fallback']);
 // Follow-ups ("how much is it?") reuse the course from the previous answer
 const FOLLOW_UP_INTENTS = new Set(['pricing', 'enroll', 'schedule', 'payment']);
 const REFERRING_WORDS = ['it', 'this', 'that', 'more', 'details', 'detail'];
@@ -201,15 +372,24 @@ const formatDay = (date) => date.toLocaleDateString('en-US', {
   month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
 });
 
+const formatDate = (date, timeZone) => new Date(date).toLocaleDateString('en-US', {
+  month: 'short', day: 'numeric', year: 'numeric', timeZone,
+});
+
 const capitalize = (text = '') => text.charAt(0).toUpperCase() + text.slice(1);
+
+const classroomLink = (courseId) => ({ label: 'Open classroom', to: `/course-info/${courseId}` });
 
 // ─── Data access (lazy, once per message) ─────────────────────────────────────
 
-const createDataLoader = () => {
+const createDataLoader = (user) => {
   const cache = new Map();
   // Cache the result promise, not the Mongoose query: awaiting a query twice re-runs it
   const once = (key, load) => {
-    if (!cache.has(key)) cache.set(key, load().exec());
+    if (!cache.has(key)) {
+      const pending = load();
+      cache.set(key, typeof pending?.exec === 'function' ? pending.exec() : pending);
+    }
     return cache.get(key);
   };
 
@@ -221,6 +401,19 @@ const createDataLoader = () => {
     settings: () => once('settings', () => Settings.findOne()
       .select('contactEmail contactPhone contactAddress systemSettings.timezone')
       .lean()),
+    // Enrolment is recorded on the user, on the course and as a Progress document
+    enrolledCourseIds: () => once('enrolledCourseIds', async () => {
+      if (!user) return [];
+      const [onCourses, withProgress] = await Promise.all([
+        Course.distinct('_id', { enrolledStudents: user._id }),
+        Progress.distinct('course', { student: user._id }),
+      ]);
+      const ids = new Map();
+      [...(user.enrolledCourses || []), ...onCourses, ...withProgress]
+        .filter(Boolean)
+        .forEach((id) => ids.set(String(id._id || id), id._id || id));
+      return [...ids.values()];
+    }),
   };
 };
 
@@ -237,7 +430,7 @@ const safeTimeZone = (timeZone) => {
 const contactDetails = async (data) => {
   const settings = await data.settings();
   return {
-    phone: settings?.contactPhone || `${SITE_CONTACT.phone} / ${SITE_CONTACT.mobile}`,
+    phone: settings?.contactPhone || SITE_CONTACT.phone,
     email: settings?.contactEmail || SITE_CONTACT.email,
     address: settings?.contactAddress || SITE_CONTACT.address,
     hasCustomEmail: Boolean(settings?.contactEmail),
@@ -285,6 +478,7 @@ const filterCourses = (courses, input) => {
 const KOREAN_TOPICS = [
   {
     key: 'hangul',
+    suggestion: 'Explain Hangul',
     keywords: ['hangul', 'hangeul', 'alphabet', 'letters', 'consonant', 'consonants', 'vowel', 'vowels', '한글'],
     text: 'Hangul (한글) is the Korean alphabet, created under King Sejong the Great and published in 1446.\n\n'
       + '• 14 basic consonants: ㄱ ㄴ ㄷ ㄹ ㅁ ㅂ ㅅ ㅇ ㅈ ㅊ ㅋ ㅌ ㅍ ㅎ\n'
@@ -294,6 +488,7 @@ const KOREAN_TOPICS = [
   },
   {
     key: 'batchim',
+    suggestion: 'What is batchim?',
     keywords: ['batchim', 'pronunciation', 'pronounce', 'final consonant', '받침', '발음'],
     text: 'Batchim (받침) is the final consonant at the bottom of a syllable block, as in 한 or 국.\n\n'
       + '• Only 7 sounds are pronounced in final position: ㄱ, ㄴ, ㄷ, ㄹ, ㅁ, ㅂ, ㅇ — so 옷 (clothes) ends in a "t" sound.\n'
@@ -301,6 +496,7 @@ const KOREAN_TOPICS = [
   },
   {
     key: 'honorifics',
+    suggestion: 'Formal vs informal Korean',
     keywords: ['honorific', 'honorifics', 'formal', 'informal', 'polite', 'politeness', 'speech level', 'speech levels', 'banmal', 'jondaetmal', '존댓말', '반말'],
     text: 'Korean shows politeness through verb endings (speech levels):\n\n'
       + '• Formal polite (합쇼체): -습니다 / -ㅂ니다 — e.g. 감사합니다. Used in presentations, the news and business.\n'
@@ -309,7 +505,29 @@ const KOREAN_TOPICS = [
       + 'When in doubt, use the -요 endings — they are polite in almost every situation.',
   },
   {
+    key: 'particles',
+    suggestion: 'Korean particles',
+    keywords: ['particle', 'particles', '조사'],
+    text: 'Particles (조사) attach to a word and show its role in the sentence:\n\n'
+      + '• 은 / 는 — topic: 저는 학생이에요 (I am a student)\n'
+      + '• 이 / 가 — subject: 비가 와요 (It is raining)\n'
+      + '• 을 / 를 — object: 사과를 먹어요 (I eat an apple)\n'
+      + '• 에 — place or time: 학교에 가요 (I go to school)\n\n'
+      + 'Use 은, 이 and 을 after a consonant, and 는, 가 and 를 after a vowel.',
+  },
+  {
+    key: 'introduction',
+    suggestion: 'Introduce myself in Korean',
+    keywords: ['self introduction', 'introduce myself', '자기소개'],
+    text: 'A simple self-introduction (자기소개):\n\n'
+      + '• 안녕하세요. 저는 [name]입니다. — Hello, I am [name].\n'
+      + '• 스리랑카에서 왔어요. — I am from Sri Lanka.\n'
+      + '• 만나서 반갑습니다. — Nice to meet you.\n'
+      + '• 잘 부탁드립니다. — I look forward to working with you.',
+  },
+  {
     key: 'numbers',
+    suggestion: 'Korean numbers',
     keywords: ['numbers', 'korean numbers', 'counting', '숫자'],
     text: 'Korean uses two number systems:\n\n'
       + '• Native Korean — 하나, 둘, 셋, 넷, 다섯 (1–5): for counting things, age and hours (세 시 = 3 o\'clock).\n'
@@ -317,6 +535,7 @@ const KOREAN_TOPICS = [
   },
   {
     key: 'topik',
+    suggestion: 'What is TOPIK?',
     keywords: ['topik', 'eps topik', 'exam', '시험'],
     text: 'TOPIK (Test of Proficiency in Korean) is the official Korean language exam:\n\n'
       + '• TOPIK I — levels 1–2, with listening and reading sections.\n'
@@ -325,6 +544,7 @@ const KOREAN_TOPICS = [
   },
   {
     key: 'phrases',
+    suggestion: 'Common Korean phrases',
     keywords: ['phrase', 'phrases', 'how do you say', 'how to say', 'in korean'],
     text: 'Useful everyday Korean phrases:\n\n'
       + '• 안녕하세요 (annyeonghaseyo) — Hello\n'
@@ -335,6 +555,14 @@ const KOREAN_TOPICS = [
       + '• 안녕히 가세요 (annyeonghi gaseyo) — Goodbye (to someone leaving)\n'
       + '• 안녕히 계세요 (annyeonghi gyeseyo) — Goodbye (when you are the one leaving)',
   },
+];
+
+const ABOUT_TEXT = [
+  'SRI-KO Foreign Language Training Center is a Korean language centre in Sri Lanka.',
+  '• Mission: world-class Korean language training that opens doors to careers and education in South Korea.',
+  '• Lead instructor: Mr. Nandana Kekulawala, who has years of expertise in Korean linguistics and cross-cultural communication.',
+  '• Courses run from Beginner to Advanced, with a focus on real-life dialogue, exam preparation and mentorship for every student.',
+  '• Lessons, materials, assignments and attendance are all on this platform. For class times and sessions at our centre, contact us.',
 ];
 
 const RESPONDERS = {
@@ -406,7 +634,7 @@ const RESPONDERS = {
 
     const shown = list.slice(0, 6);
     return {
-      text: `${summary.join(' ')}\n${shown.map(courseLine).join('\n')}\n\nFees are in Sri Lankan Rupees (LKR) and paid once per course.`,
+      text: `${summary.join(' ')}\n${shown.map(courseLine).join('\n')}\n\nFees are in Sri Lankan Rupees (LKR) and paid once per course — there is no monthly subscription.`,
       links: [{ label: 'Browse all courses', to: '/courses' }],
       suggestions: ['What payment methods do you accept?', 'How do I enroll?', 'Do you offer refunds?'],
       meta: shown.length === 1 ? { courseId: String(shown[0]._id) } : {},
@@ -424,8 +652,12 @@ const RESPONDERS = {
       'Prefer a bank transfer or paying at our office? Contact us and our team will record the payment for you.',
     ];
 
+    if (matchesAny(ctx.input, ['failed', 'declined', 'payment failed', 'not working', 'error'])) {
+      lines.push('', "If a card payment fails or is declined, check the card details or try another card — you're only charged when the payment succeeds.");
+    }
+
     if (matchesAny(ctx.input, ['refund', 'refunds', 'money back', '환불'])) {
-      lines.push('', "Refunds: we offer a 14-day money-back guarantee on eligible full-course enrollments if you've completed less than 20% of the lessons. See our Terms of Service for the details.");
+      lines.push('', "Refunds: we offer a 14-day money-back guarantee on eligible full-course enrollments if you've completed less than 20% of the lessons. Send your request in writing through the Help Center; see our Terms of Service for the details.");
     }
 
     return {
@@ -460,10 +692,10 @@ const RESPONDERS = {
     const links = [];
     if (!ctx.user) links.push({ label: 'Create an account', to: '/register' });
     links.push(ctx.course ? { label: 'View course', to: `/courses/${ctx.course._id}` } : { label: 'Browse courses', to: '/courses' });
-    links.push({ label: 'Ask for a recommendation', to: '/join-us' });
+    links.push({ label: 'Ask for a recommendation', to: '/contact' });
 
     return {
-      text: `${intro}\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}\n\nNot sure which level suits you? Send us a Join Us application and our team will recommend a course.`,
+      text: `${intro}\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}\n\nNot sure which level suits you? Send us a message through the Contact Us form and our team will recommend a course.`,
       links,
       suggestions: ['How much are the courses?', 'What payment methods do you accept?', 'What courses do you offer?'],
       meta: ctx.course ? { courseId: String(ctx.course._id) } : {},
@@ -485,10 +717,10 @@ const RESPONDERS = {
       }
     }
 
-    lines.push('Each course page shows its duration and lesson plan. Class times for each intake are confirmed by our team when you enroll — contact us if you need a particular time slot.');
+    lines.push('Each course page shows its duration and lesson plan, and you can study the lessons online at your own pace. Class times for each intake are confirmed by our team when you enroll — contact us if you need a particular time slot.');
 
     const { phone } = await contactDetails(ctx.data);
-    lines.push(`Call ${phone} to ask about upcoming intakes.`);
+    lines.push(`Call ${phone} (${SITE_CONTACT.hours}) to ask about upcoming intakes.`);
 
     return {
       text: lines.join('\n\n'),
@@ -510,10 +742,9 @@ const RESPONDERS = {
       };
     }
 
+    const courseIds = await ctx.data.enrolledCourseIds();
     const [courses, progress] = await Promise.all([
-      Course.find({ $or: [{ _id: { $in: ctx.user.enrolledCourses || [] } }, { enrolledStudents: ctx.user._id }] })
-        .select('title')
-        .lean(),
+      Course.find({ _id: { $in: courseIds } }).select('title').lean(),
       Progress.find({ student: ctx.user._id }).select('course overallProgress isCompleted').lean(),
     ]);
 
@@ -535,7 +766,130 @@ const RESPONDERS = {
     return {
       text: `You're enrolled in ${plural(courses.length, 'course')}:\n${lines.join('\n')}\n\nPick up where you left off from My Courses.`,
       links: [{ label: 'My courses', to: '/my-courses' }, { label: 'Dashboard', to: '/dashboard' }],
-      suggestions: ['My attendance', 'Do I have certificates?', 'Latest announcements'],
+      suggestions: ['My assignments', 'My attendance', 'Do I have certificates?'],
+    };
+  },
+
+  async assignments(ctx) {
+    const howTo = 'To submit, open the course classroom, choose the assignment and upload your work (up to 5 files, 50 MB each). Work handed in after the due date is marked late, and you get a notification when it has been graded.';
+
+    if (!ctx.user) {
+      return {
+        text: `Each course has assignments set by our instructors, with a due date and a maximum score.\n\n${howTo}\n\nSign in to see your own assignments and grades.`,
+        links: [{ label: 'Sign in', to: '/login' }, { label: 'Browse courses', to: '/courses' }],
+        suggestions: ['How do I enroll?', 'What courses do you offer?'],
+      };
+    }
+
+    const courseIds = await ctx.data.enrolledCourseIds();
+    if (courseIds.length === 0) {
+      return {
+        text: "You're not enrolled in a course yet, so you have no assignments. Once you enroll, they appear in the course classroom.",
+        links: [{ label: 'Browse courses', to: '/courses' }],
+        suggestions: ['What courses do you offer?', 'How do I enroll?'],
+      };
+    }
+
+    const assignments = await Assignment.find({ course: { $in: courseIds } })
+      .select('title dueDate maxScore course')
+      .populate('course', 'title')
+      .sort({ dueDate: 1, createdAt: 1 })
+      .lean();
+
+    if (assignments.length === 0) {
+      return {
+        text: `Your courses don't have any assignments yet. New ones appear in the course classroom, and you'll get a notification.\n\n${howTo}`,
+        links: [classroomLink(courseIds[0]), { label: 'My courses', to: '/my-courses' }],
+        suggestions: ['My courses and progress', 'My attendance'],
+      };
+    }
+
+    const submissions = await AssignmentSubmission.find({
+      student: ctx.user._id,
+      assignment: { $in: assignments.map((assignment) => assignment._id) },
+    }).select('assignment status grade').lean();
+    const submissionFor = new Map(submissions.map((submission) => [String(submission.assignment), submission]));
+
+    const { timezone } = await contactDetails(ctx.data);
+    const now = new Date();
+    const groups = { toDo: [], overdue: [], waiting: [], graded: [] };
+    // Name the course only when the assignments come from more than one
+    const severalCourses = new Set(assignments.map((assignment) => String(assignment.course?._id))).size > 1;
+
+    assignments.forEach((assignment) => {
+      const submission = submissionFor.get(String(assignment._id));
+      const course = severalCourses && assignment.course?.title ? ` (${assignment.course.title})` : '';
+      const due = assignment.dueDate ? new Date(assignment.dueDate) : null;
+
+      if (submission?.status === 'graded') {
+        const score = typeof submission.grade === 'number' ? `${submission.grade}/${assignment.maxScore}` : 'graded';
+        groups.graded.push(`• ${assignment.title}${course} — graded: ${score}`);
+      } else if (submission?.status === 'resubmit') {
+        groups.toDo.push(`• ${assignment.title}${course} — resubmission requested`);
+      } else if (submission) {
+        groups.waiting.push(`• ${assignment.title}${course} — submitted${submission.status === 'late' ? ' late' : ''}, waiting for a grade`);
+      } else if (due && due < now) {
+        groups.overdue.push(`• ${assignment.title}${course} — overdue since ${formatDate(due, timezone)}`);
+      } else {
+        groups.toDo.push(`• ${assignment.title}${course} — ${due ? `due ${formatDate(due, timezone)}` : 'no due date'}`);
+      }
+    });
+
+    const counts = [
+      groups.toDo.length && `${groups.toDo.length} to do`,
+      groups.overdue.length && `${groups.overdue.length} overdue`,
+      groups.waiting.length && `${groups.waiting.length} waiting for a grade`,
+      groups.graded.length && `${groups.graded.length} graded`,
+    ].filter(Boolean);
+    const lines = [...groups.toDo, ...groups.overdue, ...groups.waiting, ...groups.graded.reverse()];
+    const shown = lines.slice(0, 6);
+    const more = lines.length > shown.length ? `\n…and ${lines.length - shown.length} more in your course classrooms.` : '';
+
+    return {
+      text: `You have ${plural(assignments.length, 'assignment')}: ${counts.join(', ')}.\n${shown.join('\n')}${more}\n\n${howTo}`,
+      links: [classroomLink(courseIds[0]), { label: 'My courses', to: '/my-courses' }],
+      suggestions: ['My courses and progress', 'My attendance', 'My notifications'],
+    };
+  },
+
+  async materials(ctx) {
+    const access = 'Lessons marked as free previews are open to everyone on the course page; the full lessons, PDFs and links unlock when you enroll.';
+    const playback = "If a video won't play, refresh the page or check your connection — contact us if it still doesn't work.";
+
+    if (ctx.course) {
+      return {
+        text: `${ctx.course.title} has its lesson videos, PDFs and links organised week by week. ${access}\n\n${playback}`,
+        links: [{ label: 'View course', to: `/courses/${ctx.course._id}` }],
+        suggestions: ['How do I enroll?', 'How much are the courses?'],
+        meta: { courseId: String(ctx.course._id) },
+      };
+    }
+
+    const courseIds = ctx.user ? await ctx.data.enrolledCourseIds() : [];
+    if (courseIds.length === 0) {
+      return {
+        text: `Every course has lesson videos, PDFs and links organised week by week. ${access}\n\n${ctx.user ? 'Enroll in a course to open its classroom.' : 'Sign in and enroll to open the classroom.'}`,
+        links: ctx.user
+          ? [{ label: 'Browse courses', to: '/courses' }]
+          : [{ label: 'Browse courses', to: '/courses' }, { label: 'Sign in', to: '/login' }],
+        suggestions: ['What courses do you offer?', 'How do I enroll?'],
+      };
+    }
+
+    const [courses, counts] = await Promise.all([
+      Course.find({ _id: { $in: courseIds } }).select('title').lean(),
+      LectureMaterial.aggregate([
+        { $match: { course: { $in: courseIds } } },
+        { $group: { _id: '$course', count: { $sum: 1 } } },
+      ]),
+    ]);
+    const countFor = new Map(counts.map((entry) => [String(entry._id), entry.count]));
+    const lines = courses.slice(0, 6).map((course) => `• ${course.title} — ${plural(countFor.get(String(course._id)) || 0, 'learning material')}`);
+
+    return {
+      text: `Your lesson videos and materials are in each course classroom:\n${lines.join('\n')}\n\nOpen a course from My Courses to watch the lessons and download the files.\n\n${playback}`,
+      links: [classroomLink(courses[0]?._id || courseIds[0]), { label: 'My courses', to: '/my-courses' }],
+      suggestions: ['My assignments', 'My courses and progress'],
     };
   },
 
@@ -582,7 +936,7 @@ const RESPONDERS = {
         encouragement,
       ].join('\n'),
       links: [{ label: 'Open my attendance', to: '/profile' }],
-      suggestions: ['My courses and progress', 'Do I have certificates?', 'Latest announcements'],
+      suggestions: ['My courses and progress', 'My assignments', 'Do I have certificates?'],
     };
   },
 
@@ -612,6 +966,60 @@ const RESPONDERS = {
       text: `${general}\n\n${status}`,
       links: [{ label: 'Dashboard', to: '/dashboard' }],
       suggestions: ['My courses and progress', 'My attendance'],
+    };
+  },
+
+  async notifications(ctx) {
+    if (!ctx.user) {
+      return {
+        text: 'Notifications tell you about new assignments, grades, announcements, events and payments. Sign in to see yours — the bell at the top of the page shows how many are unread.',
+        links: [{ label: 'Sign in', to: '/login' }],
+        suggestions: ['What can you do?', 'Latest announcements'],
+      };
+    }
+
+    // Same audience rules as GET /api/notifications/unread-count, so the answer matches the bell
+    const now = new Date();
+    const audience = [{ targetAudience: 'all' }, { targetUsers: ctx.user._id }];
+    if (ctx.user.role) {
+      audience.push({ targetAudience: `${ctx.user.role}s` }, { targetRoles: ctx.user.role });
+    }
+    const unread = await Notification.find({
+      isActive: true,
+      $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: now } }],
+      'readBy.user': { $ne: ctx.user._id },
+      $and: [{ $or: audience }],
+    })
+      .sort({ createdAt: -1 })
+      .select('title')
+      .lean();
+
+    const latest = unread.slice(0, 3).map((notification) => `• ${notification.title}`).join('\n');
+
+    return {
+      text: unread.length > 0
+        ? `You have ${plural(unread.length, 'unread notification')}${latest ? `:\n${latest}` : '.'}\n\nOpen Notifications to read them all.`
+        : "You're all caught up — you have no unread notifications.",
+      links: [{ label: 'Notifications', to: '/notifications' }],
+      suggestions: ['My assignments', 'Latest announcements', 'My courses and progress'],
+    };
+  },
+
+  async profile(ctx) {
+    const lines = [
+      'You can manage your details from these pages:',
+      '• Profile — your details and your attendance calendar.',
+      '• Settings — update your name and details, change your profile photo and change your password.',
+      '',
+      'Forgot your password? Use "Forgot password?" on the sign-in page. To close your account, contact us.',
+    ];
+
+    return {
+      text: lines.join('\n'),
+      links: ctx.user
+        ? [{ label: 'Profile', to: '/profile' }, { label: 'Settings', to: '/settings' }]
+        : [{ label: 'Sign in', to: '/login' }, { label: 'Create an account', to: '/register' }],
+      suggestions: ['I forgot my password', 'Contact details'],
     };
   },
 
@@ -652,7 +1060,7 @@ const RESPONDERS = {
     return {
       text: `Latest announcements:\n${lines.join('\n')}`,
       links: [link],
-      suggestions: ['Upcoming events', ctx.user ? 'My attendance' : 'How do I enroll?'],
+      suggestions: ['Upcoming events', ctx.user ? 'My notifications' : 'How do I enroll?'],
     };
   },
 
@@ -685,7 +1093,7 @@ const RESPONDERS = {
     });
 
     return {
-      text: `Upcoming events:\n${lines.join('\n')}`,
+      text: `Upcoming events:\n${lines.join('\n')}\n\nTo join, open the event on the Events page and choose Register Interest${ctx.user ? '' : ' (sign in first)'}.`,
       links: [{ label: 'Events', to: '/events' }],
       suggestions: ['Latest announcements', 'How do I enroll?'],
     };
@@ -701,10 +1109,10 @@ const RESPONDERS = {
         `• Address: ${contact.address}`,
         `• Office hours: ${SITE_CONTACT.hours}`,
         '',
-        'We usually reply within 24 hours. You can also send us a message through the contact form.',
+        'We usually reply within 24 hours. You can also send us a message through the Contact Us form.',
       ].join('\n'),
-      links: [{ label: 'Contact form', to: '/contact' }],
-      suggestions: ['What courses do you offer?', 'How do I enroll?'],
+      links: [{ label: 'Contact Us form', to: '/contact' }],
+      suggestions: ['What courses do you offer?', 'How do I enroll?', 'About SRI-KO'],
     };
   },
 
@@ -713,7 +1121,7 @@ const RESPONDERS = {
     return {
       text: [
         'Account help:',
-        '• Forgot your password? Choose "Forgot password" on the sign-in page — we\'ll email you a 6-digit code (valid for 10 minutes) to set a new one.',
+        '• Forgot your password? Choose "Forgot password?" on the sign-in page — we\'ll email you a 6-digit code (valid for 10 minutes) to set a new one. Check your spam folder if it doesn\'t arrive.',
         '• You can also sign in with your Google account.',
         '• Update your password and profile details anytime in Settings.',
         '',
@@ -722,7 +1130,31 @@ const RESPONDERS = {
       links: ctx.user
         ? [{ label: 'Settings', to: '/settings' }]
         : [{ label: 'Sign in', to: '/login' }, { label: 'Reset password', to: '/forgot-password' }],
-      suggestions: ['Contact details', 'What courses do you offer?'],
+      suggestions: ['Contact details', 'What can you do?'],
+    };
+  },
+
+  async support(ctx) {
+    const contact = await contactDetails(ctx.data);
+    return {
+      text: [
+        "Sorry you're having trouble. These steps usually help:",
+        '• Refresh the page, or sign out and sign in again.',
+        '• Check your internet connection — lesson videos need a stable connection.',
+        '• Try another up-to-date browser such as Chrome, Edge, Firefox or Safari.',
+        '',
+        `If it still doesn't work, tell us what happened and on which page: ${contact.phone} · ${contact.email}`,
+      ].join('\n'),
+      links: [{ label: 'Contact us', to: '/contact' }, { label: 'Help Center', to: '/help' }],
+      suggestions: ['I forgot my password', 'What can you do?'],
+    };
+  },
+
+  async policies() {
+    return {
+      text: 'Our Terms of Service cover your responsibilities as a user, our educational services, payments and the 14-day refund policy, and intellectual property. The Privacy Policy explains what personal data we collect and how we protect it.',
+      links: [{ label: 'Terms of Service', to: '/terms' }, { label: 'Privacy Policy', to: '/privacy' }],
+      suggestions: ['Do you offer refunds?', 'Contact details'],
     };
   },
 
@@ -736,12 +1168,22 @@ const RESPONDERS = {
     if (topics.length > 0) {
       lines.push(`Popular topics:\n${topics.map((topic) => `• ${topic.title}`).join('\n')}`);
     }
-    lines.push(ctx.user ? 'Open My Courses to join the conversation.' : 'Sign in and open My Courses to join the conversation.');
+    lines.push(ctx.user ? 'Open the Forum page to post a question or reply.' : 'Anyone can browse the Forum page; sign in to post questions and replies.');
 
     return {
       text: lines.join('\n\n'),
-      links: [ctx.user ? { label: 'My courses', to: '/my-courses' } : { label: 'Sign in', to: '/login' }],
+      links: [{ label: 'Forum', to: '/forum' }, ...(ctx.user ? [] : [{ label: 'Sign in', to: '/login' }])],
       suggestions: ['Korean basics', 'What courses do you offer?'],
+    };
+  },
+
+  async about(ctx) {
+    const courses = await ctx.data.courses();
+    const offer = courses.length > 0 ? `\n\nWe currently offer ${plural(courses.length, 'course')} on this platform.` : '';
+    return {
+      text: `${ABOUT_TEXT.join('\n')}${offer}`,
+      links: [{ label: 'About us', to: '/about' }, { label: 'Browse courses', to: '/courses' }],
+      suggestions: ['What courses do you offer?', 'Contact details', 'How do I enroll?'],
     };
   },
 
@@ -750,7 +1192,7 @@ const RESPONDERS = {
 
     if (!topic) {
       return {
-        text: 'Happy to help with Korean basics! Pick a topic below — Hangul, polite speech, everyday phrases, numbers or the TOPIK exam.',
+        text: 'Happy to help with Korean basics! Pick a topic below — Hangul, polite speech, particles, everyday phrases, numbers or the TOPIK exam.',
         suggestions: ['Explain Hangul', 'Formal vs informal Korean', 'Common Korean phrases', 'What is TOPIK?'],
       };
     }
@@ -769,31 +1211,31 @@ const RESPONDERS = {
     reply.suggestions = KOREAN_TOPICS
       .filter((candidate) => candidate.key !== topic.key)
       .slice(0, 3)
-      .map((candidate) => ({
-        hangul: 'Explain Hangul',
-        batchim: 'What is batchim?',
-        honorifics: 'Formal vs informal Korean',
-        numbers: 'Korean numbers',
-        topik: 'What is TOPIK?',
-        phrases: 'Common Korean phrases',
-      }[candidate.key]));
+      .map((candidate) => candidate.suggestion);
 
     return reply;
   },
 
   async capabilities(ctx) {
+    const signedIn = Boolean(ctx.user);
     return {
       text: [
-        "I'm the SRI-KO assistant. I can help you with:",
-        '• Courses, levels and fees',
-        '• Enrolling and paying for a course',
-        ctx.user ? '• Your enrolled courses, progress and attendance' : '• How attendance and progress tracking work',
-        '• Announcements and upcoming events',
-        '• Account and password help',
-        '• Korean basics — Hangul, polite speech, phrases, numbers and TOPIK',
+        "I'm the SRI-KO assistant. Ask me in your own words about:",
+        '• Courses — what we teach, levels, duration and fees in LKR',
+        '• Enrolling and paying — accounts, card checkout, bank transfers and refunds',
+        signedIn
+          ? '• Your learning — your courses and progress, assignments and grades, lesson videos, attendance, certificates and notifications'
+          : '• Learning on SRI-KO — lesson videos, assignments, attendance, progress and certificates (sign in for your own details)',
+        '• Events, announcements and the discussion forum',
+        '• Your account — signing in, Google sign-in, resetting your password and updating your profile',
+        '• About SRI-KO and how to contact us',
+        '• Korean basics — Hangul, polite speech, particles, phrases, numbers and TOPIK / EPS-TOPIK',
         '',
         'Type a question or tap a suggestion below.',
       ].join('\n'),
+      suggestions: signedIn
+        ? ['My courses and progress', 'My assignments', 'My attendance', 'My notifications']
+        : ['What courses do you offer?', 'How do I enroll?', 'About SRI-KO', 'Korean basics'],
     };
   },
 
@@ -818,9 +1260,11 @@ const RESPONDERS = {
 
     const contact = await contactDetails(ctx.data);
     return {
-      text: "I'm not sure I understood that. I can answer questions about our courses, fees, enrollment, your attendance and progress, announcements, and Korean basics like Hangul or polite speech.\n\n"
+      text: "Sorry, I don't have an answer for that yet. I can help with courses and fees, enrolling and payments, "
+        + `${ctx.user ? 'your courses, assignments, attendance and certificates' : 'lessons, assignments, attendance and certificates'}, `
+        + 'events and announcements, your account, and Korean basics. Try asking another way or tap a suggestion below.\n\n'
         + `For anything else, our team is happy to help: ${contact.phone} · ${contact.email}`,
-      links: [{ label: 'Contact us', to: '/contact' }],
+      links: [{ label: 'Contact us', to: '/contact' }, { label: 'Help Center', to: '/help' }],
     };
   },
 };
@@ -837,10 +1281,10 @@ class ChatbotEngine {
    */
   static async reply(message, { user = null, context = {} } = {}) {
     const input = analyze(message);
-    const data = createDataLoader();
-    const ranked = rankIntents(input);
-    let intent = ranked[0]?.name || 'fallback';
-    const greeted = intent !== 'greeting' && ranked.some((candidate) => candidate.name === 'greeting');
+    const data = createDataLoader(user);
+    const { topical, social } = rankIntents(input);
+    let intent = topical[0]?.name || social[0] || 'fallback';
+    const greeted = intent !== 'greeting' && social.includes('greeting');
 
     let course = null;
     if (COURSE_AWARE_INTENTS.has(intent)) {

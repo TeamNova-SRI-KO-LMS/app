@@ -10,13 +10,13 @@ import {
   QuestionMarkCircleIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { sendChatMessage } from "../services/chatService";
 
 const WELCOME_MESSAGE = {
   id: "welcome",
-  text: "Hello Scholar! I'm your SRI-KO AI Assistant. Ask me about courses, fees, enrollment, your attendance and progress, or Korean basics like Hangul and polite speech. What's on your mind today?",
+  text: "Hello Scholar! I'm your SRI-KO AI Assistant. Ask me about courses and fees, enrolling, your courses, assignments, attendance and progress, events, or Korean basics like Hangul and polite speech. Ask \"What can you do?\" to see everything I can help with.",
   sender: "bot",
   links: [],
   timestamp: new Date(),
